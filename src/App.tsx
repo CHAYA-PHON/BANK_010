@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Transaction, Wallet } from "./types";
-import { getMockTransactions } from "./data/mockData";
 import SlipUploader from "./components/SlipUploader";
 import TransactionForm from "./components/TransactionForm";
 import DashboardStats from "./components/DashboardStats";
@@ -57,6 +56,10 @@ export default function App() {
     return sessionStorage.getItem("is_logged_in") === "true";
   });
   
+  const [currentUser, setCurrentUser] = useState<string>(() => {
+    return sessionStorage.getItem("current_user") || "";
+  });
+  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
@@ -76,41 +79,40 @@ export default function App() {
   }>({ status: "connecting", error: null });
   const [showFirebaseErrorDetail, setShowFirebaseErrorDetail] = useState<boolean>(false);
 
-  // Helper to sync batch of transactions to Firestore
+  // Helper to sync batch of transactions to Firestore under user-isolated subcollection
   const syncTransactionsToFirestore = async (txs: Transaction[]) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
     try {
       for (const tx of txs) {
-        await setDoc(doc(db, "transactions", tx.id), tx);
+        await setDoc(doc(db, "users", userDocId, "transactions", tx.id), tx);
       }
     } catch (err) {
       console.error("Error syncing transactions to Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.WRITE, "transactions");
-      } catch (e) {
-        // Suppress nested throw to keep background sync non-blocking
-      }
     }
   };
 
-  // Helper to sync wallets to Firestore
+  // Helper to sync wallets to Firestore under user-isolated subcollection
   const syncWalletsToFirestore = async (wts: Wallet[]) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
     try {
       for (const w of wts) {
-        await setDoc(doc(db, "wallets", w.id), w);
+        await setDoc(doc(db, "users", userDocId, "wallets", w.id), w);
       }
     } catch (err) {
       console.error("Error syncing wallets to Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.WRITE, "wallets");
-      } catch (e) {
-        // Suppress nested throw to keep background sync non-blocking
-      }
     }
   };
 
   const saveWallets = (newWallets: Wallet[]) => {
     setWallets(newWallets);
-    localStorage.setItem("money_tracker_wallets", JSON.stringify(newWallets));
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_wallets_${userDocId}`, JSON.stringify(newWallets));
+    } else {
+      localStorage.setItem("money_tracker_wallets", JSON.stringify(newWallets));
+    }
   };
 
   const createDefaultWallets = () => {
@@ -119,7 +121,7 @@ export default function App() {
         id: "w-cash-" + Date.now(),
         name: "เงินสด",
         type: "cash",
-        initialBalance: 5000,
+        initialBalance: 0,
         icon: "💵",
         color: "bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 border-indigo-400/20",
         createdAt: new Date().toISOString()
@@ -128,7 +130,7 @@ export default function App() {
         id: "w-bank-" + (Date.now() + 1),
         name: "บัญชีธนาคาร",
         type: "bank",
-        initialBalance: 25000,
+        initialBalance: 0,
         icon: "🏦",
         color: "bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 border-emerald-400/20",
         createdAt: new Date().toISOString()
@@ -141,13 +143,16 @@ export default function App() {
   // Load transactions and wallets from Firestore with local storage fallback
   useEffect(() => {
     async function loadData() {
+      if (!isLoggedIn || !currentUser) return;
+      
+      const userDocId = currentUser.toLowerCase().trim();
       let walletLoadSuccess = false;
       let transactionLoadSuccess = false;
       let walletsData: Wallet[] = [];
 
       // 1. Load Wallets first so transactions can link correctly
       try {
-        const walletsColRef = collection(db, "wallets");
+        const walletsColRef = collection(db, "users", userDocId, "wallets");
         const walletsSnapshot = await getDocs(walletsColRef);
         
         walletsSnapshot.forEach((doc) => {
@@ -157,20 +162,15 @@ export default function App() {
       } catch (err) {
         console.error("Failed to load wallets from Firestore:", err);
         walletLoadSuccess = false;
-        try {
-          handleFirestoreError(err, OperationType.LIST, "wallets");
-        } catch (e) {
-          // Keep loading fallback below
-        }
       }
 
       if (walletLoadSuccess) {
         if (walletsData.length > 0) {
           walletsData.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
           setWallets(walletsData);
-          localStorage.setItem("money_tracker_wallets", JSON.stringify(walletsData));
+          localStorage.setItem(`money_tracker_wallets_${userDocId}`, JSON.stringify(walletsData));
         } else {
-          const savedWallets = localStorage.getItem("money_tracker_wallets");
+          const savedWallets = localStorage.getItem(`money_tracker_wallets_${userDocId}`);
           if (savedWallets) {
             try {
               const parsed = JSON.parse(savedWallets);
@@ -188,10 +188,14 @@ export default function App() {
           }
         }
       } else {
-        // Fallback
-        const savedWallets = localStorage.getItem("money_tracker_wallets");
+        // Fallback to local storage for this specific user
+        const savedWallets = localStorage.getItem(`money_tracker_wallets_${userDocId}`);
         if (savedWallets) {
-          setWallets(JSON.parse(savedWallets));
+          try {
+            setWallets(JSON.parse(savedWallets));
+          } catch (e) {
+            createDefaultWallets();
+          }
         } else {
           createDefaultWallets();
         }
@@ -200,7 +204,7 @@ export default function App() {
       // 2. Load Transactions
       let txs: Transaction[] = [];
       try {
-        const colRef = collection(db, "transactions");
+        const colRef = collection(db, "users", userDocId, "transactions");
         const snapshot = await getDocs(colRef);
         
         snapshot.forEach((doc) => {
@@ -210,11 +214,6 @@ export default function App() {
       } catch (error) {
         console.error("Failed to load transactions from Firestore, falling back to localStorage:", error);
         transactionLoadSuccess = false;
-        try {
-          handleFirestoreError(error, OperationType.LIST, "transactions");
-        } catch (e) {
-          // Keep loading fallback below
-        }
       }
 
       // Set global Firestore status based on loading success
@@ -230,14 +229,14 @@ export default function App() {
         });
       }
 
-      if (transactionLoadSuccess && txs.length > 0) {
+      if (transactionLoadSuccess) {
         txs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
         setTransactions(txs);
-        localStorage.setItem("money_tracker_transactions", JSON.stringify(txs));
+        localStorage.setItem(`money_tracker_transactions_${userDocId}`, JSON.stringify(txs));
         return;
       }
 
-      const saved = localStorage.getItem("money_tracker_transactions");
+      const saved = localStorage.getItem(`money_tracker_transactions_${userDocId}`);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
@@ -247,18 +246,17 @@ export default function App() {
             return;
           }
         } catch (e) {
-          console.error("Failed to parse saved transactions, loading mocks");
+          console.error("Failed to parse saved transactions");
         }
       }
 
-      const mocks = getMockTransactions();
-      setTransactions(mocks);
-      localStorage.setItem("money_tracker_transactions", JSON.stringify(mocks));
-      syncTransactionsToFirestore(mocks);
+      // Use real data only: set an empty list if no transactions exist. No mock fallbacks!
+      setTransactions([]);
+      localStorage.setItem(`money_tracker_transactions_${userDocId}`, JSON.stringify([]));
     }
 
     loadData();
-  }, []);
+  }, [isLoggedIn, currentUser]);
 
   // Initialize selectedMonth with the latest transaction month, or current month
   useEffect(() => {
@@ -279,7 +277,12 @@ export default function App() {
   // Save to localStorage and state
   const saveTransactions = (newTransactions: Transaction[]) => {
     setTransactions(newTransactions);
-    localStorage.setItem("money_tracker_transactions", JSON.stringify(newTransactions));
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_transactions_${userDocId}`, JSON.stringify(newTransactions));
+    } else {
+      localStorage.setItem("money_tracker_transactions", JSON.stringify(newTransactions));
+    }
   };
 
   // Create a list of available months from transactions
@@ -320,6 +323,8 @@ export default function App() {
 
   // Add new transaction
   const handleAddTransaction = async (data: Omit<Transaction, "id" | "createdAt">) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
     const newTx: Transaction = {
       ...data,
       id: "tx-" + Date.now(),
@@ -329,14 +334,9 @@ export default function App() {
     saveTransactions(updated);
 
     try {
-      await setDoc(doc(db, "transactions", newTx.id), newTx);
+      await setDoc(doc(db, "users", userDocId, "transactions", newTx.id), newTx);
     } catch (err) {
       console.error("Error saving transaction to Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.CREATE, "transactions/" + newTx.id);
-      } catch (e) {
-        // Handled or logged
-      }
     }
     
     // If transaction added belongs to a different month, switch to that month
@@ -351,7 +351,8 @@ export default function App() {
 
   // Update existing transaction
   const handleUpdateTransaction = async (data: Omit<Transaction, "id" | "createdAt">) => {
-    if (!editingTransaction) return;
+    if (!editingTransaction || !currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
 
     const updatedTx: Transaction = {
       ...editingTransaction,
@@ -368,14 +369,9 @@ export default function App() {
     saveTransactions(updated);
 
     try {
-      await setDoc(doc(db, "transactions", editingTransaction.id), updatedTx);
+      await setDoc(doc(db, "users", userDocId, "transactions", editingTransaction.id), updatedTx);
     } catch (err) {
       console.error("Error updating transaction in Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.UPDATE, "transactions/" + editingTransaction.id);
-      } catch (e) {
-        // Handled or logged
-      }
     }
 
     setEditingTransaction(null);
@@ -383,23 +379,22 @@ export default function App() {
 
   // Delete transaction
   const handleDeleteTransaction = async (id: string) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
     const updated = transactions.filter((tx) => tx.id !== id);
     saveTransactions(updated);
 
     try {
-      await deleteDoc(doc(db, "transactions", id));
+      await deleteDoc(doc(db, "users", userDocId, "transactions", id));
     } catch (err) {
       console.error("Error deleting transaction from Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.DELETE, "transactions/" + id);
-      } catch (e) {
-        // Handled or logged
-      }
     }
   };
 
   // Wallet CRUD Actions
   const handleAddWallet = async (data: Omit<Wallet, "id" | "createdAt">) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
     const newW: Wallet = {
       ...data,
       id: "w-" + Date.now(),
@@ -409,18 +404,15 @@ export default function App() {
     saveWallets(updated);
 
     try {
-      await setDoc(doc(db, "wallets", newW.id), newW);
+      await setDoc(doc(db, "users", userDocId, "wallets", newW.id), newW);
     } catch (err) {
       console.error("Error saving wallet to Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.CREATE, "wallets/" + newW.id);
-      } catch (e) {
-        // Handled or logged
-      }
     }
   };
 
   const handleUpdateWallet = async (id: string, data: Omit<Wallet, "id" | "createdAt">) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
     const current = wallets.find(w => w.id === id);
     if (!current) return;
     const updatedW: Wallet = {
@@ -431,30 +423,22 @@ export default function App() {
     saveWallets(updated);
 
     try {
-      await setDoc(doc(db, "wallets", id), updatedW);
+      await setDoc(doc(db, "users", userDocId, "wallets", id), updatedW);
     } catch (err) {
       console.error("Error updating wallet in Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.UPDATE, "wallets/" + id);
-      } catch (e) {
-        // Handled or logged
-      }
     }
   };
 
   const handleDeleteWallet = async (id: string) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
     const updated = wallets.filter((w) => w.id !== id);
     saveWallets(updated);
 
     try {
-      await deleteDoc(doc(db, "wallets", id));
+      await deleteDoc(doc(db, "users", userDocId, "wallets", id));
     } catch (err) {
       console.error("Error deleting wallet from Firestore:", err);
-      try {
-        handleFirestoreError(err, OperationType.DELETE, "wallets/" + id);
-      } catch (e) {
-        // Handled or logged
-      }
     }
   };
 
@@ -484,22 +468,25 @@ export default function App() {
 
   // Backup & Security integrations
   const handleResetAllData = async () => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+
     // Clear state & storage
     setTransactions([]);
     setWallets([]);
-    localStorage.removeItem("money_tracker_transactions");
-    localStorage.removeItem("money_tracker_wallets");
+    localStorage.removeItem(`money_tracker_transactions_${userDocId}`);
+    localStorage.removeItem(`money_tracker_wallets_${userDocId}`);
     
     // Clear firestore
     try {
-      const txDocs = await getDocs(collection(db, "transactions"));
-      txDocs.forEach(async (d) => {
-        await deleteDoc(doc(db, "transactions", d.id));
-      });
-      const walletDocs = await getDocs(collection(db, "wallets"));
-      walletDocs.forEach(async (d) => {
-        await deleteDoc(doc(db, "wallets", d.id));
-      });
+      const txDocs = await getDocs(collection(db, "users", userDocId, "transactions"));
+      for (const d of txDocs.docs) {
+        await deleteDoc(doc(db, "users", userDocId, "transactions", d.id));
+      }
+      const walletDocs = await getDocs(collection(db, "users", userDocId, "wallets"));
+      for (const d of walletDocs.docs) {
+        await deleteDoc(doc(db, "users", userDocId, "wallets", d.id));
+      }
     } catch (err) {
       console.error("Error clearing Firestore data:", err);
     }
@@ -520,14 +507,20 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (username: string) => {
+    setCurrentUser(username);
+    sessionStorage.setItem("current_user", username);
     setIsLoggedIn(true);
     sessionStorage.setItem("is_logged_in", "true");
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setCurrentUser("");
     sessionStorage.removeItem("is_logged_in");
+    sessionStorage.removeItem("current_user");
+    setTransactions([]);
+    setWallets([]);
   };
 
   // If locked/not logged in, render the login gate
