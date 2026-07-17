@@ -34,6 +34,60 @@ function getAiClient() {
   return aiClient;
 }
 
+// Helper to handle robust content generation with retry and model fallback
+async function generateContentWithRetry(params: {
+  contents: any;
+  config: any;
+}) {
+  const modelsToTry = [
+    "gemini-3.5-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite"
+  ];
+
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    let retries = 2; // 3 total attempts per model
+    let delay = 1000;
+
+    for (let attempt = 1; attempt <= retries + 1; attempt++) {
+      try {
+        console.log(`[Gemini] Attempting generation with model "${model}" (attempt ${attempt}/${retries + 1})...`);
+        const ai = getAiClient();
+        const response = await ai.models.generateContent({
+          model,
+          contents: params.contents,
+          config: params.config,
+        });
+
+        if (response && response.text) {
+          console.log(`[Gemini] Success using model "${model}"`);
+          return response;
+        }
+        throw new Error("Empty response from Gemini API");
+      } catch (error: any) {
+        lastError = error;
+        const statusCode = error.status || error.statusCode || (error.message && error.message.includes("503") ? 503 : null);
+        console.warn(`[Gemini] Model "${model}" failed (attempt ${attempt}): ${error.message} (status: ${statusCode})`);
+
+        // Don't retry if it is a client-side bad request (400)
+        if (statusCode && statusCode >= 400 && statusCode < 500) {
+          throw error;
+        }
+
+        if (attempt <= retries) {
+          console.log(`[Gemini] Retrying in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2;
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to generate content after trying multiple models");
+}
+
 // API endpoint to parse slip/receipt image
 app.post("/api/parse-slip", async (req, res) => {
   try {
@@ -42,8 +96,6 @@ app.post("/api/parse-slip", async (req, res) => {
     if (!imageBase64 || !mimeType) {
       return res.status(400).json({ error: "Missing imageBase64 or mimeType" });
     }
-
-    const ai = getAiClient();
 
     const imagePart = {
       inlineData: {
@@ -74,8 +126,7 @@ Identify:
 7. Note/Description: Brief description or details of the transaction in Thai.`,
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateContentWithRetry({
       contents: { parts: [imagePart, textPart] },
       config: {
         responseMimeType: "application/json",
@@ -138,8 +189,6 @@ app.post("/api/analyze-spending", async (req, res) => {
       return res.status(400).json({ error: "Missing transactions array" });
     }
 
-    const ai = getAiClient();
-
     // Calculate basic statistics to pass to the prompt
     let totalIncome = 0;
     let totalExpense = 0;
@@ -176,8 +225,7 @@ Return a structured JSON with:
 4. "status": A rating of their spending style: 'excellent' (saving > 30%), 'good' (saving 10-30%), 'warning' (spending > 90% of income), or 'critical' (spending more than income).`,
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateContentWithRetry({
       contents: { parts: [textPart] },
       config: {
         responseMimeType: "application/json",

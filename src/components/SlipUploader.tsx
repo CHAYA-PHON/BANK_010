@@ -38,39 +38,48 @@ export default function SlipUploader({ onParsed }: SlipUploaderProps) {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = async () => {
-        const base64String = reader.result as string;
-        // Strip the data:image/*;base64, prefix for the Gemini API
-        const commaIndex = base64String.indexOf(",");
-        const base64Data = base64String.substring(commaIndex + 1);
+        try {
+          const base64String = reader.result as string;
+          // Strip the data:image/*;base64, prefix for the Gemini API
+          const commaIndex = base64String.indexOf(",");
+          const base64Data = base64String.substring(commaIndex + 1);
 
-        setStatusText("AI กำลังวิเคราะห์สลิป / ใบเสร็จ...");
+          setStatusText("AI กำลังวิเคราะห์สลิป / ใบเสร็จ...");
 
-        const response = await fetch("/api/parse-slip", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            imageBase64: base64Data,
-            mimeType: file.type,
-          }),
-        });
+          const response = await fetch("/api/parse-slip", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imageBase64: base64Data,
+              mimeType: file.type,
+            }),
+          });
 
-        const resData = await response.json();
+          const resData = await response.json();
 
-        if (resData.success && resData.data) {
-          onParsed(resData.data, previewUrl);
-        } else {
-          throw new Error(resData.error || "ไม่สามารถวิเคราะห์ข้อมูลจากรูปภาพได้");
+          if (resData.success && resData.data) {
+            onParsed(resData.data, previewUrl);
+          } else {
+            throw new Error(resData.error || "ไม่สามารถวิเคราะห์ข้อมูลจากรูปภาพได้");
+          }
+        } catch (err: any) {
+          console.error("FileReader onload error:", err);
+          setError(err.message || "เกิดข้อผิดพลาดในการวิเคราะห์สลิป");
+        } finally {
+          setIsLoading(false);
+          setStatusText("");
         }
       };
       reader.onerror = () => {
-        throw new Error("เกิดข้อผิดพลาดในการอ่านไฟล์");
+        setError("เกิดข้อผิดพลาดในการอ่านไฟล์");
+        setIsLoading(false);
+        setStatusText("");
       };
     } catch (err: any) {
       console.error(err);
       setError(err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
-    } finally {
       setIsLoading(false);
       setStatusText("");
     }

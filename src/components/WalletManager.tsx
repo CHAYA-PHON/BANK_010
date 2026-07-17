@@ -283,26 +283,26 @@ export default function WalletManager({
                       </div>
 
                       {/* Action buttons */}
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <div className="flex gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             openEditWalletModal(wallet);
                           }}
-                          className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
+                          className="p-2 sm:p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
                           title="แก้ไขกระเป๋าตัง"
                         >
-                          <Edit className="w-3.5 h-3.5" />
+                          <Edit className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteClick(wallet.id, wallet.name);
                           }}
-                          className="p-1.5 bg-black/20 hover:bg-rose-600/60 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
+                          className="p-2 sm:p-1.5 bg-black/20 hover:bg-rose-600/60 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
                           title="ลบกระเป๋าตัง"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -350,8 +350,8 @@ export default function WalletManager({
       {/* Wallet Form Modal (Add / Edit) */}
       {isWalletModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <form onSubmit={handleWalletSubmit} className="bg-[#1e293b] border border-white/15 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
-            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+          <form onSubmit={handleWalletSubmit} className="bg-[#1e293b] border border-white/15 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh]">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5 shrink-0">
               <span className="text-sm font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-indigo-400" />
                 {editingWallet ? "✏️ แก้ไขข้อมูลกระเป๋าตัง" : "➕ เพิ่มกระเป๋าตังใหม่"}
@@ -365,7 +365,7 @@ export default function WalletManager({
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
               {/* Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1.5">ชื่อกระเป๋าตัง</label>
@@ -473,7 +473,7 @@ export default function WalletManager({
               </div>
             </div>
 
-            <div className="p-4 border-t border-white/10 flex gap-2 bg-white/5">
+            <div className="p-4 border-t border-white/10 flex gap-2 bg-white/5 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsWalletModalOpen(false)}
@@ -496,8 +496,8 @@ export default function WalletManager({
       {/* Transfer Modal (Money movement) */}
       {isTransferModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <form onSubmit={handleTransferSubmit} className="bg-[#1e293b] border border-white/15 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col">
-            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+          <form onSubmit={handleTransferSubmit} className="bg-[#1e293b] border border-white/15 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh]">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5 shrink-0">
               <span className="text-sm font-bold text-white flex items-center gap-2">
                 <ArrowRightLeft className="w-4 h-4 text-indigo-400" />
                 ย้ายเงินระหว่างบัญชี / กระเป๋าตัง
@@ -511,7 +511,7 @@ export default function WalletManager({
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
               {/* From -> To */}
               <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl border border-white/5">
                 <div className="flex-1">
@@ -591,7 +591,7 @@ export default function WalletManager({
               </div>
             </div>
 
-            <div className="p-4 border-t border-white/10 flex gap-2 bg-white/5">
+            <div className="p-4 border-t border-white/10 flex gap-2 bg-white/5 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsTransferModalOpen(false)}

@@ -18,6 +18,40 @@ import {
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
+// Operation types for custom Firestore error handling
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+  };
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: null,
+      email: null,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return sessionStorage.getItem("is_logged_in") === "true";
@@ -35,6 +69,13 @@ export default function App() {
   // Edit mode target transaction
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
+  // Connection status states
+  const [firebaseStatus, setFirebaseStatus] = useState<{
+    status: "connecting" | "connected" | "error";
+    error: string | null;
+  }>({ status: "connecting", error: null });
+  const [showFirebaseErrorDetail, setShowFirebaseErrorDetail] = useState<boolean>(false);
+
   // Helper to sync batch of transactions to Firestore
   const syncTransactionsToFirestore = async (txs: Transaction[]) => {
     try {
@@ -43,6 +84,11 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error syncing transactions to Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, "transactions");
+      } catch (e) {
+        // Suppress nested throw to keep background sync non-blocking
+      }
     }
   };
 
@@ -54,6 +100,11 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error syncing wallets to Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, "wallets");
+      } catch (e) {
+        // Suppress nested throw to keep background sync non-blocking
+      }
     }
   };
 
@@ -90,19 +141,34 @@ export default function App() {
   // Load transactions and wallets from Firestore with local storage fallback
   useEffect(() => {
     async function loadData() {
+      let walletLoadSuccess = false;
+      let transactionLoadSuccess = false;
+      let walletsData: Wallet[] = [];
+
       // 1. Load Wallets first so transactions can link correctly
       try {
         const walletsColRef = collection(db, "wallets");
         const walletsSnapshot = await getDocs(walletsColRef);
-        const wts: Wallet[] = [];
+        
         walletsSnapshot.forEach((doc) => {
-          wts.push(doc.data() as Wallet);
+          walletsData.push(doc.data() as Wallet);
         });
+        walletLoadSuccess = true;
+      } catch (err) {
+        console.error("Failed to load wallets from Firestore:", err);
+        walletLoadSuccess = false;
+        try {
+          handleFirestoreError(err, OperationType.LIST, "wallets");
+        } catch (e) {
+          // Keep loading fallback below
+        }
+      }
 
-        if (wts.length > 0) {
-          wts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-          setWallets(wts);
-          localStorage.setItem("money_tracker_wallets", JSON.stringify(wts));
+      if (walletLoadSuccess) {
+        if (walletsData.length > 0) {
+          walletsData.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+          setWallets(walletsData);
+          localStorage.setItem("money_tracker_wallets", JSON.stringify(walletsData));
         } else {
           const savedWallets = localStorage.getItem("money_tracker_wallets");
           if (savedWallets) {
@@ -121,8 +187,8 @@ export default function App() {
             createDefaultWallets();
           }
         }
-      } catch (err) {
-        console.error("Failed to load wallets from Firestore:", err);
+      } else {
+        // Fallback
         const savedWallets = localStorage.getItem("money_tracker_wallets");
         if (savedWallets) {
           setWallets(JSON.parse(savedWallets));
@@ -132,22 +198,43 @@ export default function App() {
       }
 
       // 2. Load Transactions
+      let txs: Transaction[] = [];
       try {
         const colRef = collection(db, "transactions");
         const snapshot = await getDocs(colRef);
-        const txs: Transaction[] = [];
+        
         snapshot.forEach((doc) => {
           txs.push(doc.data() as Transaction);
         });
-
-        if (txs.length > 0) {
-          txs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-          setTransactions(txs);
-          localStorage.setItem("money_tracker_transactions", JSON.stringify(txs));
-          return;
-        }
+        transactionLoadSuccess = true;
       } catch (error) {
         console.error("Failed to load transactions from Firestore, falling back to localStorage:", error);
+        transactionLoadSuccess = false;
+        try {
+          handleFirestoreError(error, OperationType.LIST, "transactions");
+        } catch (e) {
+          // Keep loading fallback below
+        }
+      }
+
+      // Set global Firestore status based on loading success
+      if (walletLoadSuccess && transactionLoadSuccess) {
+        setFirebaseStatus({ status: "connected", error: null });
+      } else {
+        const errorsList: string[] = [];
+        if (!walletLoadSuccess) errorsList.push("ไม่สามารถดึงข้อมูลกระเป๋าตังจาก Firestore ได้");
+        if (!transactionLoadSuccess) errorsList.push("ไม่สามารถดึงข้อมูลธุรกรรมจาก Firestore ได้");
+        setFirebaseStatus({ 
+          status: "error", 
+          error: errorsList.join(" และ ") + ". ระบบเปิดใช้งานหมวดออฟไลน์ (Offline Mode) อัตโนมัติ" 
+        });
+      }
+
+      if (transactionLoadSuccess && txs.length > 0) {
+        txs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        setTransactions(txs);
+        localStorage.setItem("money_tracker_transactions", JSON.stringify(txs));
+        return;
       }
 
       const saved = localStorage.getItem("money_tracker_transactions");
@@ -245,6 +332,11 @@ export default function App() {
       await setDoc(doc(db, "transactions", newTx.id), newTx);
     } catch (err) {
       console.error("Error saving transaction to Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.CREATE, "transactions/" + newTx.id);
+      } catch (e) {
+        // Handled or logged
+      }
     }
     
     // If transaction added belongs to a different month, switch to that month
@@ -279,6 +371,11 @@ export default function App() {
       await setDoc(doc(db, "transactions", editingTransaction.id), updatedTx);
     } catch (err) {
       console.error("Error updating transaction in Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, "transactions/" + editingTransaction.id);
+      } catch (e) {
+        // Handled or logged
+      }
     }
 
     setEditingTransaction(null);
@@ -293,6 +390,11 @@ export default function App() {
       await deleteDoc(doc(db, "transactions", id));
     } catch (err) {
       console.error("Error deleting transaction from Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.DELETE, "transactions/" + id);
+      } catch (e) {
+        // Handled or logged
+      }
     }
   };
 
@@ -310,6 +412,11 @@ export default function App() {
       await setDoc(doc(db, "wallets", newW.id), newW);
     } catch (err) {
       console.error("Error saving wallet to Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.CREATE, "wallets/" + newW.id);
+      } catch (e) {
+        // Handled or logged
+      }
     }
   };
 
@@ -327,6 +434,11 @@ export default function App() {
       await setDoc(doc(db, "wallets", id), updatedW);
     } catch (err) {
       console.error("Error updating wallet in Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, "wallets/" + id);
+      } catch (e) {
+        // Handled or logged
+      }
     }
   };
 
@@ -338,6 +450,11 @@ export default function App() {
       await deleteDoc(doc(db, "wallets", id));
     } catch (err) {
       console.error("Error deleting wallet from Firestore:", err);
+      try {
+        handleFirestoreError(err, OperationType.DELETE, "wallets/" + id);
+      } catch (e) {
+        // Handled or logged
+      }
     }
   };
 
@@ -441,10 +558,30 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {firebaseStatus.status === "connected" ? (
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                <span>คลาวด์ซิงก์สำเร็จ</span>
+              </div>
+            ) : firebaseStatus.status === "connecting" ? (
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-3 py-1.5 shadow-sm">
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-spin" />
+                <span>กำลังเชื่อมต่อ...</span>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setShowFirebaseErrorDetail(true)}
+                title={firebaseStatus.error || "คลิกเพื่อดูรายละเอียดข้อผิดพลาด"}
+                className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-full px-3 py-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping" />
+                <span>ออฟไลน์โหมด (แตะดูข้อผิดพลาด)</span>
+              </button>
+            )}
             <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-              <span>ความปลอดภัยสูงสุด</span>
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+              <span>ปลอดภัยสูง</span>
             </div>
             <button
               onClick={handleLogout}
@@ -681,6 +818,46 @@ export default function App() {
           </p>
         </div>
       </footer>
+
+      {showFirebaseErrorDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+          <div className="bg-[#0f172a] border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="shrink-0">
+              <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-400" />
+                สถานะการเชื่อมต่อคลาวด์ (Firestore)
+              </h3>
+            </div>
+            <div className="overflow-y-auto flex-1 mb-4 pr-1 scrollbar-thin">
+              <p className="text-xs text-slate-300 mb-4 leading-relaxed">
+                แอปพลิเคชันกำลังทำงานใน <strong className="text-amber-400">โหมดออฟไลน์</strong> ข้อมูลของคุณจะบันทึกและจัดการภายในอุปกรณ์นี้อย่างปลอดภัยผ่าน LocalStorage เมื่อเชื่อมต่อคลาวด์ได้แล้ว ระบบจะซิงก์โดยอัตโนมัติ
+              </p>
+              {firebaseStatus.error && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-2 text-[11px] font-mono text-amber-300 break-words max-h-32 overflow-y-auto">
+                  {firebaseStatus.error}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 text-xs shrink-0">
+              <button
+                onClick={() => {
+                  setFirebaseStatus({ status: "connecting", error: null });
+                  window.location.reload();
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 font-bold rounded-lg transition-all cursor-pointer"
+              >
+                เชื่อมต่อใหม่
+              </button>
+              <button
+                onClick={() => setShowFirebaseErrorDetail(false)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 font-bold rounded-lg text-slate-300 transition-all cursor-pointer"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
