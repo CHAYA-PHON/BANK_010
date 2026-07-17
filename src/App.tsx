@@ -790,6 +790,7 @@ export default function App() {
         {currentPage === "settings" && (
           <div className="animate-fade-in">
             <SettingsScreen
+              currentUser={currentUser}
               wallets={wallets}
               transactions={transactions}
               onResetAllData={handleResetAllData}

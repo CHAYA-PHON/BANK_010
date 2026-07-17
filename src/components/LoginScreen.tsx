@@ -113,7 +113,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             onLoginSuccess(userData.username || trimmedUsername);
           }, 500);
         } else {
-          setErrorMessage("รหัส PIN 6 หลักไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
+          setErrorMessage("รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
           setPin("");
         }
       } else {
@@ -195,8 +195,8 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       setErrorMessage("ชื่อผู้ใช้ต้องประกอบด้วยตัวอักษรภาษาอังกฤษ ตัวเลข หรือ _ เท่านั้น");
       return;
     }
-    if (setupPin.length !== 6 || !/^\d+$/.test(setupPin)) {
-      setErrorMessage("รหัส PIN ต้องเป็นตัวเลข 6 หลักเท่านั้น");
+    if (setupPin.length < 5 || setupPin.length > 6 || !/^\d+$/.test(setupPin)) {
+      setErrorMessage("รหัส PIN ต้องเป็นตัวเลข 5-6 หลักเท่านั้น");
       return;
     }
     if (setupPassword.length < 6) {
@@ -294,7 +294,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="block text-[11px] font-bold text-slate-400 uppercase">
-                    รหัส PIN (6 หลัก)
+                    รหัส PIN (5-6 หลัก)
                   </label>
                   <input
                     type="password"
@@ -303,7 +303,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     maxLength={6}
                     value={setupPin}
                     onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, ""))}
-                    placeholder="ตัวเลข 6 หลัก"
+                    placeholder="ตัวเลข 5-6 หลัก"
                     className="w-full px-3 py-2.5 bg-[#121826] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm text-center font-mono"
                     required
                   />
@@ -402,7 +402,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               <div className="space-y-5">
                 <div className="text-center">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2.5">
-                    กรุณากรอกรหัส PIN 6 หลักเพื่อเข้าใช้งาน
+                    กรุณากรอกรหัส PIN (5-6 หลัก) เพื่อเข้าใช้งาน
                   </span>
                   
                   {/* Visual PIN indicator bubbles */}
@@ -438,11 +438,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   ))}
                   <button
                     type="button"
-                    disabled={isLoading}
-                    onClick={handleClear}
-                    className="h-11 rounded-xl bg-white/5 text-xs font-bold hover:bg-rose-500/10 hover:text-rose-400 active:scale-95 transition-all text-slate-400 cursor-pointer"
+                    disabled={isLoading || pin.length < 5}
+                    onClick={() => verifyPin(pin)}
+                    className="h-11 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-xs font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-50 disabled:bg-white/5 disabled:text-slate-500 active:scale-95 transition-all text-emerald-400 cursor-pointer"
                   >
-                    ล้าง
+                    ตกลง
                   </button>
                   <button
                     type="button"

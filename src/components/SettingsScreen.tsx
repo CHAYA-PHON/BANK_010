@@ -3,8 +3,11 @@ import {
   ShieldAlert, KeyRound, Download, Upload, Trash2, LogOut, Check, Save, Sparkles, AlertTriangle, Globe, Link
 } from "lucide-react";
 import { Wallet, Transaction } from "../types";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "../firebase";
 
 interface SettingsScreenProps {
+  currentUser: string;
   wallets: Wallet[];
   transactions: Transaction[];
   onResetAllData: () => void;
@@ -13,6 +16,7 @@ interface SettingsScreenProps {
 }
 
 export default function SettingsScreen({
+  currentUser,
   wallets,
   transactions,
   onResetAllData,
@@ -47,12 +51,12 @@ export default function SettingsScreen({
     setTimeout(() => setApiStatus(""), 3000);
   };
 
-  const handlePinChange = (e: React.FormEvent) => {
+  const handlePinChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPinStatus({ success: "", error: "" });
 
-    if (newPin.length !== 6 || isNaN(Number(newPin))) {
-      setPinStatus({ success: "", error: "รหัส PIN ต้องเป็นตัวเลข 6 หลัก" });
+    if (newPin.length < 5 || newPin.length > 6 || isNaN(Number(newPin))) {
+      setPinStatus({ success: "", error: "รหัส PIN ต้องเป็นตัวเลข 5-6 หลัก" });
       return;
     }
 
@@ -61,13 +65,22 @@ export default function SettingsScreen({
       return;
     }
 
-    localStorage.setItem("app_security_pin", newPin);
-    setPinStatus({ success: "เปลี่ยนรหัส PIN 6 หลักสำเร็จแล้ว!", error: "" });
-    setNewPin("");
-    setNewPinConfirm("");
+    try {
+      if (currentUser) {
+        const userDocRef = doc(db, "users", currentUser.toLowerCase().trim());
+        await setDoc(userDocRef, { pin: newPin }, { merge: true });
+      }
+      localStorage.setItem("app_security_pin", newPin);
+      setPinStatus({ success: "เปลี่ยนรหัส PIN สำเร็จแล้ว!", error: "" });
+      setNewPin("");
+      setNewPinConfirm("");
+    } catch (err) {
+      console.error("Error updating PIN in Firestore:", err);
+      setPinStatus({ success: "", error: "ไม่สามารถเปลี่ยนรหัส PIN บนคลาวด์ได้ กรุณาลองใหม่อีกครั้ง" });
+    }
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordStatus({ success: "", error: "" });
 
@@ -76,9 +89,18 @@ export default function SettingsScreen({
       return;
     }
 
-    localStorage.setItem("app_security_password", newPassword);
-    setPasswordStatus({ success: "เปลี่ยนรหัสผ่านสําเร็จแล้ว!", error: "" });
-    setNewPassword("");
+    try {
+      if (currentUser) {
+        const userDocRef = doc(db, "users", currentUser.toLowerCase().trim());
+        await setDoc(userDocRef, { password: newPassword }, { merge: true });
+      }
+      localStorage.setItem("app_security_password", newPassword);
+      setPasswordStatus({ success: "เปลี่ยนรหัสผ่านสําเร็จแล้ว!", error: "" });
+      setNewPassword("");
+    } catch (err) {
+      console.error("Error updating password in Firestore:", err);
+      setPasswordStatus({ success: "", error: "ไม่สามารถเปลี่ยนรหัสผ่านบนคลาวด์ได้ กรุณาลองใหม่อีกครั้ง" });
+    }
   };
 
   const handleExportJSON = () => {
@@ -216,7 +238,7 @@ export default function SettingsScreen({
               onClick={() => setIsPinMode(true)}
               className={`py-1.5 rounded-lg transition-all cursor-pointer ${isPinMode ? "bg-indigo-600 text-white" : "text-slate-400"}`}
             >
-              แก้ไข PIN 6 หลัก
+              แก้ไข PIN (5-6 หลัก)
             </button>
             <button
               onClick={() => setIsPinMode(false)}
@@ -230,13 +252,13 @@ export default function SettingsScreen({
             <form onSubmit={handlePinChange} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">PIN ใหม่ 6 หลัก</label>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">PIN ใหม่ (5-6 หลัก)</label>
                   <input
                     type="password"
                     maxLength={6}
                     value={newPin}
                     onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
-                    placeholder="เลข 6 หลัก"
+                    placeholder="เลข 5-6 หลัก"
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-hidden"
                     required
                   />
@@ -248,7 +270,7 @@ export default function SettingsScreen({
                     maxLength={6}
                     value={newPinConfirm}
                     onChange={(e) => setNewPinConfirm(e.target.value.replace(/\D/g, ""))}
-                    placeholder="เลข 6 หลัก"
+                    placeholder="เลข 5-6 หลัก"
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-hidden"
                     required
                   />

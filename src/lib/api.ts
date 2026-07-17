@@ -9,11 +9,64 @@ export function getApiUrl(endpoint: string): string {
   return `${base}${cleanEndpoint}`;
 }
 
-// Initialize client-side Gemini lazily
+async function robustFetch(endpoint: string, body: any): Promise<any> {
+  const savedBase = localStorage.getItem("app_api_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "";
+  const primaryUrl = getApiUrl(endpoint);
+  
+  const performFetch = async (url: string) => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const resData = await response.json();
+      if (resData.success && resData.data) {
+        return resData.data;
+      }
+      throw new Error(resData.error || "เกิดข้อผิดพลาดในการวิเคราะห์ข้อมูล");
+    } else {
+      const textResponse = await response.text();
+      if (
+        textResponse.includes("<!DOCTYPE") ||
+        textResponse.includes("<html") ||
+        textResponse.includes("The page c") ||
+        textResponse.includes("not found")
+      ) {
+        throw new Error("HTML_RESPONSE_ERROR");
+      }
+      throw new Error("เซิร์ฟเวอร์ตอบกลับเป็นประเภทข้อมูลที่ไม่ใช่ JSON");
+    }
+  };
+
+  try {
+    return await performFetch(primaryUrl);
+  } catch (err: any) {
+    // If the primary URL was an absolute URL and failed with HTML_RESPONSE_ERROR or Failed to fetch,
+    // let's try the local relative path fallback.
+    if (savedBase && (err.message === "HTML_RESPONSE_ERROR" || err.message.includes("Failed to fetch"))) {
+      console.warn(`Primary fetch to ${primaryUrl} failed. Trying relative fallback ${endpoint}...`);
+      try {
+        return await performFetch(endpoint);
+      } catch (fallbackErr) {
+        throw err;
+      }
+    }
+    throw err;
+  }
+}
+
+// Initialize client-side Gemini lazily with API key change tracking
 let clientAi: any = null;
+let currentClientKey: string = "";
 
 function getClientAi(apiKey: string) {
-  if (!clientAi) {
+  if (!clientAi || currentClientKey !== apiKey) {
+    currentClientKey = apiKey;
     clientAi = new GoogleGenAI({
       apiKey,
       httpOptions: {
@@ -24,6 +77,68 @@ function getClientAi(apiKey: string) {
     });
   }
   return clientAi;
+}
+
+// Helper to handle robust client-side content generation with retry and model fallback
+async function generateClientContentWithRetry(
+  apiKey: string,
+  params: {
+    contents: any;
+    config: any;
+    onStatusChange?: (status: string) => void;
+  }
+) {
+  const modelsToTry = [
+    "gemini-2.5-flash",
+    "gemini-1.5-flash",
+    "gemini-2.5-pro",
+    "gemini-3.5-flash"
+  ];
+
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    let retries = 2; // 3 total attempts per model
+    let delay = 1000;
+
+    for (let attempt = 1; attempt <= retries + 1; attempt++) {
+      try {
+        if (params.onStatusChange) {
+          params.onStatusChange(`กำลังส่งคำขอไปยังโมเดล ${model} (ครั้งที่ ${attempt}/${retries + 1})...`);
+        }
+        console.log(`[Gemini Client] Attempting generation with model "${model}" (attempt ${attempt}/${retries + 1})...`);
+        const ai = getClientAi(apiKey);
+        const response = await ai.models.generateContent({
+          model,
+          contents: params.contents,
+          config: params.config,
+        });
+
+        if (response && response.text) {
+          console.log(`[Gemini Client] Success using model "${model}"`);
+          return response;
+        }
+        throw new Error("Empty response from Gemini API");
+      } catch (error: any) {
+        lastError = error;
+        const statusCode = error.status || error.statusCode || (error.message && error.message.includes("503") ? 503 : null);
+        console.warn(`[Gemini Client] Model "${model}" failed (attempt ${attempt}): ${error.message} (status: ${statusCode})`);
+
+        // Don't retry if it is a client-side bad request (400) or unauthorized (401/403)
+        if (statusCode && statusCode >= 400 && statusCode < 500 && statusCode !== 429) {
+          throw error;
+        }
+
+        if (attempt <= retries) {
+          console.log(`[Gemini Client] Retrying in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2;
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to generate content after trying multiple models");
 }
 
 /**
@@ -41,36 +156,7 @@ export async function parseSlipWithFallback(
   if (!personalApiKey || backendBaseUrl) {
     try {
       onStatusChange("กำลังวิเคราะห์สลิปผ่านเซิร์ฟเวอร์หลังบ้าน...");
-      const response = await fetch(getApiUrl("/api/parse-slip"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageBase64,
-          mimeType,
-        }),
-      });
-
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const resData = await response.json();
-        if (resData.success && resData.data) {
-          return resData.data;
-        }
-        throw new Error(resData.error || "ไม่สามารถวิเคราะห์ข้อมูลจากรูปภาพได้");
-      } else {
-        const textResponse = await response.text();
-        if (
-          textResponse.includes("<!DOCTYPE") ||
-          textResponse.includes("<html") ||
-          textResponse.includes("The page c") ||
-          textResponse.includes("not found")
-        ) {
-          throw new Error("HTML_RESPONSE_ERROR");
-        }
-        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็นประเภทข้อมูลที่ไม่ใช่ JSON");
-      }
+      return await robustFetch("/api/parse-slip", { imageBase64, mimeType });
     } catch (err: any) {
       console.warn("Backend parse-slip failed, checking client fallback:", err);
       
@@ -89,7 +175,6 @@ export async function parseSlipWithFallback(
   // 2. Client-side Gemini fallback
   if (personalApiKey) {
     onStatusChange("กำลังใช้ Gemini API ส่วนตัวบนเบราว์เซอร์เพื่อวิเคราะห์สลิป...");
-    const ai = getClientAi(personalApiKey);
     
     const imagePart = {
       inlineData: {
@@ -120,8 +205,7 @@ Identify:
 7. Note/Description: Brief description or details of the transaction in Thai.`,
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateClientContentWithRetry(personalApiKey, {
       contents: [imagePart, textPart],
       config: {
         responseMimeType: "application/json",
@@ -160,6 +244,7 @@ Identify:
           required: ["transactionType", "amount", "category", "merchantName", "date"],
         },
       },
+      onStatusChange,
     });
 
     if (response && response.text) {
@@ -185,36 +270,8 @@ export async function analyzeSpendingWithFallback(
   // 1. Try backend server if configured or if no personal API key is provided
   if (!personalApiKey || backendBaseUrl) {
     try {
-      const response = await fetch(getApiUrl("/api/analyze-spending"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          transactions,
-          monthName,
-        }),
-      });
-
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const resData = await response.json();
-        if (resData.success && resData.data) {
-          return resData.data;
-        }
-        throw new Error(resData.error || "ไม่สามารถวิเคราะห์ข้อมูลรายจ่ายได้");
-      } else {
-        const textResponse = await response.text();
-        if (
-          textResponse.includes("<!DOCTYPE") ||
-          textResponse.includes("<html") ||
-          textResponse.includes("The page c") ||
-          textResponse.includes("not found")
-        ) {
-          throw new Error("HTML_RESPONSE_ERROR");
-        }
-        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็นประเภทข้อมูลที่ไม่ใช่ JSON");
-      }
+      onStatusChange("กำลังวิเคราะห์ด้วยเซิร์ฟเวอร์หลังบ้าน...");
+      return await robustFetch("/api/analyze-spending", { transactions, monthName });
     } catch (err: any) {
       console.warn("Backend analyze-spending failed, checking client fallback:", err);
       
@@ -233,7 +290,6 @@ export async function analyzeSpendingWithFallback(
   // 2. Client-side Gemini fallback
   if (personalApiKey) {
     onStatusChange("กำลังวิเคราะห์ด้วย Gemini API ส่วนตัว...");
-    const ai = getClientAi(personalApiKey);
 
     let totalIncome = 0;
     let totalExpense = 0;
@@ -270,8 +326,7 @@ Return a structured JSON with:
 4. "status": A rating of their spending style: 'excellent' (saving > 30%), 'good' (saving 10-30%), 'warning' (spending > 90% of income), or 'critical' (spending more than income).`,
     };
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+    const response = await generateClientContentWithRetry(personalApiKey, {
       contents: [textPart],
       config: {
         responseMimeType: "application/json",
@@ -299,6 +354,7 @@ Return a structured JSON with:
           required: ["summary", "insights", "suggestion", "status"],
         },
       },
+      onStatusChange,
     });
 
     if (response && response.text) {
