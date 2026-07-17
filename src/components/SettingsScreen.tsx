@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  ShieldAlert, KeyRound, Download, Upload, Trash2, LogOut, Check, Save, Sparkles, AlertTriangle 
+  ShieldAlert, KeyRound, Download, Upload, Trash2, LogOut, Check, Save, Sparkles, AlertTriangle, Globe, Link
 } from "lucide-react";
 import { Wallet, Transaction } from "../types";
 
@@ -27,6 +27,21 @@ export default function SettingsScreen({
   const [pinStatus, setPinStatus] = useState({ success: "", error: "" });
   const [passwordStatus, setPasswordStatus] = useState({ success: "", error: "" });
   const [exportStatus, setExportStatus] = useState("");
+
+  const [apiBaseUrl, setApiBaseUrl] = useState("");
+  const [apiStatus, setApiStatus] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("app_api_base_url") || "";
+    setApiBaseUrl(saved);
+  }, []);
+
+  const handleSaveApiUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem("app_api_base_url", apiBaseUrl.trim());
+    setApiStatus("บันทึกลิงก์เซิร์ฟเวอร์หลังบ้านสำเร็จแล้ว!");
+    setTimeout(() => setApiStatus(""), 3000);
+  };
 
   const handlePinChange = (e: React.FormEvent) => {
     e.preventDefault();
@@ -327,6 +342,51 @@ export default function SettingsScreen({
             )}
           </div>
         </div>
+      </div>
+
+      {/* Backend API Connection Setting */}
+      <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-white/5">
+          <Globe className="w-4 h-4 text-indigo-400" />
+          เชื่อมโยงเซิร์ฟเวอร์หลังบ้าน (Backend API Connection)
+        </h3>
+        <p className="text-xs text-slate-300 leading-relaxed">
+          หากคุณนำแอปพลิเคชันนี้ไปติดตั้งและใช้งานบนแพลตฟอร์มภายนอก (เช่น <strong>Vercel</strong>, <strong>Netlify</strong> หรือเว็บโฮสติ้งอื่นๆ) 
+          คุณจำเป็นต้องนำลิงก์ปลายทางของระบบหลังบ้าน (Cloud Run/Express API) จาก AI Studio มาใส่ที่นี่ เพื่อให้ระบบ AI ทำงานประสานกันได้อย่างสมบูรณ์
+        </p>
+        
+        <form onSubmit={handleSaveApiUrl} className="space-y-4">
+          <div>
+            <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1.5 flex items-center gap-1">
+              <Link className="w-3 h-3 text-indigo-400" />
+              ลิงก์เซิร์ฟเวอร์หลังบ้าน API (Backend Base URL)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={apiBaseUrl}
+                onChange={(e) => setApiBaseUrl(e.target.value)}
+                placeholder="https://ais-pre-...run.app (หรือเว้นว่างไว้เพื่อใช้โฮสต์ปัจจุบัน)"
+                className="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-hidden"
+              />
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer"
+              >
+                บันทึกค่า
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+              *ตัวอย่างลิงก์สำหรับแอปของคุณ: <span className="text-indigo-400 font-mono select-all">https://ais-pre-vzwnta4t5vklyptliik43g-446396597239.asia-east1.run.app</span>
+            </p>
+          </div>
+
+          {apiStatus && (
+            <p className="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 p-2.5 rounded-xl animate-fade-in text-center">
+              {apiStatus}
+            </p>
+          )}
+        </form>
       </div>
 
       {/* Danger Zone */}

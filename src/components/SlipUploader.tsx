@@ -1,5 +1,6 @@
 import { useState, useRef, DragEvent, ChangeEvent } from "react";
 import { FileUp, Sparkles, Image as ImageIcon, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { getApiUrl } from "../lib/api";
 
 interface SlipUploaderProps {
   onParsed: (data: any, previewUrl: string) => void;
@@ -46,7 +47,7 @@ export default function SlipUploader({ onParsed }: SlipUploaderProps) {
 
           setStatusText("AI กำลังวิเคราะห์สลิป / ใบเสร็จ...");
 
-          const response = await fetch("/api/parse-slip", {
+          const response = await fetch(getApiUrl("/api/parse-slip"), {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -56,6 +57,17 @@ export default function SlipUploader({ onParsed }: SlipUploaderProps) {
               mimeType: file.type,
             }),
           });
+
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+            const textResponse = await response.text();
+            if (textResponse.includes("<!DOCTYPE") || textResponse.includes("<html") || textResponse.includes("The page c") || textResponse.includes("not found")) {
+              throw new Error(
+                "เซิร์ฟเวอร์ตอบกลับเป็นหน้าเว็บ HTML (อาจเนื่องมาจากโฮสต์แอปบน Vercel/Static แบบแยกหลังบ้าน) กรุณาเข้าไปที่เมนู 'ตั้งค่าระบบ' เพื่อระบุ 'ลิงก์เซิร์ฟเวอร์หลังบ้าน API' เพื่อเชื่อมโยงการทำงานอัจฉริยะ"
+              );
+            }
+            throw new Error("เซิร์ฟเวอร์ตอบกลับเป็นประเภทข้อมูลที่ไม่ใช่ JSON");
+          }
 
           const resData = await response.json();
 

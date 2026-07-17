@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Transaction } from "../types";
 import { Sparkles, Loader2, CheckCircle2, TrendingUp, Compass, Medal, AlertTriangle } from "lucide-react";
+import { getApiUrl } from "../lib/api";
 
 interface AISummaryCardProps {
   transactions: Transaction[];
@@ -58,7 +59,7 @@ export default function AISummaryCard({ transactions, selectedMonth }: AISummary
     setError(null);
 
     try {
-      const response = await fetch("/api/analyze-spending", {
+      const response = await fetch(getApiUrl("/api/analyze-spending"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -68,6 +69,17 @@ export default function AISummaryCard({ transactions, selectedMonth }: AISummary
           monthName: getMonthNameTh(selectedMonth),
         }),
       });
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const textResponse = await response.text();
+        if (textResponse.includes("<!DOCTYPE") || textResponse.includes("<html") || textResponse.includes("The page c") || textResponse.includes("not found")) {
+          throw new Error(
+            "เซิร์ฟเวอร์ตอบกลับเป็นหน้าเว็บ HTML (อาจเนื่องมาจากโฮสต์แอปบน Vercel/Static แบบแยกหลังบ้าน) กรุณาเข้าไปที่เมนู 'ตั้งค่าระบบ' เพื่อระบุ 'ลิงก์เซิร์ฟเวอร์หลังบ้าน API' เพื่อเชื่อมโยงการทำงานอัจฉริยะ"
+          );
+        }
+        throw new Error("เซิร์ฟเวอร์ตอบกลับเป็นประเภทข้อมูลที่ไม่ใช่ JSON");
+      }
 
       const resData = await response.json();
 
