@@ -29,17 +29,21 @@ export default function SettingsScreen({
   const [exportStatus, setExportStatus] = useState("");
 
   const [apiBaseUrl, setApiBaseUrl] = useState("");
+  const [personalApiKey, setPersonalApiKey] = useState("");
   const [apiStatus, setApiStatus] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem("app_api_base_url") || "";
     setApiBaseUrl(saved);
+    const savedKey = localStorage.getItem("app_personal_gemini_api_key") || "";
+    setPersonalApiKey(savedKey);
   }, []);
 
   const handleSaveApiUrl = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem("app_api_base_url", apiBaseUrl.trim());
-    setApiStatus("บันทึกลิงก์เซิร์ฟเวอร์หลังบ้านสำเร็จแล้ว!");
+    localStorage.setItem("app_personal_gemini_api_key", personalApiKey.trim());
+    setApiStatus("บันทึกการตั้งค่าเชื่อมต่อเรียบร้อยแล้ว!");
     setTimeout(() => setApiStatus(""), 3000);
   };
 
@@ -347,38 +351,57 @@ export default function SettingsScreen({
       {/* Backend API Connection Setting */}
       <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-white/5">
-          <Globe className="w-4 h-4 text-indigo-400" />
-          เชื่อมโยงเซิร์ฟเวอร์หลังบ้าน (Backend API Connection)
+          <Sparkles className="w-4 h-4 text-indigo-400" />
+          ตั้งค่าการวิเคราะห์ AI (AI & Connection Settings)
         </h3>
+        
         <p className="text-xs text-slate-300 leading-relaxed">
-          หากคุณนำแอปพลิเคชันนี้ไปติดตั้งและใช้งานบนแพลตฟอร์มภายนอก (เช่น <strong>Vercel</strong>, <strong>Netlify</strong> หรือเว็บโฮสติ้งอื่นๆ) 
-          คุณจำเป็นต้องนำลิงก์ปลายทางของระบบหลังบ้าน (Cloud Run/Express API) จาก AI Studio มาใส่ที่นี่ เพื่อให้ระบบ AI ทำงานประสานกันได้อย่างสมบูรณ์
+          เพิ่มความยืดหยุ่นในการใช้งาน AI ทั้งบนเซิร์ฟเวอร์และการทำงานโดยตรงในบราวเซอร์ของคุณเอง
         </p>
         
         <form onSubmit={handleSaveApiUrl} className="space-y-4">
-          <div>
+          {/* Personal Gemini API Key option for client side fallback */}
+          <div className="space-y-1.5">
+            <label className="block text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+              <KeyRound className="w-3 h-3 text-indigo-400" />
+              Gemini API Key ส่วนตัว (Personal API Key)
+            </label>
+            <input
+              type="password"
+              value={personalApiKey}
+              onChange={(e) => setPersonalApiKey(e.target.value)}
+              placeholder="AIzaSy... (เว้นว่างไว้หากต้องการใช้เซิร์ฟเวอร์เริ่มต้น)"
+              className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-hidden"
+            />
+            <p className="text-[10px] text-slate-500 leading-relaxed">
+              💡 **สำหรับโฮสต์ภายนอก (เช่น Vercel):** การใส่ API Key ส่วนตัวนี้จะช่วยให้คุณสามารถใช้ฟีเจอร์ **สแกนสลิป** และ **ที่ปรึกษา AI วิเคราะห์รายจ่าย** ได้โดยตรงจากเบราว์เซอร์ของคุณ โดยไม่ผ่านเซิร์ฟเวอร์หลังบ้าน ปลอดภัยสูง (ข้อมูลจะเก็บไว้แค่ในเครื่องของคุณ)
+            </p>
+          </div>
+
+          <div className="border-t border-white/5 pt-3">
             <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1.5 flex items-center gap-1">
               <Link className="w-3 h-3 text-indigo-400" />
               ลิงก์เซิร์ฟเวอร์หลังบ้าน API (Backend Base URL)
             </label>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={apiBaseUrl}
-                onChange={(e) => setApiBaseUrl(e.target.value)}
-                placeholder="https://ais-pre-...run.app (หรือเว้นว่างไว้เพื่อใช้โฮสต์ปัจจุบัน)"
-                className="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-hidden"
-              />
-              <button
-                type="submit"
-                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer"
-              >
-                บันทึกค่า
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
-              *ตัวอย่างลิงก์สำหรับแอปของคุณ: <span className="text-indigo-400 font-mono select-all">https://ais-pre-vzwnta4t5vklyptliik43g-446396597239.asia-east1.run.app</span>
+            <input
+              type="url"
+              value={apiBaseUrl}
+              onChange={(e) => setApiBaseUrl(e.target.value)}
+              placeholder="https://ais-pre-...run.app (หรือเว้นว่างไว้เพื่อใช้โฮสต์ปัจจุบัน)"
+              className="w-full px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-hidden"
+            />
+            <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+              *ตัวอย่างลิงก์หลังบ้านของคุณ: <span className="text-indigo-400 font-mono select-all">https://ais-pre-vzwnta4t5vklyptliik43g-446396597239.asia-east1.run.app</span>
             </p>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button
+              type="submit"
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              บันทึกการตั้งค่าระบบ AI
+            </button>
           </div>
 
           {apiStatus && (
