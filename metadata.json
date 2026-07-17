@@ -1,0 +1,6 @@
+{
+  "name": "บันทึกรายรับรายจ่าย",
+  "description": "แอปพลิเคชันบันทึกรายรับรายจ่าย พร้อมระบบอ่านบิลและสลิปธนาคารอัตโนมัติด้วย AI และสรุปยอดรายเดือน",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

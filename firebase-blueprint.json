@@ -1,0 +1,36 @@
+{
+  "collections": [
+    {
+      "name": "transactions",
+      "description": "Financial transactions recorded by the user",
+      "fields": {
+        "id": "string",
+        "type": "string",
+        "amount": "number",
+        "category": "string",
+        "merchantName": "string",
+        "date": "string",
+        "time": "string",
+        "note": "string",
+        "imageUrl": "string",
+        "createdAt": "string",
+        "walletId": "string",
+        "toWalletId": "string"
+      }
+    },
+    {
+      "name": "wallets",
+      "description": "User wallets, bank accounts, or cash bags",
+      "fields": {
+        "id": "string",
+        "name": "string",
+        "type": "string",
+        "initialBalance": "number",
+        "icon": "string",
+        "color": "string",
+        "accountNumber": "string",
+        "createdAt": "string"
+      }
+    }
+  ]
+}
