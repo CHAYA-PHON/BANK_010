@@ -23,7 +23,10 @@
         margin: 0;
         padding: 0;
         overflow-x: hidden;
-        overscroll-behavior-y: contain; /* Prevents bounce scroll on iOS Safari */
+        overflow-y: auto;
+        overscroll-behavior-y: auto; /* Allows mousewheel scroll and standard scrolling */
+        height: auto;
+        min-height: 100%;
       }
     </style>
   </head>

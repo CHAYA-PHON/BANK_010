@@ -13,7 +13,8 @@ import LoginScreen from "./components/LoginScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import { 
   Sparkles, Coins, HelpCircle, ArrowUpRight, Plus, ScanLine, 
-  History, PieChart, Landmark, ArrowRightLeft, Settings, LogOut, CheckCircle, Wallet as WalletIcon, ShieldAlert 
+  History, PieChart, Landmark, ArrowRightLeft, Settings, LogOut, CheckCircle, Wallet as WalletIcon, ShieldAlert,
+  Keyboard, Monitor, X
 } from "lucide-react";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
@@ -130,6 +131,7 @@ export default function App() {
     error: string | null;
   }>({ status: "connecting", error: null });
   const [showFirebaseErrorDetail, setShowFirebaseErrorDetail] = useState<boolean>(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState<boolean>(false);
 
   // Helper to sync batch of transactions to Firestore under user-isolated subcollection
   const syncTransactionsToFirestore = async (txs: Transaction[]) => {
@@ -233,6 +235,43 @@ export default function App() {
     saveWallets(defaultWts);
     syncWalletsToFirestore(defaultWts);
   };
+
+  // Listen for keyboard shortcuts (PC Desktop optimization)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // If user is typing in input or editable elements, ignore shortcuts
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.tagName === "SELECT" ||
+          activeEl.getAttribute("contenteditable") === "true")
+      ) {
+        return;
+      }
+
+      // Alt + Number, or simply 1-5 keys
+      if (e.altKey) {
+        if (e.key === "1") { e.preventDefault(); setCurrentPage("dashboard"); }
+        else if (e.key === "2") { e.preventDefault(); setCurrentPage("records"); }
+        else if (e.key === "3") { e.preventDefault(); setCurrentPage("wallets"); }
+        else if (e.key === "4") { e.preventDefault(); setCurrentPage("debts"); }
+        else if (e.key === "5") { e.preventDefault(); setCurrentPage("settings"); }
+        else if (e.key === "?") { e.preventDefault(); setShowShortcutsHelp(prev => !prev); }
+      } else {
+        if (e.key === "1") { setCurrentPage("dashboard"); }
+        else if (e.key === "2") { setCurrentPage("records"); }
+        else if (e.key === "3") { setCurrentPage("wallets"); }
+        else if (e.key === "4") { setCurrentPage("debts"); }
+        else if (e.key === "5") { setCurrentPage("settings"); }
+        else if (e.key === "?" || e.key === "h" || e.key === "H") { setShowShortcutsHelp(prev => !prev); }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // Load transactions and wallets from Firestore with local storage fallback
   useEffect(() => {
@@ -1099,6 +1138,16 @@ export default function App() {
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
               <span>ปลอดภัยสูง</span>
             </div>
+            
+            <button
+              onClick={() => setShowShortcutsHelp(true)}
+              className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-full px-3.5 py-1.5 shadow-sm transition-all cursor-pointer"
+              title="ดูคีย์ลัดสำหรับควบคุมด้วยคีย์บอร์ดบน PC"
+            >
+              <Keyboard className="w-3.5 h-3.5" />
+              <span>คีย์ลัด PC (คีย์บอร์ด)</span>
+            </button>
+
             <button
               onClick={handleLogout}
               title="ออกจากระบบเพื่อความปลอดภัย"
@@ -1452,6 +1501,79 @@ export default function App() {
                 ตกลง
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showShortcutsHelp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#131926] border border-white/10 rounded-2xl max-w-md w-full shadow-2xl p-6 relative">
+            <button
+              onClick={() => setShowShortcutsHelp(false)}
+              className="absolute top-4 right-4 p-1 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-3 mb-5 pb-3 border-b border-white/5">
+              <div className="p-2.5 bg-indigo-500/15 border border-indigo-500/20 text-indigo-400 rounded-xl">
+                <Keyboard className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-lg text-white">คีย์ลัดสำหรับควบคุมบน PC</h3>
+                <p className="text-xs text-slate-400">สลับหน้าเมนูและสั่งงานได้อย่างรวดเร็วผ่านแป้นพิมพ์</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-white/5">
+                <span className="text-slate-300">หน้าแดชบอร์ดสรุปผล</span>
+                <span className="flex items-center gap-1.5 font-mono text-xs text-indigo-400 font-extrabold">
+                  <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">Alt</kbd> + <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">1</kbd> หรือ <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">1</kbd>
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-white/5">
+                <span className="text-slate-300">หน้าบันทึก &amp; สแกนสลิป</span>
+                <span className="flex items-center gap-1.5 font-mono text-xs text-indigo-400 font-extrabold">
+                  <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">Alt</kbd> + <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">2</kbd> หรือ <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">2</kbd>
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-white/5">
+                <span className="text-slate-300">หน้าจัดการกระเป๋าเงิน</span>
+                <span className="flex items-center gap-1.5 font-mono text-xs text-indigo-400 font-extrabold">
+                  <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">Alt</kbd> + <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">3</kbd> หรือ <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">3</kbd>
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-white/5">
+                <span className="text-slate-300">หน้าหนี้สินและกู้ยืม</span>
+                <span className="flex items-center gap-1.5 font-mono text-xs text-indigo-400 font-extrabold">
+                  <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">Alt</kbd> + <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">4</kbd> หรือ <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">4</kbd>
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-white/5">
+                <span className="text-slate-300">หน้าตั้งค่าระบบ</span>
+                <span className="flex items-center gap-1.5 font-mono text-xs text-indigo-400 font-extrabold">
+                  <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">Alt</kbd> + <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">5</kbd> หรือ <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">5</kbd>
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-white/5">
+                <span className="text-slate-300">เปิด/ปิด คู่มือคีย์ลัดนี้</span>
+                <span className="flex items-center gap-1.5 font-mono text-xs text-indigo-400 font-extrabold">
+                  <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">?</kbd> หรือ <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded">H</kbd>
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 text-[10px] text-center text-slate-500 leading-normal">
+              * คีย์ลัดตัวเลขเดี่ยวจะทำงานเมื่อคุณไม่ได้กำลังพิมพ์กรอกข้อมูลเพื่อป้องกันการพิมพ์ชนกัน
+            </div>
+            
+            <button
+              onClick={() => setShowShortcutsHelp(false)}
+              className="mt-5 w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-lg hover:shadow-indigo-500/20 transition-all cursor-pointer"
+            >
+              รับทราบ
+            </button>
           </div>
         </div>
       )}
