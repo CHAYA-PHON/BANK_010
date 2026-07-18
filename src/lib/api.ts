@@ -421,21 +421,23 @@ export async function sendLineNotification(token: string, message: string): Prom
       try {
         return await performFetch(endpoint);
       } catch (fallbackErr: any) {
-        if (isNetworkError) {
-          console.warn("Failed to send LINE Notify to primary and fallback URLs due to network failure.");
+        const fallbackErrText = fallbackErr.message || "";
+        const isFallbackNetworkError = fallbackErrText.includes("Failed to fetch") || fallbackErrText.toLowerCase().includes("failed to fetch") || fallbackErrText.includes("fetch failed");
+        if (isFallbackNetworkError) {
+          throw new Error("ไม่สามารถส่งแจ้งเตือน LINE ได้เนื่องจากระบบเครือข่ายขัดข้อง");
         } else {
-          console.error("Error sending LINE Notify to both URLs:", fallbackErr);
+          throw fallbackErr;
         }
-        throw new Error("ไม่สามารถส่งแจ้งเตือน LINE ได้เนื่องจากระบบเครือข่ายขัดข้อง");
       }
     }
 
     if (isNetworkError) {
       console.warn("Error sending LINE Notify due to network connection failure:", err);
+      throw new Error("ไม่สามารถส่งแจ้งเตือน LINE ได้เนื่องจากระบบเครือข่ายขัดข้อง");
     } else {
       console.error("Error sending LINE Notify:", err);
+      throw err;
     }
-    throw new Error("ไม่สามารถส่งแจ้งเตือน LINE ได้เนื่องจากระบบเครือข่ายขัดข้อง");
   }
 }
 
@@ -487,21 +489,23 @@ export async function sendLineMessage(
       try {
         return await performFetch(endpoint);
       } catch (fallbackErr: any) {
-        if (isNetworkError) {
-          console.warn("Failed to send LINE message to primary and fallback URLs due to network failure.");
+        const fallbackErrText = fallbackErr.message || "";
+        const isFallbackNetworkError = fallbackErrText.includes("Failed to fetch") || fallbackErrText.toLowerCase().includes("failed to fetch") || fallbackErrText.includes("fetch failed");
+        if (isFallbackNetworkError) {
+          throw new Error("ไม่สามารถส่งข้อความ LINE Bot ได้เนื่องจากระบบเครือข่ายขัดข้อง");
         } else {
-          console.error("Error sending LINE message to both URLs:", fallbackErr);
+          throw fallbackErr;
         }
-        throw new Error("ไม่สามารถส่งข้อความ LINE Bot ได้เนื่องจากระบบเครือข่ายขัดข้อง");
       }
     }
 
     if (isNetworkError) {
       console.warn("Error sending LINE message due to network connection failure:", err);
+      throw new Error("ไม่สามารถส่งข้อความ LINE Bot ได้เนื่องจากระบบเครือข่ายขัดข้อง");
     } else {
       console.error("Error sending LINE message:", err);
+      throw err;
     }
-    throw new Error("ไม่สามารถส่งข้อความ LINE Bot ได้เนื่องจากระบบเครือข่ายขัดข้อง");
   }
 }
 

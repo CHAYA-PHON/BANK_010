@@ -490,6 +490,29 @@ function tryConvertTextToFlexMessage(text: string): any | null {
       }
     }
 
+    // Parse Transactions List
+    const transactionsList: string[] = [];
+    let transactionsTitle = "";
+    const listHeaderMatch = text.match(/(รายการทั้งหมดใน[^\n:]+):?/);
+    if (listHeaderMatch) {
+      transactionsTitle = listHeaderMatch[1].trim();
+      const startIndex = text.indexOf(listHeaderMatch[0]);
+      if (startIndex !== -1) {
+        let remainingText = text.substring(startIndex + listHeaderMatch[0].length);
+        const aiIndex = remainingText.indexOf("💡");
+        if (aiIndex !== -1) {
+          remainingText = remainingText.substring(0, aiIndex);
+        }
+        const rawLines = remainingText.split("\n");
+        for (const line of rawLines) {
+          const trimmed = line.trim();
+          if (trimmed) {
+            transactionsList.push(trimmed);
+          }
+        }
+      }
+    }
+
     // Build the gorgeous visual bubble
     const flexBubble: any = {
       type: "bubble",
@@ -509,7 +532,7 @@ function tryConvertTextToFlexMessage(text: string): any | null {
           {
             type: "box",
             layout: "horizontal",
-            verticalAlign: "center",
+            alignItems: "center",
             contents: [
               {
                 type: "text",
@@ -546,7 +569,7 @@ function tryConvertTextToFlexMessage(text: string): any | null {
               {
                 type: "box",
                 layout: "horizontal",
-                verticalAlign: "center",
+                alignItems: "center",
                 contents: [
                   {
                     type: "text",
@@ -577,7 +600,7 @@ function tryConvertTextToFlexMessage(text: string): any | null {
               {
                 type: "box",
                 layout: "horizontal",
-                verticalAlign: "center",
+                alignItems: "center",
                 contents: [
                   {
                     type: "text",
@@ -608,7 +631,7 @@ function tryConvertTextToFlexMessage(text: string): any | null {
               {
                 type: "box",
                 layout: "horizontal",
-                verticalAlign: "center",
+                alignItems: "center",
                 contents: [
                   {
                     type: "text",
@@ -639,7 +662,7 @@ function tryConvertTextToFlexMessage(text: string): any | null {
               {
                 type: "box",
                 layout: "horizontal",
-                verticalAlign: "center",
+                alignItems: "center",
                 contents: [
                   {
                     type: "text",
@@ -734,6 +757,54 @@ function tryConvertTextToFlexMessage(text: string): any | null {
       );
     }
 
+    // Add Transactions List
+    if (transactionsList.length > 0) {
+      flexBubble.body.contents.push(
+        {
+          type: "separator",
+          margin: "lg",
+          color: "#e2e8f0"
+        },
+        {
+          type: "box",
+          layout: "vertical",
+          margin: "md",
+          spacing: "xs",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              margin: "none",
+              contents: [
+                {
+                  type: "text",
+                  text: "📝",
+                  flex: 0,
+                  size: "sm"
+                },
+                {
+                  type: "text",
+                  text: transactionsTitle || "รายการธุรกรรมทั้งหมด",
+                  weight: "bold",
+                  size: "sm",
+                  color: "#475569",
+                  margin: "md"
+                }
+              ]
+            },
+            ...transactionsList.map(item => ({
+              type: "text",
+              text: item,
+              wrap: true,
+              size: "xs",
+              color: "#334155",
+              margin: "xs"
+            }))
+          ]
+        }
+      );
+    }
+
     // Add AI Analysis
     if (aiAnalysis) {
       flexBubble.body.contents.push(
@@ -820,13 +891,13 @@ app.post("/api/send-line-message", async (req, res) => {
     const flexMsg = tryConvertTextToFlexMessage(message);
     if (flexMsg) {
       messagesArray.push(flexMsg);
+    } else {
+      // Send plain text only if we couldn't parse/convert to a Flex Message
+      messagesArray.push({
+        type: "text",
+        text: message,
+      });
     }
-
-    // Always include plain text details for complete logs/easy copying
-    messagesArray.push({
-      type: "text",
-      text: message,
-    });
 
     const body: any = {
       messages: messagesArray
@@ -1164,13 +1235,13 @@ async function sendLineBotMessage(token: string, targetId: string, message: stri
   const flexMsg = tryConvertTextToFlexMessage(message);
   if (flexMsg) {
     messagesArray.push(flexMsg);
+  } else {
+    // Send plain text only if we couldn't parse/convert to a Flex Message
+    messagesArray.push({
+      type: "text",
+      text: message,
+    });
   }
-
-  // Always include plain text details as fallback/detailed reference
-  messagesArray.push({
-    type: "text",
-    text: message,
-  });
 
   const body: any = {
     messages: messagesArray
