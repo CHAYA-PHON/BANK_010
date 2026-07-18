@@ -1052,7 +1052,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-white font-sans selection:bg-indigo-500/30 relative overflow-x-hidden pb-12">
+    <div className="min-h-screen bg-[#090d16] text-white font-sans selection:bg-indigo-500/30 relative overflow-x-hidden pb-24 md:pb-12">
       {/* Visual Mesh Gradients */}
       <div className="absolute top-[-15%] left-[-15%] w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[140px] pointer-events-none"></div>
       <div className="absolute bottom-[10%] right-[-15%] w-[600px] h-[600px] bg-emerald-900/10 rounded-full blur-[150px] pointer-events-none"></div>
@@ -1110,9 +1110,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* Primary Navigation Hub */}
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-2 md:grid-cols-5 gap-1.5 max-w-3xl mx-auto">
+      {/* Primary Navigation Hub (Desktop & Tablet) */}
+      <nav className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-5 gap-1.5 max-w-3xl mx-auto">
           <button
             onClick={() => setCurrentPage("dashboard")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -1122,7 +1122,7 @@ export default function App() {
             }`}
           >
             <PieChart className="w-4 h-4" />
-            1. แดชบอร์ด
+            แดชบอร์ด
           </button>
           <button
             onClick={() => setCurrentPage("records")}
@@ -1133,7 +1133,7 @@ export default function App() {
             }`}
           >
             <ScanLine className="w-4 h-4" />
-            2. บันทึกและสแกน
+            บันทึก/สแกน
           </button>
           <button
             onClick={() => setCurrentPage("wallets")}
@@ -1144,7 +1144,7 @@ export default function App() {
             }`}
           >
             <WalletIcon className="w-4 h-4" />
-            3. กระเป๋าเงิน
+            กระเป๋าเงิน
           </button>
           <button
             onClick={() => setCurrentPage("debts")}
@@ -1155,18 +1155,69 @@ export default function App() {
             }`}
           >
             <Landmark className="w-4 h-4" />
-            4. หนี้สินและกู้ยืม
+            หนี้สินและกู้ยืม
           </button>
           <button
             onClick={() => setCurrentPage("settings")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center col-span-2 md:col-span-1 gap-2 cursor-pointer ${
+            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               currentPage === "settings"
                 ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
             <Settings className="w-4 h-4" />
-            5. ตั้งค่าระบบ
+            ตั้งค่าระบบ
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile Sticky Bottom Navigation Bar (App-like Navigation) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#090d16]/95 backdrop-blur-lg border-t border-white/10 shadow-[0_-8px_30px_rgb(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2.5">
+        <div className="grid grid-cols-5 h-12 max-w-md mx-auto px-1">
+          <button
+            onClick={() => setCurrentPage("dashboard")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "dashboard" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <PieChart className={`w-5 h-5 ${currentPage === "dashboard" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[10px] scale-95 leading-none">แดชบอร์ด</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage("records")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "records" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <ScanLine className={`w-5 h-5 ${currentPage === "records" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[10px] scale-95 leading-none">สแกน/บันทึก</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage("wallets")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "wallets" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <WalletIcon className={`w-5 h-5 ${currentPage === "wallets" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[10px] scale-95 leading-none">กระเป๋า</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage("debts")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "debts" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Landmark className={`w-5 h-5 ${currentPage === "debts" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[10px] scale-95 leading-none">หนี้สิน</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage("settings")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "settings" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Settings className={`w-5 h-5 ${currentPage === "settings" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[10px] scale-95 leading-none">ตั้งค่า</span>
           </button>
         </div>
       </nav>
