@@ -1,6 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
-export function getApiUrl(endpoint: string): string {
+export function getEffectiveBackendBaseUrl(): string {
   const savedBase = localStorage.getItem("app_api_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "";
+  if (savedBase && typeof window !== "undefined" && window.location) {
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (!isLocalhost && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1"))) {
+      return "";
+    }
+  }
+  return savedBase;
+}
+
+export function getApiUrl(endpoint: string): string {
+  const savedBase = getEffectiveBackendBaseUrl();
   if (!savedBase) return endpoint;
   
   // Clean trailing slashes from the base and leading slashes from the endpoint
@@ -10,7 +21,7 @@ export function getApiUrl(endpoint: string): string {
 }
 
 async function robustFetch(endpoint: string, body: any): Promise<any> {
-  const savedBase = localStorage.getItem("app_api_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "";
+  const savedBase = getEffectiveBackendBaseUrl();
   const primaryUrl = getApiUrl(endpoint);
   
   const performFetch = async (url: string) => {
@@ -48,7 +59,8 @@ async function robustFetch(endpoint: string, body: any): Promise<any> {
   } catch (err: any) {
     // If the primary URL was an absolute URL and failed with HTML_RESPONSE_ERROR or Failed to fetch,
     // let's try the local relative path fallback.
-    if (savedBase && (err.message === "HTML_RESPONSE_ERROR" || err.message.includes("Failed to fetch"))) {
+    const errText = err.message || "";
+    if (primaryUrl !== endpoint && (errText === "HTML_RESPONSE_ERROR" || errText.includes("Failed to fetch") || errText.toLowerCase().includes("failed to fetch") || errText.includes("fetch failed"))) {
       console.warn(`Primary fetch to ${primaryUrl} failed. Trying relative fallback ${endpoint}...`);
       try {
         return await performFetch(endpoint);
@@ -150,7 +162,7 @@ export async function parseSlipWithFallback(
   onStatusChange: (status: string) => void
 ): Promise<any> {
   const personalApiKey = localStorage.getItem("app_personal_gemini_api_key") || "";
-  const backendBaseUrl = localStorage.getItem("app_api_base_url") || "";
+  const backendBaseUrl = getEffectiveBackendBaseUrl();
 
   // 1. Try backend server if configured or if no personal API key is provided
   if (!personalApiKey || backendBaseUrl) {
@@ -265,7 +277,7 @@ export async function analyzeSpendingWithFallback(
   onStatusChange: (status: string) => void
 ): Promise<any> {
   const personalApiKey = localStorage.getItem("app_personal_gemini_api_key") || "";
-  const backendBaseUrl = localStorage.getItem("app_api_base_url") || "";
+  const backendBaseUrl = getEffectiveBackendBaseUrl();
 
   // 1. Try backend server if configured or if no personal API key is provided
   if (!personalApiKey || backendBaseUrl) {
@@ -365,3 +377,179 @@ Return a structured JSON with:
 
   throw new Error("ไม่มีการเชื่อมต่อระบบหลังบ้าน และไม่ได้ระบุ Gemini API Key ส่วนตัว");
 }
+
+/**
+ * Sends a message via LINE Notify API proxy.
+ */
+export async function sendLineNotification(token: string, message: string): Promise<any> {
+  const endpoint = "/api/send-line-notify";
+  const primaryUrl = getApiUrl(endpoint);
+
+  const performFetch = async (url: string) => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ token, message }),
+    });
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const resData = await response.json();
+      if (resData.success) {
+        return resData.data;
+      }
+      throw new Error(resData.error || "ไม่สามารถส่งแจ้งเตือน LINE ได้");
+    } else {
+      const text = await response.text();
+      if (response.ok) {
+        return { message: text };
+      }
+      throw new Error(text || "ไม่สามารถส่งแจ้งเตือน LINE ได้");
+    }
+  };
+
+  try {
+    return await performFetch(primaryUrl);
+  } catch (err: any) {
+    const errText = err.message || "";
+    const isNetworkError = errText.includes("Failed to fetch") || errText.toLowerCase().includes("failed to fetch") || errText.includes("fetch failed");
+
+    if (primaryUrl !== endpoint && (errText === "HTML_RESPONSE_ERROR" || isNetworkError)) {
+      console.warn(`Primary fetch to ${primaryUrl} failed. Trying relative fallback ${endpoint}...`);
+      try {
+        return await performFetch(endpoint);
+      } catch (fallbackErr: any) {
+        if (isNetworkError) {
+          console.warn("Failed to send LINE Notify to primary and fallback URLs due to network failure.");
+        } else {
+          console.error("Error sending LINE Notify to both URLs:", fallbackErr);
+        }
+        throw new Error("ไม่สามารถส่งแจ้งเตือน LINE ได้เนื่องจากระบบเครือข่ายขัดข้อง");
+      }
+    }
+
+    if (isNetworkError) {
+      console.warn("Error sending LINE Notify due to network connection failure:", err);
+    } else {
+      console.error("Error sending LINE Notify:", err);
+    }
+    throw new Error("ไม่สามารถส่งแจ้งเตือน LINE ได้เนื่องจากระบบเครือข่ายขัดข้อง");
+  }
+}
+
+/**
+ * Sends a message via LINE Messaging API (LINE Bot) proxy.
+ */
+export async function sendLineMessage(
+  channelAccessToken: string,
+  targetId: string,
+  message: string,
+  sendType: "push" | "broadcast" = "broadcast"
+): Promise<any> {
+  const endpoint = "/api/send-line-message";
+  const primaryUrl = getApiUrl(endpoint);
+
+  const performFetch = async (url: string) => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ channelAccessToken, targetId, message, sendType }),
+    });
+
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const resData = await response.json();
+      if (resData.success) {
+        return resData.data;
+      }
+      throw new Error(resData.error || "ไม่สามารถส่งข้อความ LINE Bot ได้");
+    } else {
+      const text = await response.text();
+      if (response.ok) {
+        return { message: text };
+      }
+      throw new Error(text || "ไม่สามารถส่งข้อความ LINE Bot ได้");
+    }
+  };
+
+  try {
+    return await performFetch(primaryUrl);
+  } catch (err: any) {
+    const errText = err.message || "";
+    const isNetworkError = errText.includes("Failed to fetch") || errText.toLowerCase().includes("failed to fetch") || errText.includes("fetch failed");
+
+    if (primaryUrl !== endpoint && (errText === "HTML_RESPONSE_ERROR" || isNetworkError)) {
+      console.warn(`Primary fetch to ${primaryUrl} failed. Trying relative fallback ${endpoint}...`);
+      try {
+        return await performFetch(endpoint);
+      } catch (fallbackErr: any) {
+        if (isNetworkError) {
+          console.warn("Failed to send LINE message to primary and fallback URLs due to network failure.");
+        } else {
+          console.error("Error sending LINE message to both URLs:", fallbackErr);
+        }
+        throw new Error("ไม่สามารถส่งข้อความ LINE Bot ได้เนื่องจากระบบเครือข่ายขัดข้อง");
+      }
+    }
+
+    if (isNetworkError) {
+      console.warn("Error sending LINE message due to network connection failure:", err);
+    } else {
+      console.error("Error sending LINE message:", err);
+    }
+    throw new Error("ไม่สามารถส่งข้อความ LINE Bot ได้เนื่องจากระบบเครือข่ายขัดข้อง");
+  }
+}
+
+/**
+ * Fetches recently captured LINE IDs (User ID or Group ID) from the backend.
+ */
+export async function getCapturedLineIds(): Promise<any[]> {
+  const endpoint = "/api/line-captured-ids";
+  const url = getApiUrl(endpoint);
+
+  const performFetch = async (targetUrl: string) => {
+    const response = await fetch(targetUrl, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      }
+    });
+    if (response.ok) {
+      const resData = await response.json();
+      if (resData.success) {
+        return resData.data || [];
+      }
+    }
+    return [];
+  };
+
+  try {
+    return await performFetch(url);
+  } catch (err: any) {
+    const errText = err.message || "";
+    const isNetworkError = errText.includes("Failed to fetch") || errText.toLowerCase().includes("failed to fetch") || errText.includes("fetch failed");
+
+    if (url !== endpoint && isNetworkError) {
+      console.warn(`Primary fetch for captured IDs to ${url} failed. Trying relative fallback ${endpoint}...`);
+      try {
+        return await performFetch(endpoint);
+      } catch (fallbackErr) {
+        console.warn("Error fetching captured Line IDs from fallback due to network failure.");
+        return [];
+      }
+    }
+
+    if (isNetworkError) {
+      console.warn("Error fetching captured Line IDs due to network connection failure:", err);
+    } else {
+      console.error("Error fetching captured Line IDs:", err);
+    }
+    return [];
+  }
+}
+

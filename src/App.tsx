@@ -11,6 +11,7 @@ import WalletManager from "./components/WalletManager";
 import DebtManager from "./components/DebtManager";
 import LoginScreen from "./components/LoginScreen";
 import SettingsScreen from "./components/SettingsScreen";
+import LineSummarySender from "./components/LineSummarySender";
 import { 
   Sparkles, Coins, HelpCircle, ArrowUpRight, Plus, ScanLine, 
   History, PieChart, Landmark, ArrowRightLeft, Settings, LogOut, CheckCircle, Wallet as WalletIcon, ShieldAlert,
@@ -74,6 +75,21 @@ function cleanObjectForFirestore<T>(obj: T): T {
 }
 
 export default function App() {
+  // Automatically seed and register the user's LINE Channel Access Token
+  useEffect(() => {
+    const defaultToken = "X23l2VtlYP4mmCOlBtUTg/42Cww6u0PRwHwHu8uGDPkOAeXIgBHxHtiiyBhiMrlJF+abYCsPnPmTJoyU4f0MuivZIrdNeXbg5tPrMNaHglDYxEtfEuNxKK9ZRzRFRCZyGKB8ADa/sPplE9RvF0EFdwdB04t89/1O/w1cDnyilFU=";
+    const currentToken = localStorage.getItem("app_line_channel_access_token");
+    if (currentToken !== defaultToken) {
+      localStorage.setItem("app_line_channel_access_token", defaultToken);
+    }
+    // Silently notify the server to register/cache this token in line_config.json
+    fetch("/api/send-line-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channelAccessToken: defaultToken, message: "", sendType: "broadcast" })
+    }).catch(e => console.log("Silent seed error:", e));
+  }, []);
+
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return sessionStorage.getItem("is_logged_in") === "true";
   });
@@ -1289,6 +1305,9 @@ export default function App() {
 
             {/* Smart AI Financial Analysis */}
             <AISummaryCard transactions={monthlyTransactions} selectedMonth={selectedMonth} />
+
+            {/* Send Daily summary to LINE Notify */}
+            <LineSummarySender transactions={transactions} wallets={wallets} currentUser={currentUser} />
 
             {/* Visual analytics plots */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

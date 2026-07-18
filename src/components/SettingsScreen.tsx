@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
-  ShieldAlert, KeyRound, Download, Upload, Trash2, LogOut, Check, Save, Sparkles, AlertTriangle, Globe, Link
+  ShieldAlert, KeyRound, Download, Upload, Trash2, LogOut, Check, Save, Sparkles, AlertTriangle, Globe, Link,
+  Bell, Send, User, Users, RefreshCw, Clock, MessageSquare
 } from "lucide-react";
 import { Wallet, Transaction } from "../types";
 import { doc, setDoc } from "firebase/firestore";
@@ -36,12 +37,75 @@ export default function SettingsScreen({
   const [personalApiKey, setPersonalApiKey] = useState("");
   const [apiStatus, setApiStatus] = useState("");
 
+  const lineUseMessagingApi = true; // LINE Notify is dead
+  const [lineChannelAccessToken, setLineChannelAccessToken] = useState("");
+  const [lineUserId, setLineUserId] = useState("");
+  const [lineSendType, setLineSendType] = useState<"push" | "broadcast">("broadcast");
+  const [lineStatus, setLineStatus] = useState({ success: "", error: "" });
+  const [isTestingLine, setIsTestingLine] = useState(false);
+
+  // States for automatic LINE User/Group ID retrieval
+  const [capturedIds, setCapturedIds] = useState<any[]>([]);
+  const [isLoadingCaptured, setIsLoadingCaptured] = useState(false);
+
+  const fetchCapturedIds = async () => {
+    try {
+      const { getCapturedLineIds } = await import("../lib/api");
+      const list = await getCapturedLineIds();
+      setCapturedIds(list);
+    } catch (err) {
+      console.error("Error fetching captured LINE IDs:", err);
+    }
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("app_api_base_url") || "";
     setApiBaseUrl(saved);
     const savedKey = localStorage.getItem("app_personal_gemini_api_key") || "";
     setPersonalApiKey(savedKey);
-  }, []);
+
+    const savedChannelToken = localStorage.getItem("app_line_channel_access_token") || "";
+    setLineChannelAccessToken(savedChannelToken);
+    const savedUserId = localStorage.getItem("app_line_user_id") || "";
+    setLineUserId(savedUserId);
+    const savedSendType = (localStorage.getItem("app_line_send_type") as "push" | "broadcast") || "broadcast";
+    setLineSendType(savedSendType);
+
+    async function loadFirestoreLineConfig() {
+      if (currentUser) {
+        try {
+          const { doc, getDoc } = await import("firebase/firestore");
+          const userDocRef = doc(db, "users", currentUser.toLowerCase().trim());
+          const userSnap = await getDoc(userDocRef);
+          if (userSnap.exists()) {
+            const data = userSnap.data();
+            if (data.lineChannelAccessToken) {
+              setLineChannelAccessToken(data.lineChannelAccessToken);
+              localStorage.setItem("app_line_channel_access_token", data.lineChannelAccessToken);
+            }
+            if (data.lineUserId) {
+              setLineUserId(data.lineUserId);
+              localStorage.setItem("app_line_user_id", data.lineUserId);
+            }
+            if (data.lineSendType) {
+              setLineSendType(data.lineSendType);
+              localStorage.setItem("app_line_send_type", data.lineSendType);
+            }
+          }
+        } catch (err) {
+          console.error("Error loading LINE config from Firestore:", err);
+        }
+      }
+    }
+    loadFirestoreLineConfig();
+
+    // Initial fetch of captured ids
+    fetchCapturedIds();
+
+    // Start polling captured IDs every 4 seconds
+    const interval = setInterval(fetchCapturedIds, 4000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   const handleSaveApiUrl = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +113,69 @@ export default function SettingsScreen({
     localStorage.setItem("app_personal_gemini_api_key", personalApiKey.trim());
     setApiStatus("บันทึกการตั้งค่าเชื่อมต่อเรียบร้อยแล้ว!");
     setTimeout(() => setApiStatus(""), 3000);
+  };
+
+  const handleSaveLineSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem("app_line_use_messaging_api", "true");
+    localStorage.setItem("app_line_channel_access_token", lineChannelAccessToken.trim());
+    localStorage.setItem("app_line_user_id", lineUserId.trim());
+    localStorage.setItem("app_line_send_type", lineSendType);
+
+    // Silently register the token on the server
+    fetch("/api/send-line-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channelAccessToken: lineChannelAccessToken.trim(), message: "", sendType: "broadcast" })
+    }).catch(e => console.log("Silent seed error:", e));
+
+    if (currentUser) {
+      try {
+        const userDocRef = doc(db, "users", currentUser.toLowerCase().trim());
+        await setDoc(userDocRef, {
+          lineChannelAccessToken: lineChannelAccessToken.trim(),
+          lineUserId: lineUserId.trim(),
+          lineSendType: lineSendType,
+          lineAutoSummaryEnabled: true,
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error saving LINE settings to Firestore:", err);
+      }
+    }
+
+    setLineStatus({ success: "บันทึกข้อมูลตั้งค่า LINE Bot (Messaging API) สำเร็จเรียบร้อย!", error: "" });
+    setTimeout(() => setLineStatus({ success: "", error: "" }), 4000);
+  };
+
+  const handleTestLineNotify = async () => {
+    setLineStatus({ success: "", error: "" });
+    setIsTestingLine(true);
+    
+    try {
+      if (!lineChannelAccessToken.trim()) {
+        setLineStatus({ success: "", error: "กรุณาระบุ Channel Access Token ก่อนทดสอบ" });
+        setIsTestingLine(false);
+        return;
+      }
+      if (lineSendType === "push" && !lineUserId.trim()) {
+        setLineStatus({ success: "", error: "กรุณาระบุ User ID สำหรับการส่งแบบเฉพาะเจาะจง (Push)" });
+        setIsTestingLine(false);
+        return;
+      }
+
+      const { sendLineMessage } = await import("../lib/api");
+      await sendLineMessage(
+        lineChannelAccessToken.trim(),
+        lineUserId.trim(),
+        "\n🤖 ทดสอบระบบแจ้งเตือน FinanceAI (Messaging API)\nเชื่อมต่อกับ LINE Bot เรียบร้อยแล้ว! 🎉",
+        lineSendType
+      );
+      setLineStatus({ success: `ส่งข้อความทดสอบแบบ ${lineSendType === "broadcast" ? "ส่งทุกคน" : "ระบุผู้รับ"} สำเร็จแล้ว!`, error: "" });
+    } catch (err: any) {
+      setLineStatus({ success: "", error: err.message || "ส่งล้มเหลว กรุณาตรวจสอบความถูกต้องของการตั้งค่า" });
+    } finally {
+      setIsTestingLine(false);
+    }
   };
 
   const handlePinChange = async (e: React.FormEvent) => {
@@ -429,6 +556,211 @@ export default function SettingsScreen({
           {apiStatus && (
             <p className="text-xs font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 p-2.5 rounded-xl animate-fade-in text-center">
               {apiStatus}
+            </p>
+          )}
+        </form>
+      </div>
+
+      {/* LINE Notification Setting Section */}
+      <div id="line-notify-settings" className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="flex items-center gap-3 border-b border-white/5 pb-3">
+          <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+            <Bell className="w-5 h-5 text-emerald-400 animate-bounce" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              ตั้งค่าสรุปค่าใช้จ่ายทาง LINE Bot (Messaging API)
+            </h3>
+            <p className="text-[11px] text-slate-400">ส่งรายงานสรุปรายรับ-รายจ่ายรายวันเข้า LINE แชทส่วนตัวหรือกลุ่มผ่านบอทส่วนตัว</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSaveLineSettings} className="space-y-4">
+          <div className="space-y-4 text-xs">
+            {/* Channel Access Token Input */}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                <Link className="w-3 h-3 text-emerald-400" />
+                Channel Access Token (Long-Lived)
+              </label>
+              <input
+                type="password"
+                value={lineChannelAccessToken}
+                onChange={(e) => setLineChannelAccessToken(e.target.value)}
+                placeholder="กรอก Channel Access Token ของบอท LINE"
+                className="w-full px-3 py-2.5 bg-[#090d16] border border-white/10 rounded-xl text-white placeholder-slate-600 focus:outline-hidden text-sm"
+              />
+            </div>
+
+            {/* Send Type Selection */}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] text-slate-400 font-bold uppercase">
+                รูปแบบผู้รับปลายทาง (Send Type)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLineSendType("broadcast")}
+                  className={`py-2 px-3 rounded-xl border text-center font-semibold transition-all cursor-pointer ${
+                    lineSendType === "broadcast" 
+                      ? "bg-indigo-500/15 border-indigo-500 text-indigo-300" 
+                      : "bg-white/5 border-white/5 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  ส่งทุกคนที่เป็นเพื่อน (Broadcast)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLineSendType("push")}
+                  className={`py-2 px-3 rounded-xl border text-center font-semibold transition-all cursor-pointer ${
+                    lineSendType === "push" 
+                      ? "bg-indigo-500/15 border-indigo-500 text-indigo-300" 
+                      : "bg-white/5 border-white/5 text-slate-400 hover:bg-white/10"
+                  }`}
+                >
+                  ส่งเฉพาะคน / กลุ่มแชท (Push Message)
+                </button>
+              </div>
+            </div>
+
+            {/* Specific Target User/Group ID */}
+            {lineSendType === "push" && (
+              <div className="space-y-1.5 animate-fade-in">
+                <label className="block text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                  <User className="w-3 h-3 text-indigo-400" />
+                  รหัสผู้รับปลายทาง (User ID หรือ Group ID)
+                </label>
+                <input
+                  type="text"
+                  value={lineUserId}
+                  onChange={(e) => setLineUserId(e.target.value)}
+                  placeholder="เช่น Ue1234567890abcdef..."
+                  className="w-full px-3 py-2.5 bg-[#090d16] border border-white/10 rounded-xl text-white placeholder-slate-600 focus:outline-hidden text-sm"
+                />
+              </div>
+            )}
+
+            {/* REAL-TIME LINE ID SCANNER FOR DYNAMIC RETRIEVAL */}
+            <div className="bg-[#0b120d] border border-emerald-500/15 rounded-2xl p-4 space-y-3 shadow-inner">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3" />
+                    ระบบค้นหารหัส LINE ID อัตโนมัติ (Live ID Scanner)
+                  </span>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={fetchCapturedIds}
+                  className="p-1 hover:bg-white/5 rounded-lg text-emerald-400 hover:text-white transition-all cursor-pointer flex items-center gap-1 text-[9px]"
+                >
+                  <RefreshCw className="w-3 h-3 animate-spin-slow" />
+                  ดึงล่าสุด
+                </button>
+              </div>
+
+              <p className="text-[10px] text-slate-300 leading-relaxed bg-white/5 p-2.5 rounded-xl border border-white/5">
+                💬 <strong>วิธีง่ายๆ ในการรับรหัส:</strong> ส่งข้อความคำว่า <span className="bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded-md border border-emerald-500/30 font-mono">ข้อรับการแจ้งเตือน</span> ไปที่ไลน์บอทของคุณ (หรือเชิญบอทเข้ากลุ่มแล้วส่ง) ระบบจะดึงรหัสมาแสดงด้านล่างทันทีโดยไม่ต้องไปแกะไฟล์เองค่ะ!
+              </p>
+
+              {capturedIds.length === 0 ? (
+                <div className="py-4 text-center text-slate-500 text-[10px] space-y-1.5">
+                  <div className="flex justify-center items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce"></div>
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                  </div>
+                  <p className="text-slate-400 font-medium">รอการส่งสัญญาณข้อความ "ข้อรับการแจ้งเตือน" จาก LINE...</p>
+                  <p className="text-slate-500 text-[9px]">(กรุณาพิมพ์และส่งข้อความหาบอท เพื่อให้รหัสปรากฏที่นี่)</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {capturedIds.map((item, idx) => (
+                    <div 
+                      key={idx} 
+                      className="flex items-center justify-between gap-3 bg-white/5 p-2.5 rounded-xl border border-white/5 hover:border-emerald-500/30 hover:bg-white/10 transition-all text-left"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${
+                            item.type === "group" 
+                              ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" 
+                              : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                          }`}>
+                            {item.type === "group" ? "👥 กลุ่ม" : "👤 ส่วนตัว"}
+                          </span>
+                          <span className="text-slate-400 font-mono text-[9px] truncate block select-all" title={item.id}>
+                            {item.id}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[9px] text-slate-500">
+                          <Clock className="w-2.5 h-2.5 text-slate-500" />
+                          <span>{new Date(item.timestamp).toLocaleTimeString("th-TH")}</span>
+                          <span>• "{item.message}"</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLineUserId(item.id);
+                          setLineSendType("push");
+                        }}
+                        className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-emerald-500/15"
+                      >
+                        เลือกใช้รหัสนี้
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Help guidelines */}
+            <div className="text-[10px] text-slate-500 leading-relaxed space-y-1.5 bg-white/5 p-3 rounded-xl border border-white/5">
+              <p className="font-semibold text-slate-400">💡 วิธีการเปิดการแจ้งเตือน LINE Bot (Messaging API) สำเร็จรูป:</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-slate-400">
+                <li>ไปที่เว็บบราวเซอร์เปิด <a href="https://developers.line.biz/" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline font-semibold">LINE Developers Console</a> และล็อคอิน</li>
+                <li>สร้าง Provider จากนั้นสร้าง Channel ใหม่ เลือกหัวข้อเป็น **Messaging API**</li>
+                <li>ไปที่แท็บ **Messaging API** และสแกนคิวอาร์โค้ดบอทเป็นเพื่อนกับคุณ</li>
+                <li>เลื่อนลงด้านล่างสุดของหน้าจอแท็บนั้น กดออกตั๋ว (Issue) **Channel Access Token** คัดลอกมาวางในหน้าจอนี้ได้ทันที</li>
+              </ol>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center pt-2 gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={handleTestLineNotify}
+              disabled={isTestingLine}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-white/10 shadow-md ${
+                isTestingLine 
+                  ? "bg-slate-700 text-slate-400" 
+                  : "bg-white/5 hover:bg-white/10 text-slate-200 cursor-pointer"
+              }`}
+            >
+              <Send className="w-3.5 h-3.5 text-emerald-400" />
+              {isTestingLine ? "กำลังส่งทดสอบ..." : "ส่งข้อความทดสอบเข้า LINE"}
+            </button>
+
+            <button
+              type="submit"
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              บันทึกการตั้งค่า LINE
+            </button>
+          </div>
+
+          {(lineStatus.success || lineStatus.error) && (
+            <p className={`text-xs font-bold p-2.5 rounded-xl animate-fade-in text-center border ${
+              lineStatus.success 
+                ? "text-emerald-400 bg-emerald-500/15 border-emerald-500/20" 
+                : "text-rose-400 bg-rose-500/15 border-rose-500/20"
+            }`}>
+              {lineStatus.success || lineStatus.error}
             </p>
           )}
         </form>
