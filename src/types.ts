@@ -13,6 +13,7 @@ export interface Transaction {
   createdAt: string;
   walletId?: string; // For expense/income/transfer (source)
   toWalletId?: string; // For transfer (destination)
+  debtId?: string; // Optional field to link with a debt
 }
 
 export interface Wallet {
@@ -23,6 +24,28 @@ export interface Wallet {
   icon: string; // E.g., emoji or Lucide icon name
   color: string; // Tailwind gradient/color class
   accountNumber?: string;
+  createdAt: string;
+}
+
+export interface Debt {
+  id: string;
+  type: "borrowed" | "lent"; // "borrowed" = เราเป็นหนี้เขา, "lent" = เขาเป็นหนี้เรา
+  creditorDebtorName: string; // ชื่อเจ้าหนี้ / ลูกหนี้
+  amount: number; // ยอดกู้ยืมเริ่มต้น
+  remainingAmount: number; // ยอดหนี้ที่ค้างอยู่
+  description?: string;
+  dueDate?: string; // YYYY-MM-DD
+  status: "active" | "paid";
+  createdAt: string;
+}
+
+export interface DebtPayment {
+  id: string;
+  debtId: string;
+  amount: number;
+  walletId: string;
+  date: string;
+  note?: string;
   createdAt: string;
 }
 
@@ -90,6 +113,13 @@ export const CATEGORIES: Record<string, CategoryInfo> = {
     textColor: "text-green-700",
     borderColor: "border-green-200",
     icon: "Coins",
+  },
+  "ชำระหนี้": {
+    name: "ชำระหนี้",
+    color: "bg-rose-100",
+    textColor: "text-rose-700",
+    borderColor: "border-rose-200",
+    icon: "Landmark",
   },
   "อื่นๆ": {
     name: "อื่นๆ",

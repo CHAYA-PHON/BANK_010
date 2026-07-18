@@ -157,6 +157,13 @@ export default function WalletManager({
 
     if (!fromWallet || !toWallet) return;
 
+    // Balance validation to prevent negative balance
+    const currentFromBalance = walletBalances[fromWalletId] || 0;
+    if (amount > currentFromBalance) {
+      alert(`❌ ระบบป้องกันยอดคงเหลือติดลบทำงาน!\n\nยอดคงเหลือในกระเป๋าต้นทาง "${fromWallet.name}" ไม่เพียงพอสำหรับการโอน\nยอดคงเหลือปัจจุบัน: ${currentFromBalance.toLocaleString()} บาท\nจำนวนที่พยายามโอน: ${amount.toLocaleString()} บาท`);
+      return;
+    }
+
     // Create a transaction record of type "transfer"
     onAddTransaction({
       type: "transfer",

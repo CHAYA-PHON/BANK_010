@@ -1,5 +1,5 @@
 import { useState, useEffect, FormEvent } from "react";
-import { CATEGORIES, Transaction, TransactionType, Wallet } from "../types";
+import { CATEGORIES, Transaction, TransactionType, Wallet, Debt } from "../types";
 import { Plus, Check, ImageIcon, X, HelpCircle, Calendar, DollarSign, Edit, ArrowRightLeft } from "lucide-react";
 
 interface TransactionFormProps {
@@ -8,6 +8,8 @@ interface TransactionFormProps {
   onCancel?: () => void;
   isEditMode?: boolean;
   wallets: Wallet[];
+  walletBalances?: Record<string, number>;
+  debts?: Debt[];
 }
 
 export default function TransactionForm({
@@ -16,6 +18,8 @@ export default function TransactionForm({
   onCancel,
   isEditMode = false,
   wallets,
+  walletBalances,
+  debts = [],
 }: TransactionFormProps) {
   const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState<string>("");
@@ -27,6 +31,7 @@ export default function TransactionForm({
   const [imageUrl, setImageUrl] = useState<string>("");
   const [walletId, setWalletId] = useState<string>("");
   const [toWalletId, setToWalletId] = useState<string>("");
+  const [selectedDebtId, setSelectedDebtId] = useState<string>("");
 
   // Sync with initial data (especially when scanning a slip)
   useEffect(() => {
@@ -45,6 +50,7 @@ export default function TransactionForm({
       setImageUrl(initialData.imageUrl || "");
       setWalletId(initialData.walletId || defaultWalletId);
       setToWalletId(initialData.toWalletId || defaultToWalletId);
+      setSelectedDebtId(initialData.debtId || "");
     } else {
       setType("expense");
       setAmount("");
@@ -56,6 +62,7 @@ export default function TransactionForm({
       setImageUrl("");
       setWalletId(defaultWalletId);
       setToWalletId(defaultToWalletId);
+      setSelectedDebtId("");
     }
   }, [initialData, wallets]);
 
@@ -79,6 +86,26 @@ export default function TransactionForm({
       return;
     }
 
+    const parsedAmount = parseFloat(amount);
+    
+    // Negative balance protection check
+    if (walletBalances && (type === "expense" || type === "transfer")) {
+      const currentBalance = walletBalances[walletId] || 0;
+      let availableBalance = currentBalance;
+      
+      // If we are editing, we can offset by the original transaction's amount if it was on the same wallet
+      if (isEditMode && initialData && initialData.walletId === walletId) {
+        if (initialData.type === "expense" || initialData.type === "transfer") {
+          availableBalance += initialData.amount || 0;
+        }
+      }
+      
+      if (parsedAmount > availableBalance) {
+        alert(`❌ ระบบป้องกันยอดคงเหลือติดลบทำงาน!\n\nยอดคงเหลือในกระเป๋าไม่เพียงพอสําหรับการจ่ายเงินครั้งนี้\nยอดคงเหลือในปัจจุบัน: ${availableBalance.toLocaleString()} บาท\nจำนวนเงินที่พยายามหักออก: ${parsedAmount.toLocaleString()} บาท`);
+        return;
+      }
+    }
+
     let finalMerchantName = merchantName.trim();
     let finalCategory = category;
 
@@ -100,6 +127,7 @@ export default function TransactionForm({
       imageUrl: imageUrl || undefined,
       walletId: walletId || undefined,
       toWalletId: type === "transfer" ? toWalletId : undefined,
+      debtId: (finalCategory === "ชำระหนี้" && selectedDebtId) ? selectedDebtId : undefined,
     });
 
     // Reset if it's not pre-filled/editing
@@ -107,6 +135,7 @@ export default function TransactionForm({
       setAmount("");
       setMerchantName("");
       setNote("");
+      setSelectedDebtId("");
     }
   };
 
@@ -267,6 +296,66 @@ export default function TransactionForm({
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Debt Selector for "ชำระหนี้" category */}
+        {type !== "transfer" && category === "ชำระหนี้" && (
+          <div className="bg-rose-500/5 border border-rose-500/20 p-3 rounded-2xl space-y-2">
+            <label className="block text-xs font-bold text-rose-300">
+              {type === "expense" ? "🔗 เลือกรายการหนี้ที่ต้องการชำระคืน" : "🔗 เลือกรายการหนี้ที่รับชำระคืน"}
+            </label>
+            {debts.filter(d => {
+              if (type === "expense") return d.type === "borrowed" && d.status === "active";
+              if (type === "income") return d.type === "lent" && d.status === "active";
+              return false;
+            }).length > 0 ? (
+              <div>
+                <select
+                  value={selectedDebtId}
+                  onChange={(e) => {
+                    const dId = e.target.value;
+                    setSelectedDebtId(dId);
+                    // Automatically pre-fill the merchantName and remaining amount if empty
+                    const targetDebt = debts.find(d => d.id === dId);
+                    if (targetDebt) {
+                      if (type === "expense") {
+                        setMerchantName(`ชำระหนี้คืนแก่ ${targetDebt.creditorDebtorName}`);
+                        if (!amount) setAmount(targetDebt.remainingAmount.toString());
+                      } else {
+                        setMerchantName(`รับชำระหนี้คืนจาก ${targetDebt.creditorDebtorName}`);
+                        if (!amount) setAmount(targetDebt.remainingAmount.toString());
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-[#1e293b] border border-rose-500/30 rounded-xl text-white focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 text-sm cursor-pointer font-medium"
+                  required
+                >
+                  <option value="" className="text-slate-400">-- เลือกหนี้สินที่ต้องการชำระ --</option>
+                  {debts
+                    .filter(d => {
+                      if (type === "expense") return d.type === "borrowed" && d.status === "active";
+                      if (type === "income") return d.type === "lent" && d.status === "active";
+                      return false;
+                    })
+                    .map((d) => (
+                      <option key={d.id} value={d.id} className="bg-[#1e293b] text-white">
+                        {d.creditorDebtorName} (ยอดค้างชำระ: ฿{d.remainingAmount.toLocaleString()})
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  💡 ยอดชำระเงินนี้จะถูกนำไปหักลดจากหนี้สินคงค้างโดยอัตโนมัติเมื่อบันทึกรายการ
+                </p>
+              </div>
+            ) : (
+              <div className="text-xs text-rose-300/80 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
+                ⚠️ ไม่พบรายการหนี้สินที่ต้อง {type === "expense" ? "ชำระคืน" : "รับชำระคืน"} ในระบบขณะนี้
+                <p className="text-[10px] text-slate-400 mt-1">
+                  คุณสามารถเพิ่มรายการหนี้สินได้ในแถบ "หนี้สินและกู้ยืม"
+                </p>
+              </div>
+            )}
           </div>
         )}
 

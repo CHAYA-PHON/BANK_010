@@ -10,11 +10,23 @@ service cloud.firestore {
       match /wallets/{walletId} {
         allow read, write: if true;
       }
+      match /debts/{debtId} {
+        allow read, write: if true;
+      }
+      match /debt_payments/{paymentId} {
+        allow read, write: if true;
+      }
     }
     match /transactions/{transactionId} {
       allow read, write: if true;
     }
     match /wallets/{walletId} {
+      allow read, write: if true;
+    }
+    match /debts/{debtId} {
+      allow read, write: if true;
+    }
+    match /debt_payments/{paymentId} {
       allow read, write: if true;
     }
   }

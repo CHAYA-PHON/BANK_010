@@ -31,6 +31,34 @@
         "accountNumber": "string",
         "createdAt": "string"
       }
+    },
+    {
+      "name": "debts",
+      "description": "Debts borrowed or lent by the user",
+      "fields": {
+        "id": "string",
+        "type": "string",
+        "creditorDebtorName": "string",
+        "amount": "number",
+        "remainingAmount": "number",
+        "description": "string",
+        "dueDate": "string",
+        "status": "string",
+        "createdAt": "string"
+      }
+    },
+    {
+      "name": "debt_payments",
+      "description": "Repayments or receipts for a debt",
+      "fields": {
+        "id": "string",
+        "debtId": "string",
+        "amount": "number",
+        "walletId": "string",
+        "date": "string",
+        "note": "string",
+        "createdAt": "string"
+      }
     }
   ]
 }

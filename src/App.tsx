@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Transaction, Wallet } from "./types";
+import { useState, useEffect, useMemo } from "react";
+import { Transaction, Wallet, Debt, DebtPayment } from "./types";
 import SlipUploader from "./components/SlipUploader";
 import TransactionForm from "./components/TransactionForm";
 import DashboardStats from "./components/DashboardStats";
@@ -8,6 +8,7 @@ import MonthlyTrendChart from "./components/MonthlyTrendChart";
 import AISummaryCard from "./components/AISummaryCard";
 import HistoryList from "./components/HistoryList";
 import WalletManager from "./components/WalletManager";
+import DebtManager from "./components/DebtManager";
 import LoginScreen from "./components/LoginScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import { 
@@ -51,6 +52,26 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
+function cleanObjectForFirestore<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanObjectForFirestore(item)) as any;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const val = obj[key];
+        if (val !== undefined) {
+          cleaned[key] = cleanObjectForFirestore(val);
+        }
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return sessionStorage.getItem("is_logged_in") === "true";
@@ -62,9 +83,40 @@ export default function App() {
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("scan");
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings">("dashboard");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts">("dashboard");
+  
+  // Dynamically calculate balances of each wallet
+  const walletBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+    wallets.forEach((w) => {
+      balances[w.id] = w.initialBalance;
+    });
+
+    transactions.forEach((tx) => {
+      const amount = tx.amount;
+      if (tx.type === "income") {
+        if (balances[tx.walletId] !== undefined) {
+          balances[tx.walletId] += amount;
+        }
+      } else if (tx.type === "expense") {
+        if (balances[tx.walletId] !== undefined) {
+          balances[tx.walletId] -= amount;
+        }
+      } else if (tx.type === "transfer") {
+        if (tx.walletId && balances[tx.walletId] !== undefined) {
+          balances[tx.walletId] -= amount;
+        }
+        if (tx.toWalletId && balances[tx.toWalletId] !== undefined) {
+          balances[tx.toWalletId] += amount;
+        }
+      }
+    });
+    return balances;
+  }, [wallets, transactions]);
   
   // Scanned data ready for user review/confirmation
   const [pendingReviewData, setPendingReviewData] = useState<Partial<Transaction> | null>(null);
@@ -85,7 +137,7 @@ export default function App() {
     const userDocId = currentUser.toLowerCase().trim();
     try {
       for (const tx of txs) {
-        await setDoc(doc(db, "users", userDocId, "transactions", tx.id), tx);
+        await setDoc(doc(db, "users", userDocId, "transactions", tx.id), cleanObjectForFirestore(tx));
       }
     } catch (err) {
       console.error("Error syncing transactions to Firestore:", err);
@@ -98,7 +150,7 @@ export default function App() {
     const userDocId = currentUser.toLowerCase().trim();
     try {
       for (const w of wts) {
-        await setDoc(doc(db, "users", userDocId, "wallets", w.id), w);
+        await setDoc(doc(db, "users", userDocId, "wallets", w.id), cleanObjectForFirestore(w));
       }
     } catch (err) {
       console.error("Error syncing wallets to Firestore:", err);
@@ -112,6 +164,48 @@ export default function App() {
       localStorage.setItem(`money_tracker_wallets_${userDocId}`, JSON.stringify(newWallets));
     } else {
       localStorage.setItem("money_tracker_wallets", JSON.stringify(newWallets));
+    }
+  };
+
+  // Helper to sync debts to Firestore
+  const syncDebtsToFirestore = async (dts: Debt[]) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+    try {
+      for (const d of dts) {
+        await setDoc(doc(db, "users", userDocId, "debts", d.id), cleanObjectForFirestore(d));
+      }
+    } catch (err) {
+      console.error("Error syncing debts to Firestore:", err);
+    }
+  };
+
+  // Helper to sync debt payments to Firestore
+  const syncDebtPaymentsToFirestore = async (payments: DebtPayment[]) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+    try {
+      for (const p of payments) {
+        await setDoc(doc(db, "users", userDocId, "debt_payments", p.id), cleanObjectForFirestore(p));
+      }
+    } catch (err) {
+      console.error("Error syncing debt payments to Firestore:", err);
+    }
+  };
+
+  const saveDebts = (newDebts: Debt[]) => {
+    setDebts(newDebts);
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_debts_${userDocId}`, JSON.stringify(newDebts));
+    }
+  };
+
+  const saveDebtPayments = (newPayments: DebtPayment[]) => {
+    setDebtPayments(newPayments);
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_debt_payments_${userDocId}`, JSON.stringify(newPayments));
     }
   };
 
@@ -214,6 +308,64 @@ export default function App() {
       } catch (error) {
         console.error("Failed to load transactions from Firestore, falling back to localStorage:", error);
         transactionLoadSuccess = false;
+      }
+
+      // 3. Load Debts
+      let debtsList: Debt[] = [];
+      let debtLoadSuccess = false;
+      try {
+        const debtsColRef = collection(db, "users", userDocId, "debts");
+        const debtsSnapshot = await getDocs(debtsColRef);
+        debtsSnapshot.forEach((doc) => {
+          debtsList.push(doc.data() as Debt);
+        });
+        debtLoadSuccess = true;
+      } catch (err) {
+        console.error("Failed to load debts from Firestore:", err);
+        debtLoadSuccess = false;
+      }
+
+      if (debtLoadSuccess) {
+        setDebts(debtsList);
+        localStorage.setItem(`money_tracker_debts_${userDocId}`, JSON.stringify(debtsList));
+      } else {
+        const savedDebts = localStorage.getItem(`money_tracker_debts_${userDocId}`);
+        if (savedDebts) {
+          try {
+            setDebts(JSON.parse(savedDebts));
+          } catch (e) {
+            setDebts([]);
+          }
+        }
+      }
+
+      // 4. Load Debt Payments
+      let paymentsList: DebtPayment[] = [];
+      let paymentLoadSuccess = false;
+      try {
+        const paymentsColRef = collection(db, "users", userDocId, "debt_payments");
+        const paymentsSnapshot = await getDocs(paymentsColRef);
+        paymentsSnapshot.forEach((doc) => {
+          paymentsList.push(doc.data() as DebtPayment);
+        });
+        paymentLoadSuccess = true;
+      } catch (err) {
+        console.error("Failed to load debt payments from Firestore:", err);
+        paymentLoadSuccess = false;
+      }
+
+      if (paymentLoadSuccess) {
+        setDebtPayments(paymentsList);
+        localStorage.setItem(`money_tracker_debt_payments_${userDocId}`, JSON.stringify(paymentsList));
+      } else {
+        const savedPayments = localStorage.getItem(`money_tracker_debt_payments_${userDocId}`);
+        if (savedPayments) {
+          try {
+            setDebtPayments(JSON.parse(savedPayments));
+          } catch (e) {
+            setDebtPayments([]);
+          }
+        }
       }
 
       // Set global Firestore status based on loading success
@@ -334,9 +486,51 @@ export default function App() {
     saveTransactions(updated);
 
     try {
-      await setDoc(doc(db, "users", userDocId, "transactions", newTx.id), newTx);
+      await setDoc(doc(db, "users", userDocId, "transactions", newTx.id), cleanObjectForFirestore(newTx));
     } catch (err) {
       console.error("Error saving transaction to Firestore:", err);
+    }
+
+    // Auto-repay/adjust debt if linked
+    if (newTx.debtId) {
+      const targetDebt = debts.find((d) => d.id === newTx.debtId);
+      if (targetDebt) {
+        const paidAmount = newTx.amount;
+        const newRemaining = Math.max(0, targetDebt.remainingAmount - paidAmount);
+        const isPaid = newRemaining <= 0;
+        const updatedDebt: Debt = {
+          ...targetDebt,
+          remainingAmount: newRemaining,
+          status: isPaid ? "paid" : "active",
+        };
+
+        const updatedDebts = debts.map((d) => (d.id === targetDebt.id ? updatedDebt : d));
+        saveDebts(updatedDebts);
+        try {
+          await setDoc(doc(db, "users", userDocId, "debts", targetDebt.id), cleanObjectForFirestore(updatedDebt));
+        } catch (err) {
+          console.error("Error updating debt status from transaction:", err);
+        }
+
+        // Create DebtPayment record for full ledger sync
+        const payment: DebtPayment = {
+          id: "pay-tx-" + Date.now(),
+          debtId: newTx.debtId,
+          amount: paidAmount,
+          walletId: newTx.walletId || "",
+          date: newTx.date,
+          note: newTx.note || `ชำระหนี้ผ่านรายการบันทึก: ${targetDebt.creditorDebtorName}`,
+          createdAt: new Date().toISOString(),
+        };
+
+        const updatedPayments = [payment, ...debtPayments];
+        saveDebtPayments(updatedPayments);
+        try {
+          await setDoc(doc(db, "users", userDocId, "debt_payments", payment.id), cleanObjectForFirestore(payment));
+        } catch (err) {
+          console.error("Error saving debt payment from transaction:", err);
+        }
+      }
     }
     
     // If transaction added belongs to a different month, switch to that month
@@ -369,9 +563,116 @@ export default function App() {
     saveTransactions(updated);
 
     try {
-      await setDoc(doc(db, "users", userDocId, "transactions", editingTransaction.id), updatedTx);
+      await setDoc(doc(db, "users", userDocId, "transactions", editingTransaction.id), cleanObjectForFirestore(updatedTx));
     } catch (err) {
       console.error("Error updating transaction in Firestore:", err);
+    }
+
+    // Debt adjustment on transaction update
+    if (updatedTx.debtId || editingTransaction.debtId) {
+      const oldDebtId = editingTransaction.debtId;
+      const newDebtId = updatedTx.debtId;
+      const oldAmount = editingTransaction.amount;
+      const newAmount = updatedTx.amount;
+
+      // Case 1: Unlinked debt or changed debt entirely
+      if (oldDebtId !== newDebtId) {
+        // Revert old debt if there was one
+        if (oldDebtId) {
+          const oldDebt = debts.find(d => d.id === oldDebtId);
+          if (oldDebt) {
+            const revertedRemaining = oldDebt.remainingAmount + oldAmount;
+            const updatedOldDebt: Debt = {
+              ...oldDebt,
+              remainingAmount: revertedRemaining,
+              status: revertedRemaining > 0 ? "active" : "paid",
+            };
+            const updatedDebtsList = debts.map(d => d.id === oldDebtId ? updatedOldDebt : d);
+            saveDebts(updatedDebtsList);
+            try {
+              await setDoc(doc(db, "users", userDocId, "debts", oldDebtId), cleanObjectForFirestore(updatedOldDebt));
+            } catch (err) {
+              console.error(err);
+            }
+            // Delete old payment if any
+            const paymentToDelete = debtPayments.find(p => p.debtId === oldDebtId && p.amount === oldAmount);
+            if (paymentToDelete) {
+              const updatedPaymentsList = debtPayments.filter(p => p.id !== paymentToDelete.id);
+              saveDebtPayments(updatedPaymentsList);
+              try {
+                await deleteDoc(doc(db, "users", userDocId, "debt_payments", paymentToDelete.id));
+              } catch (e) {}
+            }
+          }
+        }
+
+        // Apply new debt if there is one
+        if (newDebtId) {
+          const newDebt = debts.find(d => d.id === newDebtId);
+          if (newDebt) {
+            const newRemaining = Math.max(0, newDebt.remainingAmount - newAmount);
+            const updatedNewDebt: Debt = {
+              ...newDebt,
+              remainingAmount: newRemaining,
+              status: newRemaining <= 0 ? "paid" : "active",
+            };
+            const updatedDebtsList = debts.map(d => d.id === newDebtId ? updatedNewDebt : d);
+            saveDebts(updatedDebtsList);
+            try {
+              await setDoc(doc(db, "users", userDocId, "debts", newDebtId), cleanObjectForFirestore(updatedNewDebt));
+            } catch (err) {}
+
+            // Create new payment record
+            const payment: DebtPayment = {
+              id: "pay-tx-" + Date.now(),
+              debtId: newDebtId,
+              amount: newAmount,
+              walletId: updatedTx.walletId || "",
+              date: updatedTx.date,
+              note: updatedTx.note || `ชำระหนี้ผ่านรายการแก้ไข: ${newDebt.creditorDebtorName}`,
+              createdAt: new Date().toISOString(),
+            };
+            const updatedPaymentsList = [payment, ...debtPayments];
+            saveDebtPayments(updatedPaymentsList);
+            try {
+              await setDoc(doc(db, "users", userDocId, "debt_payments", payment.id), cleanObjectForFirestore(payment));
+            } catch (e) {}
+          }
+        }
+      } else if (newDebtId && oldAmount !== newAmount) {
+        // Case 2: Same debt, but amount changed
+        const targetDebt = debts.find(d => d.id === newDebtId);
+        if (targetDebt) {
+          const difference = newAmount - oldAmount;
+          const newRemaining = Math.max(0, targetDebt.remainingAmount - difference);
+          const updatedDebt: Debt = {
+            ...targetDebt,
+            remainingAmount: newRemaining,
+            status: newRemaining <= 0 ? "paid" : "active",
+          };
+          const updatedDebtsList = debts.map(d => d.id === newDebtId ? updatedDebt : d);
+          saveDebts(updatedDebtsList);
+          try {
+            await setDoc(doc(db, "users", userDocId, "debts", newDebtId), cleanObjectForFirestore(updatedDebt));
+          } catch (err) {}
+
+          // Update corresponding payment if exists
+          const paymentToUpdate = debtPayments.find(p => p.debtId === newDebtId && p.amount === oldAmount);
+          if (paymentToUpdate) {
+            const updatedPayment: DebtPayment = {
+              ...paymentToUpdate,
+              amount: newAmount,
+              walletId: updatedTx.walletId || "",
+              date: updatedTx.date,
+            };
+            const updatedPaymentsList = debtPayments.map(p => p.id === paymentToUpdate.id ? updatedPayment : p);
+            saveDebtPayments(updatedPaymentsList);
+            try {
+              await setDoc(doc(db, "users", userDocId, "debt_payments", paymentToUpdate.id), cleanObjectForFirestore(updatedPayment));
+            } catch (e) {}
+          }
+        }
+      }
     }
 
     setEditingTransaction(null);
@@ -381,6 +682,38 @@ export default function App() {
   const handleDeleteTransaction = async (id: string) => {
     if (!currentUser) return;
     const userDocId = currentUser.toLowerCase().trim();
+
+    // Revert debt if transaction was linked to a debt
+    const txToDelete = transactions.find((tx) => tx.id === id);
+    if (txToDelete && txToDelete.debtId) {
+      const targetDebt = debts.find((d) => d.id === txToDelete.debtId);
+      if (targetDebt) {
+        const revertedRemaining = targetDebt.remainingAmount + txToDelete.amount;
+        const updatedDebt: Debt = {
+          ...targetDebt,
+          remainingAmount: revertedRemaining,
+          status: revertedRemaining > 0 ? "active" : "paid",
+        };
+        const updatedDebts = debts.map((d) => (d.id === targetDebt.id ? updatedDebt : d));
+        saveDebts(updatedDebts);
+        try {
+          await setDoc(doc(db, "users", userDocId, "debts", targetDebt.id), cleanObjectForFirestore(updatedDebt));
+        } catch (err) {
+          console.error("Error reverting debt on transaction deletion:", err);
+        }
+
+        // Delete the corresponding payment
+        const paymentToDelete = debtPayments.find(p => p.debtId === txToDelete.debtId && p.amount === txToDelete.amount);
+        if (paymentToDelete) {
+          const updatedPayments = debtPayments.filter(p => p.id !== paymentToDelete.id);
+          saveDebtPayments(updatedPayments);
+          try {
+            await deleteDoc(doc(db, "users", userDocId, "debt_payments", paymentToDelete.id));
+          } catch (e) {}
+        }
+      }
+    }
+
     const updated = transactions.filter((tx) => tx.id !== id);
     saveTransactions(updated);
 
@@ -404,7 +737,7 @@ export default function App() {
     saveWallets(updated);
 
     try {
-      await setDoc(doc(db, "users", userDocId, "wallets", newW.id), newW);
+      await setDoc(doc(db, "users", userDocId, "wallets", newW.id), cleanObjectForFirestore(newW));
     } catch (err) {
       console.error("Error saving wallet to Firestore:", err);
     }
@@ -423,7 +756,7 @@ export default function App() {
     saveWallets(updated);
 
     try {
-      await setDoc(doc(db, "users", userDocId, "wallets", id), updatedW);
+      await setDoc(doc(db, "users", userDocId, "wallets", id), cleanObjectForFirestore(updatedW));
     } catch (err) {
       console.error("Error updating wallet in Firestore:", err);
     }
@@ -439,6 +772,122 @@ export default function App() {
       await deleteDoc(doc(db, "users", userDocId, "wallets", id));
     } catch (err) {
       console.error("Error deleting wallet from Firestore:", err);
+    }
+  };
+
+  // Debt Actions
+  const handleAddDebt = async (debt: Debt, initialWalletId?: string) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+    
+    const updatedDebts = [debt, ...debts];
+    saveDebts(updatedDebts);
+    try {
+      await setDoc(doc(db, "users", userDocId, "debts", debt.id), cleanObjectForFirestore(debt));
+    } catch (err) {
+      console.error("Error saving debt to Firestore:", err);
+    }
+
+    if (initialWalletId) {
+      const isBorrowed = debt.type === "borrowed";
+      const newTx: Transaction = {
+        id: "tx-debt-" + Date.now(),
+        type: isBorrowed ? "income" : "expense",
+        amount: debt.amount,
+        category: isBorrowed ? "หนี้สิน (กู้ยืมมา)" : "หนี้สิน (ให้กู้ยืม)",
+        merchantName: isBorrowed ? `กู้ยืมเงินจาก ${debt.creditorDebtorName}` : `ให้คุณ ${debt.creditorDebtorName} กู้ยืมเงิน`,
+        date: debt.createdAt.split("T")[0],
+        time: new Date().toTimeString().slice(0, 5),
+        note: debt.description || `รายการหนี้อัตโนมัติ: ${debt.creditorDebtorName}`,
+        walletId: initialWalletId,
+        createdAt: new Date().toISOString(),
+      };
+      
+      const updatedTxList = [newTx, ...transactions];
+      saveTransactions(updatedTxList);
+      try {
+        await setDoc(doc(db, "users", userDocId, "transactions", newTx.id), cleanObjectForFirestore(newTx));
+      } catch (err) {
+        console.error("Error saving debt transaction to Firestore:", err);
+      }
+    }
+  };
+
+  const handleAddDebtPayment = async (payment: DebtPayment, paidAmount: number) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+
+    const updatedPayments = [payment, ...debtPayments];
+    saveDebtPayments(updatedPayments);
+    try {
+      await setDoc(doc(db, "users", userDocId, "debt_payments", payment.id), cleanObjectForFirestore(payment));
+    } catch (err) {
+      console.error("Error saving debt payment to Firestore:", err);
+    }
+
+    const targetDebt = debts.find((d) => d.id === payment.debtId);
+    if (targetDebt) {
+      const newRemaining = Math.max(0, targetDebt.remainingAmount - paidAmount);
+      const isPaid = newRemaining <= 0;
+      const updatedDebt: Debt = {
+        ...targetDebt,
+        remainingAmount: newRemaining,
+        status: isPaid ? "paid" : "active",
+      };
+
+      const updatedDebts = debts.map((d) => (d.id === payment.debtId ? updatedDebt : d));
+      saveDebts(updatedDebts);
+      try {
+        await setDoc(doc(db, "users", userDocId, "debts", payment.debtId), cleanObjectForFirestore(updatedDebt));
+      } catch (err) {
+        console.error("Error updating debt status to Firestore:", err);
+      }
+
+      const isBorrowed = targetDebt.type === "borrowed";
+      const newTx: Transaction = {
+        id: "tx-pay-" + Date.now(),
+        type: isBorrowed ? "expense" : "income",
+        amount: paidAmount,
+        category: isBorrowed ? "หนี้สิน (ชำระคืน)" : "หนี้สิน (รับชำระคืน)",
+        merchantName: isBorrowed ? `ชำระหนี้คืนแก่ ${targetDebt.creditorDebtorName}` : `รับชำระหนี้คืนจาก ${targetDebt.creditorDebtorName}`,
+        date: payment.date,
+        time: new Date().toTimeString().slice(0, 5),
+        note: payment.note || `ชำระหนี้รหัส: ${targetDebt.creditorDebtorName}`,
+        walletId: payment.walletId,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedTxList = [newTx, ...transactions];
+      saveTransactions(updatedTxList);
+      try {
+        await setDoc(doc(db, "users", userDocId, "transactions", newTx.id), cleanObjectForFirestore(newTx));
+      } catch (err) {
+        console.error("Error saving debt payment transaction to Firestore:", err);
+      }
+    }
+  };
+
+  const handleDeleteDebt = async (debtId: string) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+
+    const updatedDebts = debts.filter((d) => d.id !== debtId);
+    saveDebts(updatedDebts);
+    try {
+      await deleteDoc(doc(db, "users", userDocId, "debts", debtId));
+    } catch (err) {
+      console.error("Error deleting debt from Firestore:", err);
+    }
+
+    const paymentsToDelete = debtPayments.filter((p) => p.debtId === debtId);
+    const updatedPayments = debtPayments.filter((p) => p.debtId !== debtId);
+    saveDebtPayments(updatedPayments);
+    try {
+      for (const p of paymentsToDelete) {
+        await deleteDoc(doc(db, "users", userDocId, "debt_payments", p.id));
+      }
+    } catch (err) {
+      console.error("Error deleting debt payments from Firestore:", err);
     }
   };
 
@@ -474,8 +923,12 @@ export default function App() {
     // Clear state & storage
     setTransactions([]);
     setWallets([]);
+    setDebts([]);
+    setDebtPayments([]);
     localStorage.removeItem(`money_tracker_transactions_${userDocId}`);
     localStorage.removeItem(`money_tracker_wallets_${userDocId}`);
+    localStorage.removeItem(`money_tracker_debts_${userDocId}`);
+    localStorage.removeItem(`money_tracker_debt_payments_${userDocId}`);
     
     // Clear firestore
     try {
@@ -486,6 +939,14 @@ export default function App() {
       const walletDocs = await getDocs(collection(db, "users", userDocId, "wallets"));
       for (const d of walletDocs.docs) {
         await deleteDoc(doc(db, "users", userDocId, "wallets", d.id));
+      }
+      const debtDocs = await getDocs(collection(db, "users", userDocId, "debts"));
+      for (const d of debtDocs.docs) {
+        await deleteDoc(doc(db, "users", userDocId, "debts", d.id));
+      }
+      const paymentDocs = await getDocs(collection(db, "users", userDocId, "debt_payments"));
+      for (const d of paymentDocs.docs) {
+        await deleteDoc(doc(db, "users", userDocId, "debt_payments", d.id));
       }
     } catch (err) {
       console.error("Error clearing Firestore data:", err);
@@ -589,7 +1050,7 @@ export default function App() {
 
       {/* Primary Navigation Hub */}
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-1.5 max-w-2xl mx-auto">
+        <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-2 md:grid-cols-5 gap-1.5 max-w-3xl mx-auto">
           <button
             onClick={() => setCurrentPage("dashboard")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -599,7 +1060,7 @@ export default function App() {
             }`}
           >
             <PieChart className="w-4 h-4" />
-            1. แดชบอร์ดภาพรวม
+            1. แดชบอร์ด
           </button>
           <button
             onClick={() => setCurrentPage("records")}
@@ -610,7 +1071,7 @@ export default function App() {
             }`}
           >
             <ScanLine className="w-4 h-4" />
-            2. บันทึกและโอนออก
+            2. บันทึกและสแกน
           </button>
           <button
             onClick={() => setCurrentPage("wallets")}
@@ -621,18 +1082,29 @@ export default function App() {
             }`}
           >
             <WalletIcon className="w-4 h-4" />
-            3. จัดการกระเป๋าเงิน
+            3. กระเป๋าเงิน
+          </button>
+          <button
+            onClick={() => setCurrentPage("debts")}
+            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              currentPage === "debts"
+                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Landmark className="w-4 h-4" />
+            4. หนี้สินและกู้ยืม
           </button>
           <button
             onClick={() => setCurrentPage("settings")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center col-span-2 md:col-span-1 gap-2 cursor-pointer ${
               currentPage === "settings"
                 ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
             <Settings className="w-4 h-4" />
-            4. ตั้งค่าระบบ
+            5. ตั้งค่าระบบ
           </button>
         </div>
       </nav>
@@ -733,6 +1205,8 @@ export default function App() {
                       setActiveTab("scan");
                     }}
                     wallets={wallets}
+                    walletBalances={walletBalances}
+                    debts={debts}
                   />
                 )}
               </div>
@@ -786,7 +1260,22 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 4: Core System Settings */}
+        {/* VIEW 4: Debt & Loan Management Panel */}
+        {currentPage === "debts" && (
+          <div className="animate-fade-in">
+            <DebtManager
+              wallets={wallets}
+              walletBalances={walletBalances}
+              debts={debts}
+              debtPayments={debtPayments}
+              onAddDebt={handleAddDebt}
+              onAddDebtPayment={handleAddDebtPayment}
+              onDeleteDebt={handleDeleteDebt}
+            />
+          </div>
+        )}
+
+        {/* VIEW 5: Core System Settings */}
         {currentPage === "settings" && (
           <div className="animate-fade-in">
             <SettingsScreen
