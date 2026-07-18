@@ -3,7 +3,7 @@ import { Wallet, Transaction } from "../types";
 import { 
   Plus, Edit, Trash2, Landmark, Wallet as WalletIcon, CreditCard, 
   HelpCircle, ArrowRightLeft, X, Check, ArrowRight, TrendingUp, Sparkles, Coins,
-  ArrowUp, ArrowDown, Star
+  ArrowUp, ArrowDown, Star, ArrowUpRight, ArrowDownLeft, Eye
 } from "lucide-react";
 
 interface WalletManagerProps {
@@ -36,6 +36,9 @@ export default function WalletManager({
   onAddTransaction,
   onReorderWallets,
 }: WalletManagerProps) {
+  // Selected wallet for showing cash flow (inflow/outflow)
+  const [selectedWalletFlowId, setSelectedWalletFlowId] = useState<string | null>(null);
+
   // Modal states
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -135,7 +138,7 @@ export default function WalletManager({
       initialBalance: parseFloat(initialBalance) || 0,
       icon: walletIcon,
       color: walletColor,
-      accountNumber: walletType === "bank" ? accountNumber.trim() || undefined : undefined,
+      accountNumber: accountNumber.trim() || undefined,
       isDefault: isDefault,
     };
 
@@ -276,10 +279,16 @@ export default function WalletManager({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {wallets.map((wallet, idx) => {
               const balance = walletBalances[wallet.id] ?? 0;
+              const isSelectedFlow = selectedWalletFlowId === wallet.id;
               return (
                 <div
                   key={wallet.id}
-                  className={`relative ${wallet.color} border p-5 rounded-3xl text-white shadow-lg flex flex-col justify-between min-h-[170px] group transition-all duration-300 hover:scale-[1.02]`}
+                  onClick={() => setSelectedWalletFlowId(isSelectedFlow ? null : wallet.id)}
+                  className={`relative ${wallet.color} border p-5 rounded-3xl text-white shadow-lg flex flex-col justify-between min-h-[170px] group transition-all duration-300 hover:scale-[1.02] cursor-pointer ${
+                    isSelectedFlow 
+                      ? "ring-4 ring-indigo-500 ring-offset-4 ring-offset-[#090D16] border-white/40 scale-[1.02]" 
+                      : "border-white/10 hover:border-white/20"
+                  }`}
                 >
                   {/* Top line info */}
                   <div>
@@ -294,6 +303,11 @@ export default function WalletManager({
                             {wallet.isDefault && (
                               <span className="text-[9px] bg-amber-500/20 text-amber-300 font-extrabold px-1.5 py-0.5 rounded-md border border-amber-400/30 flex items-center gap-0.5 uppercase shrink-0">
                                 <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" /> หลัก
+                              </span>
+                            )}
+                            {isSelectedFlow && (
+                              <span className="text-[9px] bg-indigo-500/30 text-indigo-300 font-extrabold px-1.5 py-0.5 rounded-md border border-indigo-400/40 flex items-center gap-0.5 uppercase shrink-0 animate-pulse">
+                                <Eye className="w-2.5 h-2.5" /> ดูกระแสเงิน
                               </span>
                             )}
                           </div>
@@ -421,6 +435,196 @@ export default function WalletManager({
         )}
       </div>
 
+      {/* Wallet Cash Flow Section */}
+      {selectedWalletFlowId && (() => {
+        const selectedWallet = wallets.find(w => w.id === selectedWalletFlowId);
+        if (!selectedWallet) return null;
+
+        const balance = walletBalances[selectedWalletFlowId] ?? 0;
+        
+        // Filter transactions for selected wallet
+        const walletTxs = transactions.filter(tx => {
+          return tx.walletId === selectedWalletFlowId || tx.toWalletId === selectedWalletFlowId;
+        });
+
+        // Sort chronologically (latest first)
+        const sortedWalletTxs = [...walletTxs].sort((a, b) => {
+          const dateCompare = b.date.localeCompare(a.date);
+          if (dateCompare !== 0) return dateCompare;
+          return (b.time || "").localeCompare(a.time || "");
+        });
+
+        // Calculate inflows / outflows
+        let walletInflowSum = 0;
+        let walletOutflowSum = 0;
+
+        sortedWalletTxs.forEach(tx => {
+          if (tx.type === "income" && tx.walletId === selectedWalletFlowId) {
+            walletInflowSum += tx.amount;
+          } else if (tx.type === "expense" && tx.walletId === selectedWalletFlowId) {
+            walletOutflowSum += tx.amount;
+          } else if (tx.type === "transfer") {
+            if (tx.walletId === selectedWalletFlowId) {
+              walletOutflowSum += tx.amount;
+            }
+            if (tx.toWalletId === selectedWalletFlowId) {
+              walletInflowSum += tx.amount;
+            }
+          }
+        });
+
+        return (
+          <div id="wallet-flow-details" className="bg-white/5 border border-white/10 rounded-3xl p-6 mb-6 transition-all duration-300 animate-fadeIn relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
+            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl p-2 bg-white/10 rounded-2xl border border-white/10 select-none shadow-sm">{selectedWallet.icon}</span>
+                <div>
+                  <h3 className="text-white font-black text-lg tracking-wide flex items-center gap-2">
+                    <span>การเคลื่อนไหวเงินในกระเป๋า</span>
+                    <span className="px-2.5 py-0.5 text-xs font-bold rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 animate-pulse">
+                      {selectedWallet.name}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">รายการเคลื่อนไหวทางการเงิน เงินเข้า / เงินออก ทั้งหมด</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedWalletFlowId(null)}
+                className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-all cursor-pointer border border-white/5"
+                title="ปิดหน้านี้"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              {/* Total Balance */}
+              <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">ยอดเงินปัจจุบัน</span>
+                  <p className="text-xl font-extrabold text-white mt-1">
+                    ฿{balance.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="p-3 bg-white/10 text-slate-300 rounded-xl">
+                  <Coins className="w-5 h-5" />
+                </div>
+              </div>
+
+              {/* Inflow Stat */}
+              <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">ยอดเงินเข้าสะสม (Inflow)</span>
+                  <p className="text-xl font-extrabold text-emerald-400 mt-1">
+                    +฿{walletInflowSum.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                  <ArrowUpRight className="w-5 h-5" />
+                </div>
+              </div>
+
+              {/* Outflow Stat */}
+              <div className="bg-rose-500/5 border border-rose-500/10 p-4 rounded-2xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-rose-400">ยอดเงินออกสะสม (Outflow)</span>
+                  <p className="text-xl font-extrabold text-rose-400 mt-1">
+                    -฿{walletOutflowSum.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="p-3 bg-rose-500/10 text-rose-400 rounded-xl">
+                  <ArrowDownLeft className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Transactions List */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📋 ประวัติการทำรายการล่าสุด ({sortedWalletTxs.length})</span>
+                </h4>
+              </div>
+
+              {sortedWalletTxs.length === 0 ? (
+                <div className="text-center py-10 border border-dashed border-white/10 rounded-2xl bg-white/5">
+                  <p className="text-slate-400 text-sm">ไม่มีประวัติการทำรายการสำหรับกระเป๋านี้</p>
+                  <p className="text-slate-500 text-xs mt-1">รายรับ รายจ่าย หรือ รายการโอนเงินที่ผูกกับกระเป๋านี้จะแสดงที่นี่</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
+                  {sortedWalletTxs.map(tx => {
+                    const isTransfer = tx.type === "transfer";
+                    const isIncome = tx.type === "income";
+                    
+                    // Determine if it's an inflow or outflow for THIS specific wallet
+                    let isWalletInflow = false;
+                    if (isIncome && tx.walletId === selectedWalletFlowId) {
+                      isWalletInflow = true;
+                    } else if (isTransfer && tx.toWalletId === selectedWalletFlowId) {
+                      isWalletInflow = true;
+                    }
+
+                    return (
+                      <div key={tx.id} className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-2xl flex items-center justify-between transition-colors">
+                        <div className="flex items-center gap-3">
+                          {/* Inflow / Outflow Indicator */}
+                          <div className={`p-2.5 rounded-xl shrink-0 ${
+                            isWalletInflow 
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                              : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                          }`}>
+                            {isWalletInflow ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
+                          </div>
+                          
+                          {/* Text Info */}
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm text-white">
+                                {tx.merchantName}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-300 font-medium border border-white/5">
+                                {tx.category}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                              <span>📅 {tx.date}</span>
+                              {tx.time && <span>⏰ {tx.time}</span>}
+                              {tx.note && <span className="italic text-slate-500">({tx.note})</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Amount & Subtext */}
+                        <div className="text-right">
+                          <p className={`font-black text-sm ${isWalletInflow ? "text-emerald-400" : "text-rose-400"}`}>
+                            {isWalletInflow ? "+" : "-"}฿{tx.amount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                          {isTransfer && (
+                            <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1 font-medium mt-0.5">
+                              <ArrowRightLeft className="w-3 h-3 text-indigo-400" />
+                              {tx.walletId === selectedWalletFlowId 
+                                ? `โอนไปยัง: ${wallets.find(w => w.id === tx.toWalletId)?.name || "กระเป๋าอื่น"}`
+                                : `โอนมาจาก: ${wallets.find(w => w.id === tx.walletId)?.name || "กระเป๋าอื่น"}`
+                              }
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Guide Card */}
       <div className="bg-white/5 border border-white/10 rounded-3xl p-5 flex gap-4">
         <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl h-fit shrink-0">
@@ -483,16 +687,16 @@ export default function WalletManager({
                   </select>
                 </div>
 
-                {/* Account Number (for bank account only) */}
+                {/* Account Number or Details */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-                    เลขบัญชี / รายละเอียด {walletType !== "bank" && "(ไม่บังคับ)"}
+                    เลขบัญชี / รายละเอียด (ไม่บังคับ)
                   </label>
                   <input
                     type="text"
                     value={accountNumber}
                     onChange={(e) => setAccountNumber(e.target.value)}
-                    placeholder={walletType === "bank" ? "เช่น 123-4-56789-0" : "คำใบ้เพิ่มเติม"}
+                    placeholder={walletType === "bank" ? "เช่น 123-4-56789-0" : walletType === "credit" ? "เช่น เลขท้ายบัตร 4 ตัว" : "เช่น เบอร์ TrueMoney, โน้ตย่อ"}
                     className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm"
                   />
                 </div>

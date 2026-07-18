@@ -75,10 +75,6 @@ export default function TransactionForm({
       alert("กรุณาระบุจำนวนเงินที่มากกว่า 0");
       return;
     }
-    if (type !== "transfer" && !merchantName.trim()) {
-      alert("กรุณาระบุชื่อร้านค้า หรือ รายละเอียดผู้โอน/รับเงิน");
-      return;
-    }
     if (type === "transfer" && walletId === toWalletId) {
       alert("บัญชีต้นทางและปลายทางต้องไม่ซ้ำกัน");
       return;
@@ -110,6 +106,10 @@ export default function TransactionForm({
 
     let finalMerchantName = merchantName.trim();
     let finalCategory = category;
+
+    if (type !== "transfer" && !finalMerchantName) {
+      finalMerchantName = category;
+    }
 
     if (type === "transfer") {
       const fromWName = wallets.find(w => w.id === walletId)?.name || "ต้นทาง";
@@ -371,9 +371,8 @@ export default function TransactionForm({
               type="text"
               value={merchantName}
               onChange={(e) => setMerchantName(e.target.value)}
-              placeholder={type === "expense" ? "เช่น เซเว่น, BTS, เติมน้ำมัน" : "เช่น เงินเดือน, งานเสริม, โอนคืน"}
+              placeholder={type === "expense" ? "เช่น เซเว่น, BTS, เติมน้ำมัน (เว้นว่าง = ใช้ชื่อหมวดหมู่)" : "เช่น เงินเดือน, งานเสริม, โอนคืน (เว้นว่าง = ใช้ชื่อหมวดหมู่)"}
               className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
-              required={type !== "transfer"}
             />
           </div>
         )}
