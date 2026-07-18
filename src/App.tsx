@@ -244,6 +244,15 @@ export default function App() {
       let transactionLoadSuccess = false;
       let walletsData: Wallet[] = [];
 
+      const sortWalletsList = (list: Wallet[]) => {
+        return [...list].sort((a, b) => {
+          const orderA = a.sortOrder !== undefined ? a.sortOrder : 9999;
+          const orderB = b.sortOrder !== undefined ? b.sortOrder : 9999;
+          if (orderA !== orderB) return orderA - orderB;
+          return b.createdAt.localeCompare(a.createdAt);
+        });
+      };
+
       // 1. Load Wallets first so transactions can link correctly
       try {
         const walletsColRef = collection(db, "users", userDocId, "wallets");
@@ -260,17 +269,18 @@ export default function App() {
 
       if (walletLoadSuccess) {
         if (walletsData.length > 0) {
-          walletsData.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-          setWallets(walletsData);
-          localStorage.setItem(`money_tracker_wallets_${userDocId}`, JSON.stringify(walletsData));
+          const sorted = sortWalletsList(walletsData);
+          setWallets(sorted);
+          localStorage.setItem(`money_tracker_wallets_${userDocId}`, JSON.stringify(sorted));
         } else {
           const savedWallets = localStorage.getItem(`money_tracker_wallets_${userDocId}`);
           if (savedWallets) {
             try {
               const parsed = JSON.parse(savedWallets);
               if (Array.isArray(parsed) && parsed.length > 0) {
-                setWallets(parsed);
-                syncWalletsToFirestore(parsed);
+                const sorted = sortWalletsList(parsed);
+                setWallets(sorted);
+                syncWalletsToFirestore(sorted);
               } else {
                 createDefaultWallets();
               }
@@ -286,7 +296,8 @@ export default function App() {
         const savedWallets = localStorage.getItem(`money_tracker_wallets_${userDocId}`);
         if (savedWallets) {
           try {
-            setWallets(JSON.parse(savedWallets));
+            const sorted = sortWalletsList(JSON.parse(savedWallets));
+            setWallets(sorted);
           } catch (e) {
             createDefaultWallets();
           }
@@ -728,16 +739,35 @@ export default function App() {
   const handleAddWallet = async (data: Omit<Wallet, "id" | "createdAt">) => {
     if (!currentUser) return;
     const userDocId = currentUser.toLowerCase().trim();
+    
+    let isDefaultVal = data.isDefault;
+    if (wallets.length === 0) {
+      isDefaultVal = true;
+    }
+
     const newW: Wallet = {
       ...data,
+      isDefault: isDefaultVal,
+      sortOrder: data.sortOrder !== undefined ? data.sortOrder : wallets.length,
       id: "w-" + Date.now(),
       createdAt: new Date().toISOString(),
     };
-    const updated = [newW, ...wallets];
+
+    let updated = [newW, ...wallets];
+    if (newW.isDefault) {
+      updated = updated.map((w) => w.id === newW.id ? w : { ...w, isDefault: false });
+    }
+
     saveWallets(updated);
 
     try {
-      await setDoc(doc(db, "users", userDocId, "wallets", newW.id), cleanObjectForFirestore(newW));
+      if (newW.isDefault) {
+        for (const w of updated) {
+          await setDoc(doc(db, "users", userDocId, "wallets", w.id), cleanObjectForFirestore(w));
+        }
+      } else {
+        await setDoc(doc(db, "users", userDocId, "wallets", newW.id), cleanObjectForFirestore(newW));
+      }
     } catch (err) {
       console.error("Error saving wallet to Firestore:", err);
     }
@@ -748,17 +778,49 @@ export default function App() {
     const userDocId = currentUser.toLowerCase().trim();
     const current = wallets.find(w => w.id === id);
     if (!current) return;
+    
     const updatedW: Wallet = {
       ...current,
       ...data,
     };
-    const updated = wallets.map((w) => (w.id === id ? updatedW : w));
+
+    let updated = wallets.map((w) => (w.id === id ? updatedW : w));
+    if (updatedW.isDefault) {
+      updated = updated.map((w) => w.id === id ? w : { ...w, isDefault: false });
+    }
+
     saveWallets(updated);
 
     try {
-      await setDoc(doc(db, "users", userDocId, "wallets", id), cleanObjectForFirestore(updatedW));
+      if (updatedW.isDefault) {
+        for (const w of updated) {
+          await setDoc(doc(db, "users", userDocId, "wallets", w.id), cleanObjectForFirestore(w));
+        }
+      } else {
+        await setDoc(doc(db, "users", userDocId, "wallets", id), cleanObjectForFirestore(updatedW));
+      }
     } catch (err) {
       console.error("Error updating wallet in Firestore:", err);
+    }
+  };
+
+  const handleReorderWallets = async (newWallets: Wallet[]) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+    
+    const reordered = newWallets.map((w, index) => ({
+      ...w,
+      sortOrder: index,
+    }));
+
+    saveWallets(reordered);
+
+    try {
+      for (const w of reordered) {
+        await setDoc(doc(db, "users", userDocId, "wallets", w.id), cleanObjectForFirestore(w));
+      }
+    } catch (err) {
+      console.error("Error reordering wallets in Firestore:", err);
     }
   };
 
@@ -1256,6 +1318,7 @@ export default function App() {
               onUpdateWallet={handleUpdateWallet}
               onDeleteWallet={handleDeleteWallet}
               onAddTransaction={handleAddTransaction}
+              onReorderWallets={handleReorderWallets}
             />
           </div>
         )}

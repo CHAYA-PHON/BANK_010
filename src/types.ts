@@ -25,6 +25,8 @@ export interface Wallet {
   color: string; // Tailwind gradient/color class
   accountNumber?: string;
   createdAt: string;
+  sortOrder?: number;
+  isDefault?: boolean;
 }
 
 export interface Debt {

@@ -35,9 +35,11 @@ export default function TransactionForm({
 
   // Sync with initial data (especially when scanning a slip)
   useEffect(() => {
-    // Default wallet selector to first wallet if available
-    const defaultWalletId = wallets.length > 0 ? wallets[0].id : "";
-    const defaultToWalletId = wallets.length > 1 ? wallets[1].id : "";
+    // Default wallet selector to isDefault wallet, or first wallet if available
+    const foundDefaultWallet = wallets.find(w => w.isDefault);
+    const defaultWalletId = foundDefaultWallet ? foundDefaultWallet.id : (wallets.length > 0 ? wallets[0].id : "");
+    const remainingWallets = wallets.filter(w => w.id !== defaultWalletId);
+    const defaultToWalletId = remainingWallets.length > 0 ? remainingWallets[0].id : (wallets.length > 1 ? wallets[1].id : "");
 
     if (initialData) {
       setType(initialData.type || "expense");

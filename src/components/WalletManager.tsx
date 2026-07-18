@@ -2,7 +2,8 @@ import { useState, FormEvent } from "react";
 import { Wallet, Transaction } from "../types";
 import { 
   Plus, Edit, Trash2, Landmark, Wallet as WalletIcon, CreditCard, 
-  HelpCircle, ArrowRightLeft, X, Check, ArrowRight, TrendingUp, Sparkles, Coins 
+  HelpCircle, ArrowRightLeft, X, Check, ArrowRight, TrendingUp, Sparkles, Coins,
+  ArrowUp, ArrowDown, Star
 } from "lucide-react";
 
 interface WalletManagerProps {
@@ -12,6 +13,7 @@ interface WalletManagerProps {
   onUpdateWallet: (id: string, wallet: Omit<Wallet, "id" | "createdAt">) => void;
   onDeleteWallet: (id: string) => void;
   onAddTransaction: (data: Omit<Transaction, "id" | "createdAt">) => void;
+  onReorderWallets?: (wallets: Wallet[]) => void;
 }
 
 const WALLET_COLORS = [
@@ -32,6 +34,7 @@ export default function WalletManager({
   onUpdateWallet,
   onDeleteWallet,
   onAddTransaction,
+  onReorderWallets,
 }: WalletManagerProps) {
   // Modal states
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
@@ -45,6 +48,7 @@ export default function WalletManager({
   const [walletIcon, setWalletIcon] = useState("💵");
   const [walletColor, setWalletColor] = useState(WALLET_COLORS[0].value);
   const [accountNumber, setAccountNumber] = useState("");
+  const [isDefault, setIsDefault] = useState(false);
 
   // Form states - Transfer
   const [fromWalletId, setFromWalletId] = useState("");
@@ -89,6 +93,7 @@ export default function WalletManager({
     setWalletIcon("💵");
     setWalletColor(WALLET_COLORS[0].value);
     setAccountNumber("");
+    setIsDefault(wallets.length === 0);
     setIsWalletModalOpen(true);
   };
 
@@ -100,6 +105,7 @@ export default function WalletManager({
     setWalletIcon(w.icon);
     setWalletColor(w.color);
     setAccountNumber(w.accountNumber || "");
+    setIsDefault(!!w.isDefault);
     setIsWalletModalOpen(true);
   };
 
@@ -130,6 +136,7 @@ export default function WalletManager({
       icon: walletIcon,
       color: walletColor,
       accountNumber: walletType === "bank" ? accountNumber.trim() || undefined : undefined,
+      isDefault: isDefault,
     };
 
     if (editingWallet) {
@@ -267,7 +274,7 @@ export default function WalletManager({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {wallets.map((wallet) => {
+            {wallets.map((wallet, idx) => {
               const balance = walletBalances[wallet.id] ?? 0;
               return (
                 <div
@@ -280,9 +287,16 @@ export default function WalletManager({
                       <div className="flex items-center gap-2.5">
                         <span className="text-3xl filter drop-shadow-md select-none">{wallet.icon}</span>
                         <div>
-                          <h4 className="font-bold text-base tracking-wide truncate max-w-[150px]">
-                            {wallet.name}
-                          </h4>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="font-bold text-base tracking-wide truncate max-w-[120px]">
+                              {wallet.name}
+                            </h4>
+                            {wallet.isDefault && (
+                              <span className="text-[9px] bg-amber-500/20 text-amber-300 font-extrabold px-1.5 py-0.5 rounded-md border border-amber-400/30 flex items-center gap-0.5 uppercase shrink-0">
+                                <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" /> หลัก
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] bg-black/20 text-white/90 font-medium px-2 py-0.5 rounded-full border border-white/10 uppercase">
                             {wallet.type === "cash" ? "💸 เงินสด" : wallet.type === "bank" ? "🏦 ธนาคาร" : wallet.type === "credit" ? "💳 บัตรเครดิต" : "💼 อื่นๆ"}
                           </span>
@@ -290,26 +304,93 @@ export default function WalletManager({
                       </div>
 
                       {/* Action buttons */}
-                      <div className="flex gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
+                      <div className="flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0 flex-wrap justify-end max-w-[140px]">
+                        {onReorderWallets && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (idx > 0) {
+                                  const newWallets = [...wallets];
+                                  const temp = newWallets[idx];
+                                  newWallets[idx] = newWallets[idx - 1];
+                                  newWallets[idx - 1] = temp;
+                                  onReorderWallets(newWallets);
+                                }
+                              }}
+                              disabled={idx === 0}
+                              className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                              title="เลื่อนขึ้น"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (idx < wallets.length - 1) {
+                                  const newWallets = [...wallets];
+                                  const temp = newWallets[idx];
+                                  newWallets[idx] = newWallets[idx + 1];
+                                  newWallets[idx + 1] = temp;
+                                  onReorderWallets(newWallets);
+                                }
+                              }}
+                              disabled={idx === wallets.length - 1}
+                              className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                              title="เลื่อนลง"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+
                         <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdateWallet(wallet.id, {
+                              name: wallet.name,
+                              type: wallet.type,
+                              initialBalance: wallet.initialBalance,
+                              icon: wallet.icon,
+                              color: wallet.color,
+                              accountNumber: wallet.accountNumber,
+                              isDefault: true
+                            });
+                          }}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                            wallet.isDefault 
+                              ? "bg-amber-500 text-slate-900 font-bold" 
+                              : "bg-black/20 text-white/60 hover:text-white hover:bg-black/40"
+                          }`}
+                          title={wallet.isDefault ? "กระเป๋าตังค่าเริ่มต้น" : "ตั้งเป็นกระเป๋าเงินค่าเริ่มต้น"}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${wallet.isDefault ? "fill-slate-900 text-slate-900" : ""}`} />
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             openEditWalletModal(wallet);
                           }}
-                          className="p-2 sm:p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
+                          className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
                           title="แก้ไขกระเป๋าตัง"
                         >
-                          <Edit className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                          <Edit className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteClick(wallet.id, wallet.name);
                           }}
-                          className="p-2 sm:p-1.5 bg-black/20 hover:bg-rose-600/60 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
+                          className="p-1.5 bg-black/20 hover:bg-rose-600/60 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
                           title="ลบกระเป๋าตัง"
                         >
-                          <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -460,7 +541,7 @@ export default function WalletManager({
                 </div>
               </div>
 
-              {/* Color style selector */}
+               {/* Color style selector */}
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-2">เลือกโทนสี / ลวดลายกระเป๋า</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -477,6 +558,22 @@ export default function WalletManager({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Default Wallet Checkbox */}
+              <div className="pt-3 border-t border-white/10">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isDefault}
+                    onChange={(e) => setIsDefault(e.target.checked)}
+                    className="w-4 h-4 rounded border-white/20 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-[#1e293b] bg-white/5 cursor-pointer mt-0.5"
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-slate-300 block">ตั้งเป็นกระเป๋าเงินหลัก (ค่าเริ่มต้น)</span>
+                    <span className="text-[10px] text-slate-500 block leading-normal mt-0.5">เมื่อเปิดเมนูบันทึกรายการใหม่ ระบบจะเลือกกระเป๋าเงินใบนี้ให้โดยอัตโนมัติ</span>
+                  </div>
+                </label>
               </div>
             </div>
 
