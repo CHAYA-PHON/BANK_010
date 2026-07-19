@@ -312,7 +312,7 @@ export default function WalletManager({
                             )}
                           </div>
                           <span className="text-[10px] bg-black/20 text-white/90 font-medium px-2 py-0.5 rounded-full border border-white/10 uppercase">
-                            {wallet.type === "cash" ? "💸 เงินสด" : wallet.type === "bank" ? "🏦 ธนาคาร" : wallet.type === "credit" ? "💳 บัตรเครดิต" : "💼 อื่นๆ"}
+                            {wallet.type === "cash" ? "💸 เงินสด" : wallet.type === "bank" ? "🏦 ธนาคาร" : wallet.type === "credit" ? "💳 บัตรเครดิต" : wallet.type === "saving" ? "🐷 กระปุกออมสิน" : "💼 อื่นๆ"}
                           </span>
                         </div>
                       </div>
@@ -683,6 +683,7 @@ export default function WalletManager({
                     <option value="cash" className="bg-[#1e293b]">💸 เงินสด (Cash)</option>
                     <option value="bank" className="bg-[#1e293b]">🏦 บัญชีธนาคาร (Bank)</option>
                     <option value="credit" className="bg-[#1e293b]">💳 บัตรเครดิต (Credit)</option>
+                    <option value="saving" className="bg-[#1e293b]">🐷 กระปุกออมสิน (Savings Jar)</option>
                     <option value="other" className="bg-[#1e293b]">💼 อื่น ๆ (Other)</option>
                   </select>
                 </div>

@@ -254,13 +254,13 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="p-4 bg-gradient-to-tr from-emerald-500/20 to-indigo-500/20 border border-white/15 rounded-3xl shadow-xl text-emerald-400 mb-4 animate-bounce">
-            <Coins className="w-10 h-10" />
+          <div className="p-0.5 bg-white/5 border border-white/10 rounded-3xl shadow-xl mb-4 animate-pulse">
+            <img src="/favicon.svg" alt="up ToMe Logo" className="w-16 h-16 object-contain rounded-2xl" referrerPolicy="no-referrer" />
           </div>
-          <h1 className="text-2xl font-extrabold bg-gradient-to-r from-white via-slate-100 to-indigo-200 bg-clip-text text-transparent">
-            FinanceAI Ledger
+          <h1 className="text-3xl font-black text-white tracking-tight">
+            up ToMe
           </h1>
-          <p className="text-xs text-slate-400 mt-1.5 uppercase tracking-widest font-bold">
+          <p className="text-xs text-indigo-400 mt-1.5 uppercase tracking-widest font-extrabold">
             ระบบบันทึกบัญชีอัจฉริยะ
           </p>
         </div>

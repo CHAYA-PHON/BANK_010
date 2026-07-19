@@ -1,85 +1,96 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <!-- Background Gradient -->
-    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
-      <stop offset="0%" stop-color="#1e1b4b" />
-      <stop offset="100%" stop-color="#090514" />
-    </radialGradient>
+    <!-- Background Gradient (Vibrant Pink to Golden Yellow) -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fd2d72" />
+      <stop offset="50%" stop-color="#ff6b2b" />
+      <stop offset="100%" stop-color="#ff9f00" />
+    </linearGradient>
     
     <!-- Gold Coin Gradient -->
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffe066" />
-      <stop offset="50%" stop-color="#f59e0b" />
-      <stop offset="100%" stop-color="#b45309" />
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
     </linearGradient>
 
-    <!-- Neon Indigo Gradient -->
-    <linearGradient id="neonIndigo" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#818cf8" />
-      <stop offset="100%" stop-color="#4f46e5" />
+    <!-- Credit Card Gradient -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#ea580c" />
     </linearGradient>
 
-    <!-- Neon Pink Gradient -->
-    <linearGradient id="neonPink" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f472b6" />
-      <stop offset="100%" stop-color="#db2777" />
-    </linearGradient>
-
-    <!-- Soft Glow Filter -->
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="16" result="blur" />
-      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    <!-- Drop Shadow Filter for "Up ToMe" -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.3" />
     </filter>
 
-    <!-- Intense Neon Glow Filter -->
-    <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="12" result="blur1" />
-      <feGaussianBlur stdDeviation="24" result="blur2" />
-      <feMerge>
-        <feMergeNode in="blur2" />
-        <feMergeNode in="blur1" />
-        <feMergeNode in="SourceGraphic" />
-      </feMerge>
-    </filter>
+    <!-- Clip Path to keep everything within the iOS Rounded Rect -->
+    <clipPath id="iconClip">
+      <rect width="512" height="512" rx="112" />
+    </clipPath>
   </defs>
 
   <!-- iOS-style Rounded App Icon Background -->
-  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
-  
-  <!-- Subtle Grid/Radar lines for AI Scanner theme -->
-  <circle cx="256" cy="256" r="180" fill="none" stroke="#312e81" stroke-width="2" stroke-dasharray="8,8" opacity="0.6" />
-  <circle cx="256" cy="256" r="140" fill="none" stroke="#4338ca" stroke-width="1.5" opacity="0.4" />
+  <g clip-path="url(#iconClip)">
+    <rect width="512" height="512" fill="url(#bgGrad)" />
 
-  <!-- Scanning / Ledger Flow Lines (Neon Glow) -->
-  <path d="M 120 340 L 220 340 A 36 36 0 0 1 256 376 L 256 420" fill="none" stroke="url(#neonIndigo)" stroke-width="8" stroke-linecap="round" filter="url(#neonGlow)" />
-  <path d="M 392 172 L 292 172 A 36 36 0 0 1 256 136 L 256 92" fill="none" stroke="url(#neonPink)" stroke-width="8" stroke-linecap="round" filter="url(#neonGlow)" />
+    <!-- 1. Centered "Up" Logo and "ToMe" text -->
+    <g filter="url(#shadow)" transform="translate(-4, 0)">
+      <!-- "U" with Upward Arrow -->
+      <path d="M 120 100 
+               L 120 210 
+               C 120 275, 240 275, 240 210 
+               L 240 100 
+               L 265 100 
+               L 220 40 
+               L 175 100 
+               L 200 100 
+               L 200 210 
+               C 200 235, 160 235, 160 210 
+               L 160 100 
+               Z" 
+            fill="#ffffff" />
 
-  <!-- Connecting data arcs -->
-  <path d="M 100 210 C 130 150, 380 150, 412 210" fill="none" stroke="#6366f1" stroke-width="4" stroke-linecap="round" opacity="0.3" />
-  <path d="M 100 302 C 130 362, 380 362, 412 302" fill="none" stroke="#d946ef" stroke-width="4" stroke-linecap="round" opacity="0.3" />
+      <!-- "p" Stem and Bowl Ring -->
+      <rect x="262" y="110" width="40" height="150" rx="10" fill="#ffffff" />
+      <circle cx="335" cy="170" r="62" fill="#ffffff" />
+      <circle cx="335" cy="170" r="32" fill="url(#bgGrad)" />
+      <!-- Baht ฿ Symbol inside the 'p' bowl -->
+      <text x="335" y="181" font-family="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" font-weight="900" font-size="34" fill="#ffffff" text-anchor="middle">฿</text>
+    </g>
 
-  <!-- Outer Ring of the Gold Coin with Glow -->
-  <circle cx="256" cy="256" r="88" fill="none" stroke="url(#goldGrad)" stroke-width="12" filter="url(#glow)" />
-  
-  <!-- Main Shiny Gold Coin -->
-  <circle cx="256" cy="256" r="76" fill="url(#goldGrad)" />
-  
-  <!-- Inner Coin Ridge -->
-  <circle cx="256" cy="256" r="62" fill="none" stroke="#ffe066" stroke-width="3" opacity="0.5" />
+    <!-- "ToMe" Text -->
+    <g filter="url(#shadow)">
+      <text x="256" y="345" font-family="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" font-weight="800" font-size="74" fill="#ffffff" text-anchor="middle" letter-spacing="1">ToMe</text>
+    </g>
 
-  <!-- Beautiful Bold Thai Baht Symbol (฿) inside the Coin -->
-  <text x="256" y="292" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="105" fill="#ffffff" text-anchor="middle" filter="drop-shadow(0px 4px 6px rgba(0,0,0,0.4))">฿</text>
-  
-  <!-- Futuristic AI Corner Dots to represent high tech / scanning -->
-  <rect x="54" y="54" width="30" height="8" rx="4" fill="#6366f1" />
-  <rect x="54" y="54" width="8" height="30" rx="4" fill="#6366f1" />
-  
-  <rect x="428" y="54" width="30" height="8" rx="4" fill="#6366f1" />
-  <rect x="450" y="54" width="8" height="30" rx="4" fill="#6366f1" />
+    <!-- 2. Wallet Pocket, Receipt, and Card sticking out at the bottom -->
+    <!-- Tilted Receipt -->
+    <g transform="translate(165, 395) rotate(-12)">
+      <!-- White Zig-zag Paper -->
+      <path d="M -35 -60 L -30 -65 L -25 -60 L -20 -65 L -15 -60 L -10 -65 L -5 -60 L 0 -65 L 5 -60 L 10 -65 L 15 -60 L 20 -65 L 25 -60 L 30 -65 L 35 -60 L 35 60 L -35 60 Z" fill="#ffffff" />
+      <!-- Horizontal lines on receipt -->
+      <line x1="-22" y1="-35" x2="15" y2="-35" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" opacity="0.8" />
+      <line x1="-22" y1="-20" x2="22" y2="-20" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" opacity="0.8" />
+      <line x1="-22" y1="-5" x2="5" y2="-5" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" opacity="0.8" />
+    </g>
 
-  <rect x="54" y="450" width="30" height="8" rx="4" fill="#d946ef" />
-  <rect x="54" y="428" width="8" height="30" rx="4" fill="#d946ef" />
+    <!-- Tilted Credit Card -->
+    <g transform="translate(295, 410) rotate(8)">
+      <rect x="-60" y="-45" width="120" height="80" rx="10" fill="url(#cardGrad)" stroke="#ffffff" stroke-width="3" />
+      <rect x="-60" y="-22" width="120" height="15" fill="#d97706" opacity="0.7" />
+      <!-- Gold Coin overlapping -->
+      <circle cx="45" cy="12" r="30" fill="url(#goldGrad)" stroke="#ffffff" stroke-width="3" />
+      <text x="45" y="21" font-family="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" font-weight="900" font-size="24" fill="#ffffff" text-anchor="middle">฿</text>
+    </g>
 
-  <rect x="428" y="450" width="30" height="8" rx="4" fill="#d946ef" />
-  <rect x="450" y="428" width="8" height="30" rx="4" fill="#d946ef" />
+    <!-- White Pocket Mask on top -->
+    <path d="M -10 420 Q 256 465 522 420 L 522 522 L -10 522 Z" fill="#ffffff" />
+    <!-- Dashed stitching -->
+    <path d="M 10 432 Q 256 475 502 432" fill="none" stroke="#f97316" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 6" opacity="0.6" />
+
+    <!-- Gold Button/Rivet on the pocket -->
+    <circle cx="415" cy="448" r="16" fill="url(#goldGrad)" stroke="#ffffff" stroke-width="3" />
+    <circle cx="415" cy="448" r="6" fill="#ffffff" />
+  </g>
 </svg>

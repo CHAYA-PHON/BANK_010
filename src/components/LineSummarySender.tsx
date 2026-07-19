@@ -353,7 +353,7 @@ export default function LineSummarySender({ transactions, wallets, currentUser }
               <p className="text-[10px] text-slate-500">
                 {sendType === "broadcast" 
                   ? "💡 ส่งให้ทุกคนที่เป็นเพื่อนกับ LINE Bot ของคุณ (ตั้งค่าเสร็จแล้วส่งได้ทันที)" 
-                  : "💡 ส่งตรงเฉพาะเจาะจงไปยังบัญชีของคุณ หรือส่งเข้ากลุ่มแชท (ไปหาค่า ID ได้ที่ระบบ Live Scanner ในหน้าตั้งค่า)"}
+                  : "💡 ส่งตรงเฉพาะเจาะจงไปยังบัญชีของคุณ หรือส่งเข้ากลุ่มแชท (โดยระบุรหัส User ID หรือ Group ID ของคุณ)"}
               </p>
             </div>
 
@@ -371,7 +371,7 @@ export default function LineSummarySender({ transactions, wallets, currentUser }
                   className="w-full px-3 py-2 bg-[#090d16] border border-white/10 rounded-xl text-white text-xs placeholder-slate-600 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                 />
                 <p className="text-[9px] text-slate-500 leading-relaxed">
-                  * คุณสามารถดึงรหัสมาใส่ตรงนี้อัตโนมัติได้อย่างง่ายดายจาก **ระบบ Live ID Scanner** ในแท็บตั้งค่า (เมนูปุ่มเฟืองเกียร์มุมขวาล่างของแอป)
+                  * คุณสามารถดูรหัส User ID ของคุณได้ใน Messaging API Console หรือผู้ใช้บอทโดยตรงค่ะ
                 </p>
               </div>
             )}

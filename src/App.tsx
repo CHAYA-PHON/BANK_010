@@ -97,6 +97,24 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<string>(() => {
     return sessionStorage.getItem("current_user") || "";
   });
+
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    return (localStorage.getItem("app_theme") as "dark" | "light") || "dark";
+  });
+
+  const [accentColor, setAccentColor] = useState<string>(() => {
+    return localStorage.getItem("app_accent_color") || "indigo";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove("theme-dark", "theme-light");
+    root.classList.add(`theme-${theme}`);
+    
+    const accents = ["accent-indigo", "accent-emerald", "accent-teal", "accent-rose", "accent-violet", "accent-amber"];
+    accents.forEach(cls => root.classList.remove(cls));
+    root.classList.add(`accent-${accentColor}`);
+  }, [theme, accentColor]);
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -245,6 +263,15 @@ export default function App() {
         initialBalance: 0,
         icon: "🏦",
         color: "bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 border-emerald-400/20",
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: "w-saving-" + (Date.now() + 2),
+        name: "กระปุกออมสิน",
+        type: "saving",
+        initialBalance: 0,
+        icon: "🐷",
+        color: "bg-gradient-to-br from-pink-500 via-rose-600 to-red-700 border-pink-400/20",
         createdAt: new Date().toISOString()
       }
     ];
@@ -1116,12 +1143,12 @@ export default function App() {
       <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-tr from-emerald-500/10 to-indigo-500/10 border border-white/10 text-emerald-400 rounded-xl shadow-lg">
-              <Coins className="w-5 h-5" />
+            <div className="p-0.5 bg-white/5 border border-white/10 rounded-xl shadow-lg">
+              <img src="/favicon.svg" alt="up ToMe Logo" className="w-10 h-10 object-contain rounded-lg" referrerPolicy="no-referrer" />
             </div>
             <div>
-              <span className="font-extrabold text-white text-base tracking-tight block">
-                FinanceAI บันทึกบัญชีอัจฉริยะ
+              <span className="font-black text-white text-base tracking-tight block flex items-center gap-1.5">
+                up ToMe <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md border border-indigo-500/30 font-medium">บันทึกบัญชีอัจฉริยะ</span>
               </span>
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block">
                 Secure Personal Finance & AI Slip Scanning
@@ -1301,6 +1328,8 @@ export default function App() {
               selectedMonth={selectedMonth}
               onMonthChange={setSelectedMonth}
               broughtForward={broughtForward}
+              transactions={monthlyTransactions}
+              wallets={wallets}
             />
 
             {/* Smart AI Financial Analysis */}
@@ -1467,6 +1496,10 @@ export default function App() {
               onResetAllData={handleResetAllData}
               onLogout={handleLogout}
               onImportBackup={handleImportBackup}
+              theme={theme}
+              setTheme={setTheme}
+              accentColor={accentColor}
+              setAccentColor={setAccentColor}
             />
           </div>
         )}

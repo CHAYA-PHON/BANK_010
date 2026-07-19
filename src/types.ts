@@ -19,7 +19,7 @@ export interface Transaction {
 export interface Wallet {
   id: string;
   name: string;
-  type: "cash" | "bank" | "credit" | "other";
+  type: "cash" | "bank" | "credit" | "other" | "saving";
   initialBalance: number;
   icon: string; // E.g., emoji or Lucide icon name
   color: string; // Tailwind gradient/color class

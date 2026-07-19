@@ -12,6 +12,185 @@ body {
   min-height: 100vh;
 }
 
+/* LIGHT THEME DEFINITIONS */
+.theme-light, .theme-light body {
+  background-color: #f8fafc !important;
+  color: #1e293b !important;
+}
+
+.theme-light .bg-white\/5 {
+  background-color: rgba(15, 23, 42, 0.03) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+.theme-light .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+.theme-light .border-white\/5 {
+  border-color: rgba(15, 23, 42, 0.05) !important;
+}
+.theme-light .border-white\/10 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+.theme-light .border-white\/15 {
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+.theme-light .border-white\/20 {
+  border-color: rgba(15, 23, 42, 0.16) !important;
+}
+.theme-light .text-white {
+  color: #0f172a !important;
+}
+.theme-light .text-slate-400 {
+  color: #475569 !important;
+}
+.theme-light .text-slate-500 {
+  color: #64748b !important;
+}
+.theme-light .text-slate-300 {
+  color: #334155 !important;
+}
+.theme-light .text-slate-200 {
+  color: #1e293b !important;
+}
+.theme-light .text-slate-100 {
+  color: #0f172a !important;
+}
+.theme-light .text-slate-50 {
+  color: #020617 !important;
+}
+.theme-light .bg-\[\#090d16\] {
+  background-color: #f1f5f9 !important;
+}
+.theme-light .bg-\[\#090d16\]\/90 {
+  background-color: rgba(241, 245, 249, 0.9) !important;
+}
+.theme-light .bg-\[\#090d16\]\/95 {
+  background-color: rgba(241, 245, 249, 0.95) !important;
+}
+.theme-light .bg-\[\#121826\] {
+  background-color: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+.theme-light .bg-\[\#131926\] {
+  background-color: #ffffff !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+.theme-light .bg-\[\#1e293b\] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+.theme-light select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+.theme-light input {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+.theme-light .backdrop-blur-md, .theme-light .backdrop-blur-lg, .theme-light .backdrop-blur-xl {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+.theme-light header {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+.theme-light footer {
+  background-color: #f1f5f9 !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ACCENT OVERRIDE ENGINE */
+
+/* 1. EMERALD ACCENTS */
+.accent-emerald .text-indigo-600 { color: #059669 !important; }
+.accent-emerald .text-indigo-500 { color: #10b981 !important; }
+.accent-emerald .text-indigo-400 { color: #34d399 !important; }
+.accent-emerald .text-indigo-300 { color: #6ee7b7 !important; }
+.accent-emerald .bg-indigo-600 { background-color: #059669 !important; }
+.accent-emerald .bg-indigo-500 { background-color: #10b981 !important; }
+.accent-emerald .bg-indigo-500\/10 { background-color: rgba(16, 185, 129, 0.1) !important; }
+.accent-emerald .bg-indigo-500\/15 { background-color: rgba(16, 185, 129, 0.15) !important; }
+.accent-emerald .bg-indigo-500\/20 { background-color: rgba(16, 185, 129, 0.2) !important; }
+.accent-emerald .hover\:bg-indigo-500:hover { background-color: #34d399 !important; }
+.accent-emerald .hover\:bg-indigo-600:hover { background-color: #047857 !important; }
+.accent-emerald .border-indigo-500 { border-color: #10b981 !important; }
+.accent-emerald .border-indigo-500\/30 { border-color: rgba(16, 185, 129, 0.3) !important; }
+.accent-emerald .focus-within\:ring-indigo-500\/20:focus-within { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2) !important; }
+.accent-emerald .accent-indigo-400 { accent-color: #10b981 !important; }
+
+/* 2. TEAL ACCENTS */
+.accent-teal .text-indigo-600 { color: #0d9488 !important; }
+.accent-teal .text-indigo-500 { color: #14b8a6 !important; }
+.accent-teal .text-indigo-400 { color: #2dd4bf !important; }
+.accent-teal .text-indigo-300 { color: #5eead4 !important; }
+.accent-teal .bg-indigo-600 { background-color: #0d9488 !important; }
+.accent-teal .bg-indigo-500 { background-color: #14b8a6 !important; }
+.accent-teal .bg-indigo-500\/10 { background-color: rgba(20, 184, 166, 0.1) !important; }
+.accent-teal .bg-indigo-500\/15 { background-color: rgba(20, 184, 166, 0.15) !important; }
+.accent-teal .bg-indigo-500\/20 { background-color: rgba(20, 184, 166, 0.2) !important; }
+.accent-teal .hover\:bg-indigo-500:hover { background-color: #2dd4bf !important; }
+.accent-teal .hover\:bg-indigo-600:hover { background-color: #0f766e !important; }
+.accent-teal .border-indigo-500 { border-color: #14b8a6 !important; }
+.accent-teal .border-indigo-500\/30 { border-color: rgba(20, 184, 166, 0.3) !important; }
+.accent-teal .focus-within\:ring-indigo-500\/20:focus-within { box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.2) !important; }
+.accent-teal .accent-indigo-400 { accent-color: #14b8a6 !important; }
+
+/* 3. ROSE ACCENTS */
+.accent-rose .text-indigo-600 { color: #e11d48 !important; }
+.accent-rose .text-indigo-500 { color: #f43f5e !important; }
+.accent-rose .text-indigo-400 { color: #fb7185 !important; }
+.accent-rose .text-indigo-300 { color: #fca5a5 !important; }
+.accent-rose .bg-indigo-600 { background-color: #e11d48 !important; }
+.accent-rose .bg-indigo-500 { background-color: #f43f5e !important; }
+.accent-rose .bg-indigo-500\/10 { background-color: rgba(244, 63, 94, 0.1) !important; }
+.accent-rose .bg-indigo-500\/15 { background-color: rgba(244, 63, 94, 0.15) !important; }
+.accent-rose .bg-indigo-500\/20 { background-color: rgba(244, 63, 94, 0.2) !important; }
+.accent-rose .hover\:bg-indigo-500:hover { background-color: #fb7185 !important; }
+.accent-rose .hover\:bg-indigo-600:hover { background-color: #be123c !important; }
+.accent-rose .border-indigo-500 { border-color: #f43f5e !important; }
+.accent-rose .border-indigo-500\/30 { border-color: rgba(244, 63, 94, 0.3) !important; }
+.accent-rose .focus-within\:ring-indigo-500\/20:focus-within { box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.2) !important; }
+.accent-rose .accent-indigo-400 { accent-color: #f43f5e !important; }
+
+/* 4. VIOLET ACCENTS */
+.accent-violet .text-indigo-600 { color: #7c3aed !important; }
+.accent-violet .text-indigo-500 { color: #8b5cf6 !important; }
+.accent-violet .text-indigo-400 { color: #a78bfa !important; }
+.accent-violet .text-indigo-300 { color: #c4b5fd !important; }
+.accent-violet .bg-indigo-600 { background-color: #7c3aed !important; }
+.accent-violet .bg-indigo-500 { background-color: #8b5cf6 !important; }
+.accent-violet .bg-indigo-500\/10 { background-color: rgba(139, 92, 246, 0.1) !important; }
+.accent-violet .bg-indigo-500\/15 { background-color: rgba(139, 92, 246, 0.15) !important; }
+.accent-violet .bg-indigo-500\/20 { background-color: rgba(139, 92, 246, 0.2) !important; }
+.accent-violet .hover\:bg-indigo-500:hover { background-color: #a78bfa !important; }
+.accent-violet .hover\:bg-indigo-600:hover { background-color: #6d28d9 !important; }
+.accent-violet .border-indigo-500 { border-color: #8b5cf6 !important; }
+.accent-violet .border-indigo-500\/30 { border-color: rgba(139, 92, 246, 0.3) !important; }
+.accent-violet .focus-within\:ring-indigo-500\/20:focus-within { box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2) !important; }
+.accent-violet .accent-indigo-400 { accent-color: #8b5cf6 !important; }
+
+/* 5. AMBER ACCENTS */
+.accent-amber .text-indigo-600 { color: #d97706 !important; }
+.accent-amber .text-indigo-500 { color: #f59e0b !important; }
+.accent-amber .text-indigo-400 { color: #fbbf24 !important; }
+.accent-amber .text-indigo-300 { color: #fde047 !important; }
+.accent-amber .bg-indigo-600 { background-color: #d97706 !important; }
+.accent-amber .bg-indigo-500 { background-color: #f59e0b !important; }
+.accent-amber .bg-indigo-500\/10 { background-color: rgba(245, 158, 11, 0.1) !important; }
+.accent-amber .bg-indigo-500\/15 { background-color: rgba(245, 158, 11, 0.15) !important; }
+.accent-amber .bg-indigo-500\/20 { background-color: rgba(245, 158, 11, 0.2) !important; }
+.accent-amber .hover\:bg-indigo-500:hover { background-color: #fbbf24 !important; }
+.accent-amber .hover\:bg-indigo-600:hover { background-color: #b45309 !important; }
+.accent-amber .border-indigo-500 { border-color: #f59e0b !important; }
+.accent-amber .border-indigo-500\/30 { border-color: rgba(245, 158, 11, 0.3) !important; }
+.accent-amber .focus-within\:ring-indigo-500\/20:focus-within { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2) !important; }
+.accent-amber .accent-indigo-400 { accent-color: #f59e0b !important; }
+
 /* Custom gorgeous scrollbar for frosted glass panel containers */
 ::-webkit-scrollbar {
   width: 6px;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   ShieldAlert, KeyRound, Download, Upload, Trash2, LogOut, Check, Save, Sparkles, AlertTriangle, Globe, Link,
-  Bell, Send, User, Users, RefreshCw, Clock, MessageSquare
+  Bell, Send, User, Users, RefreshCw, Clock, MessageSquare, Copy, Palette, Moon, Sun
 } from "lucide-react";
 import { Wallet, Transaction } from "../types";
 import { doc, setDoc } from "firebase/firestore";
@@ -14,6 +14,10 @@ interface SettingsScreenProps {
   onResetAllData: () => void;
   onLogout: () => void;
   onImportBackup: (data: { wallets: Wallet[]; transactions: Transaction[] }) => void;
+  theme?: "dark" | "light";
+  setTheme?: (t: "dark" | "light") => void;
+  accentColor?: string;
+  setAccentColor?: (c: string) => void;
 }
 
 export default function SettingsScreen({
@@ -23,6 +27,10 @@ export default function SettingsScreen({
   onResetAllData,
   onLogout,
   onImportBackup,
+  theme = "dark",
+  setTheme = () => {},
+  accentColor = "indigo",
+  setAccentColor = () => {},
 }: SettingsScreenProps) {
   const [newPin, setNewPin] = useState("");
   const [newPinConfirm, setNewPinConfirm] = useState("");
@@ -43,20 +51,6 @@ export default function SettingsScreen({
   const [lineSendType, setLineSendType] = useState<"push" | "broadcast">("broadcast");
   const [lineStatus, setLineStatus] = useState({ success: "", error: "" });
   const [isTestingLine, setIsTestingLine] = useState(false);
-
-  // States for automatic LINE User/Group ID retrieval
-  const [capturedIds, setCapturedIds] = useState<any[]>([]);
-  const [isLoadingCaptured, setIsLoadingCaptured] = useState(false);
-
-  const fetchCapturedIds = async () => {
-    try {
-      const { getCapturedLineIds } = await import("../lib/api");
-      const list = await getCapturedLineIds();
-      setCapturedIds(list);
-    } catch (err) {
-      console.error("Error fetching captured LINE IDs:", err);
-    }
-  };
 
   useEffect(() => {
     const saved = localStorage.getItem("app_api_base_url") || "";
@@ -98,13 +92,6 @@ export default function SettingsScreen({
       }
     }
     loadFirestoreLineConfig();
-
-    // Initial fetch of captured ids
-    fetchCapturedIds();
-
-    // Start polling captured IDs every 4 seconds
-    const interval = setInterval(fetchCapturedIds, 4000);
-    return () => clearInterval(interval);
   }, [currentUser]);
 
   const handleSaveApiUrl = (e: React.FormEvent) => {
@@ -497,6 +484,98 @@ export default function SettingsScreen({
         </div>
       </div>
 
+      {/* Theme & Styling Customization Section */}
+      <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-white/5">
+          <Palette className="w-4 h-4 text-emerald-400" />
+          ระบบตั้งค่าธีมและสีแอป (Theme & Style Customization)
+        </h3>
+        <p className="text-xs text-slate-300 leading-relaxed">
+          เลือกรูปแบบ UI และโทนสีหลักที่คุณต้องการสำหรับแอปพลิเคชันของคุณ เพื่อประสบการณ์การบันทึกบัญชีที่ถูกใจที่สุด
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+          {/* Theme Selector (Dark/Light) */}
+          <div className="space-y-3">
+            <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              รูปแบบสีหน้าจอ (Interface Mode)
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setTheme("dark");
+                  localStorage.setItem("app_theme", "dark");
+                }}
+                className={`py-3.5 px-4 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-2 cursor-pointer ${
+                  theme === "dark"
+                    ? "bg-indigo-500/10 border-indigo-500 text-indigo-300 shadow-md shadow-indigo-500/5"
+                    : "bg-white/5 border-white/5 hover:bg-white/10 text-slate-400"
+                }`}
+              >
+                <div className="p-1.5 bg-black/40 rounded-lg text-indigo-400">
+                  <Moon className="w-4 h-4" />
+                </div>
+                <span>ธีมมืด (Dark Mode)</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  setTheme("light");
+                  localStorage.setItem("app_theme", "light");
+                }}
+                className={`py-3.5 px-4 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-2 cursor-pointer ${
+                  theme === "light"
+                    ? "bg-indigo-500/10 border-indigo-500 text-indigo-600 shadow-md shadow-indigo-500/5"
+                    : "bg-white/5 border-white/5 hover:bg-white/10 text-slate-400"
+                }`}
+              >
+                <div className="p-1.5 bg-white rounded-lg text-amber-500 shadow-sm">
+                  <Sun className="w-4 h-4" />
+                </div>
+                <span>ธีมสว่าง (Light Mode)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Accent Color Selection */}
+          <div className="space-y-3">
+            <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              โทนสีหลักของแอป (App Accent Color)
+            </span>
+            
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: "indigo", name: "คราม (Indigo)", color: "bg-indigo-500" },
+                { id: "emerald", name: "มรกต (Emerald)", color: "bg-emerald-500" },
+                { id: "teal", name: "ฟ้าอมเขียว (Teal)", color: "bg-teal-500" },
+                { id: "rose", name: "ชมพูกุหลาบ (Rose)", color: "bg-rose-500" },
+                { id: "violet", name: "ม่วง (Violet)", color: "bg-violet-500" },
+                { id: "amber", name: "ทองคำ (Amber)", color: "bg-amber-500" },
+              ].map((accent) => (
+                <button
+                  key={accent.id}
+                  type="button"
+                  onClick={() => {
+                    setAccentColor(accent.id);
+                    localStorage.setItem("app_accent_color", accent.id);
+                  }}
+                  className={`py-2 px-1.5 rounded-xl border text-[10px] font-black transition-all flex flex-col items-center gap-1.5 cursor-pointer ${
+                    accentColor === accent.id
+                      ? "border-indigo-500 bg-indigo-500/10 text-white"
+                      : "bg-white/5 border-white/5 hover:bg-white/10 text-slate-400"
+                  }`}
+                >
+                  <span className={`w-3 h-3 rounded-full ${accent.color} ring-2 ring-white/10`} />
+                  <span>{accent.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Backend API Connection Setting */}
       <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center gap-2 pb-2 border-b border-white/5">
@@ -640,84 +719,7 @@ export default function SettingsScreen({
               </div>
             )}
 
-            {/* REAL-TIME LINE ID SCANNER FOR DYNAMIC RETRIEVAL */}
-            <div className="bg-[#0b120d] border border-emerald-500/15 rounded-2xl p-4 space-y-3 shadow-inner">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                    <MessageSquare className="w-3 h-3" />
-                    ระบบค้นหารหัส LINE ID อัตโนมัติ (Live ID Scanner)
-                  </span>
-                </div>
-                <button 
-                  type="button" 
-                  onClick={fetchCapturedIds}
-                  className="p-1 hover:bg-white/5 rounded-lg text-emerald-400 hover:text-white transition-all cursor-pointer flex items-center gap-1 text-[9px]"
-                >
-                  <RefreshCw className="w-3 h-3 animate-spin-slow" />
-                  ดึงล่าสุด
-                </button>
-              </div>
 
-              <p className="text-[10px] text-slate-300 leading-relaxed bg-white/5 p-2.5 rounded-xl border border-white/5">
-                💬 <strong>วิธีง่ายๆ ในการรับรหัส:</strong> ส่งข้อความคำว่า <span className="bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded-md border border-emerald-500/30 font-mono">ข้อรับการแจ้งเตือน</span> ไปที่ไลน์บอทของคุณ (หรือเชิญบอทเข้ากลุ่มแล้วส่ง) ระบบจะดึงรหัสมาแสดงด้านล่างทันทีโดยไม่ต้องไปแกะไฟล์เองค่ะ!
-              </p>
-
-              {capturedIds.length === 0 ? (
-                <div className="py-4 text-center text-slate-500 text-[10px] space-y-1.5">
-                  <div className="flex justify-center items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce"></div>
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                  </div>
-                  <p className="text-slate-400 font-medium">รอการส่งสัญญาณข้อความ "ข้อรับการแจ้งเตือน" จาก LINE...</p>
-                  <p className="text-slate-500 text-[9px]">(กรุณาพิมพ์และส่งข้อความหาบอท เพื่อให้รหัสปรากฏที่นี่)</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {capturedIds.map((item, idx) => (
-                    <div 
-                      key={idx} 
-                      className="flex items-center justify-between gap-3 bg-white/5 p-2.5 rounded-xl border border-white/5 hover:border-emerald-500/30 hover:bg-white/10 transition-all text-left"
-                    >
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-[10px]">
-                          <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${
-                            item.type === "group" 
-                              ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" 
-                              : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                          }`}>
-                            {item.type === "group" ? "👥 กลุ่ม" : "👤 ส่วนตัว"}
-                          </span>
-                          <span className="text-slate-400 font-mono text-[9px] truncate block select-all" title={item.id}>
-                            {item.id}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[9px] text-slate-500">
-                          <Clock className="w-2.5 h-2.5 text-slate-500" />
-                          <span>{new Date(item.timestamp).toLocaleTimeString("th-TH")}</span>
-                          <span>• "{item.message}"</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLineUserId(item.id);
-                          setLineSendType("push");
-                        }}
-                        className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-emerald-500/15"
-                      >
-                        เลือกใช้รหัสนี้
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
             {/* Help guidelines */}
             <div className="text-[10px] text-slate-500 leading-relaxed space-y-1.5 bg-white/5 p-3 rounded-xl border border-white/5">

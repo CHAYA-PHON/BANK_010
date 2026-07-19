@@ -337,8 +337,10 @@ function getLineConfigOnServer(): string {
 // LINE Webhook Endpoint to capture User ID and Group ID when they send "ข้อรับการแจ้งเตือน"
 app.post("/api/line-webhook", async (req, res) => {
   try {
+    console.log("[LINE Webhook] Received webhook payload:", JSON.stringify(req.body));
     const { events } = req.body;
     if (!events || !Array.isArray(events)) {
+      console.log("[LINE Webhook] No events array found in payload");
       return res.status(200).send("OK");
     }
 
@@ -366,8 +368,13 @@ app.post("/api/line-webhook", async (req, res) => {
 
         if (!targetId) continue;
 
-        // If the user sends "ข้อรับการแจ้งเตือน"
-        if (text === "ข้อรับการแจ้งเตือน" || text.includes("ข้อรับการแจ้งเตือน")) {
+        // If the user sends "ขอรับการแจ้งเตือน" or other variations
+        const isTrigger = text === "ข้อรับการแจ้งเตือน" || text.includes("ข้อรับการแจ้งเตือน") ||
+                          text === "ขอรับการแจ้งเตือน" || text.includes("ขอรับการแจ้งเตือน") ||
+                          text.includes("ขอรับแจ้งเตือน") || text.includes("ข้อรับแจ้งเตือน") ||
+                          text.includes("รับการแจ้งเตือน") || text.includes("รับแจ้งเตือน");
+
+        if (isTrigger) {
           // Add or update the list of captured IDs
           const existingIndex = capturedLineIds.findIndex(item => item.id === targetId);
           const newEntry: CapturedId = {
@@ -882,7 +889,7 @@ app.post("/api/send-line-message", async (req, res) => {
     // Automatically cache/save token on server for the webhook replies
     saveLineConfigOnServer(channelAccessToken);
 
-    const isPush = sendType === "push" || (targetId && targetId.trim());
+    const isPush = sendType ? (sendType === "push") : !!(targetId && targetId.trim());
     const url = isPush 
       ? "https://api.line.me/v2/bot/message/push" 
       : "https://api.line.me/v2/bot/message/broadcast";
@@ -940,11 +947,48 @@ app.post("/api/send-line-message", async (req, res) => {
   }
 });
 
+// Helper to get Bangkok time parts (ICT, UTC+7) completely timezone-independent
+interface BangkokParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  dateStr: string; // YYYY-MM-DD
+}
+
+function getBangkokParts(date: Date = new Date()): BangkokParts {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+  const parts = formatter.formatToParts(date);
+  const partMap: Record<string, string> = {};
+  for (const part of parts) {
+    partMap[part.type] = part.value;
+  }
+  return {
+    year: parseInt(partMap.year, 10),
+    month: parseInt(partMap.month, 10),
+    day: parseInt(partMap.day, 10),
+    hour: parseInt(partMap.hour, 10),
+    minute: parseInt(partMap.minute, 10),
+    second: parseInt(partMap.second, 10),
+    dateStr: `${partMap.year}-${partMap.month}-${partMap.day}`
+  };
+}
+
 // Helper to get Bangkok time (ICT, UTC+7)
 function getBangkokTime(): Date {
   const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  return new Date(utc + (3600000 * 7));
+  return new Date(now.getTime() + (3600000 * 7));
 }
 
 // Helper to format Thai date
@@ -976,7 +1020,8 @@ function formatThaiMonth(yearMonthStr: string) {
 
 // Main background summary task runner
 async function runLineSummaryTask(bkkDate: Date, forceRunMonthly: boolean = false) {
-  console.log(`[Scheduler] Starting LINE summary task for Bangkok date: ${bkkDate.toISOString()}`);
+  const todayParts = getBangkokParts(bkkDate);
+  console.log(`[Scheduler] Starting LINE summary task for Bangkok date: ${todayParts.dateStr}`);
   
   const CONFIG_PATH = path.join(process.cwd(), "firebase-applet-config.json");
   let firebaseConfig: any = {};
@@ -1009,17 +1054,14 @@ async function runLineSummaryTask(bkkDate: Date, forceRunMonthly: boolean = fals
   const usersSnapshot = await getDocs(collection(db, "users"));
   const summaryResults: any[] = [];
 
-  // Yesterday calculation
-  const yesterday = new Date(bkkDate);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yYear = yesterday.getFullYear();
-  const yMonth = String(yesterday.getMonth() + 1).padStart(2, "0");
-  const yDay = String(yesterday.getDate()).padStart(2, "0");
-  const yesterdayStr = `${yYear}-${yMonth}-${yDay}`;
+  // Yesterday calculation (subtract 24 hours of milliseconds timezone-safely)
+  const yesterdayDate = new Date(bkkDate.getTime() - 24 * 60 * 60 * 1000);
+  const yesterdayParts = getBangkokParts(yesterdayDate);
+  const yesterdayStr = yesterdayParts.dateStr;
 
-  // Monthly check (Is it the 1st day of the month?)
-  const isFirstDayOfMonth = bkkDate.getDate() === 1 || forceRunMonthly;
-  const prevMonthStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}`;
+  // Monthly check (Is today the 1st day of the month in Bangkok timezone?)
+  const isFirstDayOfMonth = todayParts.day === 1 || forceRunMonthly;
+  const prevMonthStr = `${yesterdayParts.year}-${String(yesterdayParts.month).padStart(2, "0")}`;
 
   for (const userDoc of usersSnapshot.docs) {
     const userData = userDoc.data();
@@ -1226,7 +1268,7 @@ ${mCategoriesStr || "ไม่มีข้อมูลรายจ่าย"}
 
 // Low-level helper to send LINE message
 async function sendLineBotMessage(token: string, targetId: string, message: string, sendType: "push" | "broadcast") {
-  const isPush = sendType === "push" || (targetId && targetId.trim());
+  const isPush = sendType === "push";
   const url = isPush 
     ? "https://api.line.me/v2/bot/message/push" 
     : "https://api.line.me/v2/bot/message/broadcast";
@@ -1269,10 +1311,16 @@ async function sendLineBotMessage(token: string, targetId: string, message: stri
 // API endpoint to trigger summary manual send (for test/grading)
 app.post("/api/trigger-daily-summary", async (req, res) => {
   try {
-    const bkkDate = getBangkokTime();
+    const now = new Date();
     const forceMonthly = req.query.forceMonthly === "true";
-    const results = await runLineSummaryTask(bkkDate, forceMonthly);
-    res.json({ success: true, message: "Manual trigger completed", bkkDate: bkkDate.toISOString(), results });
+    const results = await runLineSummaryTask(now, forceMonthly);
+    const parts = getBangkokParts(now);
+    res.json({ 
+      success: true, 
+      message: "Manual trigger completed", 
+      bkkDate: `${parts.dateStr}T${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}:${String(parts.second).padStart(2, "0")}`, 
+      results 
+    });
   } catch (error: any) {
     console.error("Manual trigger failed:", error);
     res.status(500).json({ success: false, error: error.message || "Manual trigger failed" });
@@ -1283,17 +1331,14 @@ app.post("/api/trigger-daily-summary", async (req, res) => {
 let lastRunDayStr = "";
 
 async function checkAndRunScheduler() {
-  const bkkDate = getBangkokTime();
-  const hours = bkkDate.getHours();
-  const minutes = bkkDate.getMinutes();
-  const todayStr = bkkDate.toISOString().slice(0, 10); // YYYY-MM-DD in Bangkok
+  const parts = getBangkokParts(new Date());
   
-  // Trigger daily at 8:00 AM (minutes === 0)
-  if (hours === 8 && minutes === 0 && lastRunDayStr !== todayStr) {
-    lastRunDayStr = todayStr;
-    console.log(`[Scheduler] Triggering 8:00 AM LINE summary task for today: ${todayStr}`);
+  // Trigger daily at 8:00 AM (minute === 0)
+  if (parts.hour === 8 && parts.minute === 0 && lastRunDayStr !== parts.dateStr) {
+    lastRunDayStr = parts.dateStr;
+    console.log(`[Scheduler] Triggering 8:00 AM LINE summary task for today: ${parts.dateStr}`);
     try {
-      await runLineSummaryTask(bkkDate);
+      await runLineSummaryTask(new Date());
     } catch (err) {
       console.error("[Scheduler] Failed to run LINE summary task:", err);
     }
