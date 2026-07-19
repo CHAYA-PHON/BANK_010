@@ -7,6 +7,19 @@ export function getEffectiveBackendBaseUrl(): string {
       return "";
     }
   }
+
+  // If hosted on an external domain (like Vercel) and no base URL is defined yet,
+  // automatically default to the Cloud Run service URL to handle Express-side API calls.
+  if (!savedBase && typeof window !== "undefined" && window.location) {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.includes("192.168.");
+    const isCloudRun = hostname.endsWith(".run.app");
+    
+    if (!isLocalhost && !isCloudRun) {
+      return "https://ais-pre-vzwnta4t5vklyptliik43g-446396597239.asia-east1.run.app";
+    }
+  }
+
   return savedBase;
 }
 

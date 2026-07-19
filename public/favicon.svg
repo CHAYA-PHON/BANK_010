@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient (Vibrant Pink to Golden Yellow) -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fd2d72" />
+      <stop offset="50%" stop-color="#ff6b2b" />
+      <stop offset="100%" stop-color="#ff9f00" />
+    </linearGradient>
+    
+    <!-- Gold Coin Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+
+    <!-- Credit Card Gradient -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+
+    <!-- Drop Shadow Filter for "Up ToMe" -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+
+    <!-- Clip Path to keep everything within the iOS Rounded Rect -->
+    <clipPath id="iconClip">
+      <rect width="512" height="512" rx="112" />
+    </clipPath>
+  </defs>
+
+  <!-- iOS-style Rounded App Icon Background -->
+  <g clip-path="url(#iconClip)">
+    <rect width="512" height="512" fill="url(#bgGrad)" />
+
+    <!-- 1. Centered "Up" Logo and "ToMe" text -->
+    <g filter="url(#shadow)" transform="translate(-4, 0)">
+      <!-- "U" with Upward Arrow -->
+      <path d="M 120 100 
+               L 120 210 
+               C 120 275, 240 275, 240 210 
+               L 240 100 
+               L 265 100 
+               L 220 40 
+               L 175 100 
+               L 200 100 
+               L 200 210 
+               C 200 235, 160 235, 160 210 
+               L 160 100 
+               Z" 
+            fill="#ffffff" />
+
+      <!-- "p" Stem and Bowl Ring -->
+      <rect x="262" y="110" width="40" height="150" rx="10" fill="#ffffff" />
+      <circle cx="335" cy="170" r="62" fill="#ffffff" />
+      <circle cx="335" cy="170" r="32" fill="url(#bgGrad)" />
+      <!-- Baht ฿ Symbol inside the 'p' bowl -->
+      <text x="335" y="181" font-family="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" font-weight="900" font-size="34" fill="#ffffff" text-anchor="middle">฿</text>
+    </g>
+
+    <!-- "ToMe" Text -->
+    <g filter="url(#shadow)">
+      <text x="256" y="345" font-family="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" font-weight="800" font-size="74" fill="#ffffff" text-anchor="middle" letter-spacing="1">ToMe</text>
+    </g>
+
+    <!-- 2. Wallet Pocket, Receipt, and Card sticking out at the bottom -->
+    <!-- Tilted Receipt -->
+    <g transform="translate(165, 395) rotate(-12)">
+      <!-- White Zig-zag Paper -->
+      <path d="M -35 -60 L -30 -65 L -25 -60 L -20 -65 L -15 -60 L -10 -65 L -5 -60 L 0 -65 L 5 -60 L 10 -65 L 15 -60 L 20 -65 L 25 -60 L 30 -65 L 35 -60 L 35 60 L -35 60 Z" fill="#ffffff" />
+      <!-- Horizontal lines on receipt -->
+      <line x1="-22" y1="-35" x2="15" y2="-35" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" opacity="0.8" />
+      <line x1="-22" y1="-20" x2="22" y2="-20" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" opacity="0.8" />
+      <line x1="-22" y1="-5" x2="5" y2="-5" stroke="#f59e0b" stroke-width="4" stroke-linecap="round" opacity="0.8" />
+    </g>
+
+    <!-- Tilted Credit Card -->
+    <g transform="translate(295, 410) rotate(8)">
+      <rect x="-60" y="-45" width="120" height="80" rx="10" fill="url(#cardGrad)" stroke="#ffffff" stroke-width="3" />
+      <rect x="-60" y="-22" width="120" height="15" fill="#d97706" opacity="0.7" />
+      <!-- Gold Coin overlapping -->
+      <circle cx="45" cy="12" r="30" fill="url(#goldGrad)" stroke="#ffffff" stroke-width="3" />
+      <text x="45" y="21" font-family="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" font-weight="900" font-size="24" fill="#ffffff" text-anchor="middle">฿</text>
+    </g>
+
+    <!-- White Pocket Mask on top -->
+    <path d="M -10 420 Q 256 465 522 420 L 522 522 L -10 522 Z" fill="#ffffff" />
+    <!-- Dashed stitching -->
+    <path d="M 10 432 Q 256 475 502 432" fill="none" stroke="#f97316" stroke-width="3" stroke-linecap="round" stroke-dasharray="8 6" opacity="0.6" />
+
+    <!-- Gold Button/Rivet on the pocket -->
+    <circle cx="415" cy="448" r="16" fill="url(#goldGrad)" stroke="#ffffff" stroke-width="3" />
+    <circle cx="415" cy="448" r="6" fill="#ffffff" />
+  </g>
+</svg>
