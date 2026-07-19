@@ -10,7 +10,7 @@ import { getFirestore, collection, getDocs } from "firebase/firestore";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
 
 // Set up CORS to allow requests from external origins (e.g. Vercel)
 app.use((req, res, next) => {

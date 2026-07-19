@@ -419,6 +419,16 @@ export async function sendLineNotification(token: string, message: string): Prom
       throw new Error(resData.error || "ไม่สามารถส่งแจ้งเตือน LINE ได้");
     } else {
       const text = await response.text();
+      if (
+        text.includes("<!DOCTYPE") ||
+        text.includes("<html") ||
+        text.includes("The page c") ||
+        text.includes("not found") ||
+        text.includes("NOT_FOUND") ||
+        response.status === 404
+      ) {
+        throw new Error("HTML_RESPONSE_ERROR");
+      }
       if (response.ok) {
         return { message: text };
       }
@@ -445,6 +455,16 @@ export async function sendLineNotification(token: string, message: string): Prom
           throw fallbackErr;
         }
       }
+    }
+
+    if (errText === "HTML_RESPONSE_ERROR") {
+      throw new Error(
+        "ระบบตรวจพบว่าเซิร์ฟเวอร์หลังบ้านในลิงก์สาธารณะ (Pre-production/Shared URL) ยังไม่ได้ถูกสร้างขึ้นหรือไม่ได้เปิดใช้งานบนระบบคลาวด์ (ได้รับสถานะ 404 NOT FOUND จากเว็บหลังบ้านของคุณ)\n\n" +
+        "💡 วิธีแก้ไข:\n" +
+        "1. กรุณาเปิด AI Studio หน้าแอปพลิเคชันนี้ แล้วกดปุ่ม 'Share' (แชร์) หรือ 'Deploy' ด้านขวาบน เพื่อสร้างและเผยแพร่ Cloud Run Service สาธารณะ\n" +
+        "2. หากคุณเพิ่งทำการบันทึกหรือแก้ไขโค้ดเสร็จ กรุณารอสักครู่ (ประมาณ 1-2 นาที) เพื่อให้ระบบทำการคอมไพล์และอัปเดตเซิร์ฟเวอร์หลังบ้านคลาวด์ให้เสร็จสมบูรณ์\n" +
+        "3. หรือ คุณสามารถกรอกลิงก์ Backend Base URL ของคุณเองที่ถูกต้องในหน้า 'ตั้งค่าระบบ' ได้ค่ะ"
+      );
     }
 
     if (isNetworkError) {
@@ -487,6 +507,16 @@ export async function sendLineMessage(
       throw new Error(resData.error || "ไม่สามารถส่งข้อความ LINE Bot ได้");
     } else {
       const text = await response.text();
+      if (
+        text.includes("<!DOCTYPE") ||
+        text.includes("<html") ||
+        text.includes("The page c") ||
+        text.includes("not found") ||
+        text.includes("NOT_FOUND") ||
+        response.status === 404
+      ) {
+        throw new Error("HTML_RESPONSE_ERROR");
+      }
       if (response.ok) {
         return { message: text };
       }
@@ -513,6 +543,16 @@ export async function sendLineMessage(
           throw fallbackErr;
         }
       }
+    }
+
+    if (errText === "HTML_RESPONSE_ERROR") {
+      throw new Error(
+        "ระบบตรวจพบว่าเซิร์ฟเวอร์หลังบ้านในลิงก์สาธารณะ (Pre-production/Shared URL) ยังไม่ได้ถูกสร้างขึ้นหรือไม่ได้เปิดใช้งานบนระบบคลาวด์ (ได้รับสถานะ 404 NOT FOUND จากเว็บหลังบ้านของคุณ)\n\n" +
+        "💡 วิธีแก้ไข:\n" +
+        "1. กรุณาเปิด AI Studio หน้าแอปพลิเคชันนี้ แล้วกดปุ่ม 'Share' (แชร์) หรือ 'Deploy' ด้านขวาบน เพื่อสร้างและเผยแพร่ Cloud Run Service สาธารณะ\n" +
+        "2. หากคุณเพิ่งทำการบันทึกหรือแก้ไขโค้ดเสร็จ กรุณารอสักครู่ (ประมาณ 1-2 นาที) เพื่อให้ระบบทำการคอมไพล์และอัปเดตเซิร์ฟเวอร์หลังบ้านคลาวด์ให้เสร็จสมบูรณ์\n" +
+        "3. หรือ คุณสามารถกรอกลิงก์ Backend Base URL ของคุณเองที่ถูกต้องในหน้า 'ตั้งค่าระบบ' ได้ค่ะ"
+      );
     }
 
     if (isNetworkError) {
