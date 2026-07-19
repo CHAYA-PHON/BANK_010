@@ -285,7 +285,7 @@ export default function HistoryList({ transactions, onDelete, onEdit, wallets }:
             <div className="p-4 border-t border-white/10 text-center bg-white/5 shrink-0">
               <button
                 onClick={() => setViewImageUrl(null)}
-                className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold transition-all border border-white/10 cursor-pointer"
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold transition-all border border-white/10 cursor-pointer"
               >
                 ปิดหน้าต่าง
               </button>

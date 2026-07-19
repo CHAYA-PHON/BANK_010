@@ -201,7 +201,7 @@ export default function WalletManager({
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total balance of all wallets combined */}
-        <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 backdrop-blur-md border border-white/10 rounded-3xl p-6 relative overflow-hidden">
+        <div className="bg-indigo-500/10 backdrop-blur-md border border-white/10 rounded-3xl p-6 relative overflow-hidden">
           <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
           <div className="flex items-center gap-2 text-indigo-400 mb-2">
             <Coins className="w-5 h-5" />
@@ -236,7 +236,7 @@ export default function WalletManager({
           <button
             type="button"
             onClick={openAddWalletModal}
-            className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-90 text-white rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+            className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
           >
             <Plus className="w-4 h-4" />
             เพิ่มกระเป๋าตังใหม่
@@ -475,7 +475,7 @@ export default function WalletManager({
 
         return (
           <div id="wallet-flow-details" className="bg-white/5 border border-white/10 rounded-3xl p-6 mb-6 transition-all duration-300 animate-fadeIn relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-purple-500"></div>
+            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
             
             {/* Header */}
             <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
@@ -792,7 +792,7 @@ export default function WalletManager({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
+                className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 {editingWallet ? "บันทึกแก้ไข" : "บันทึกข้อมูล"}
@@ -910,7 +910,7 @@ export default function WalletManager({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                className="flex-1 py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <Check className="w-4 h-4" />
                 ยืนยันการโอนเงิน

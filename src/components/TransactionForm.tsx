@@ -425,7 +425,7 @@ export default function TransactionForm({
           )}
           <button
             type="submit"
-            className="flex-2 py-2 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-90 text-white font-semibold rounded-xl text-sm transition-all duration-200 flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+            className="flex-2 py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-sm transition-all duration-200 flex items-center justify-center gap-1 shadow-xs cursor-pointer"
           >
             <Check className="w-4 h-4" />
             {isEditMode ? "อัปเดตรายการ" : "บันทึกรายการ"}

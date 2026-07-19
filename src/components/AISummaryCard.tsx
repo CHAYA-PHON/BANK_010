@@ -191,7 +191,7 @@ export default function AISummaryCard({ transactions, selectedMonth }: AISummary
           </p>
           <button
             onClick={runAnalysis}
-            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-2xl text-xs font-bold flex items-center gap-2 transition-all duration-200 shadow-md border border-white/10 cursor-pointer"
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-bold flex items-center gap-2 transition-all duration-200 shadow-md border border-white/10 cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-white" />
             วิเคราะห์พฤติกรรมการเงินด้วย AI

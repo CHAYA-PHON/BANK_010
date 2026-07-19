@@ -1209,7 +1209,7 @@ export default function App() {
             onClick={() => setCurrentPage("dashboard")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               currentPage === "dashboard"
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
+                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -1220,7 +1220,7 @@ export default function App() {
             onClick={() => setCurrentPage("records")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               currentPage === "records"
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
+                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -1231,7 +1231,7 @@ export default function App() {
             onClick={() => setCurrentPage("wallets")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               currentPage === "wallets"
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
+                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -1242,7 +1242,7 @@ export default function App() {
             onClick={() => setCurrentPage("debts")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               currentPage === "debts"
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
+                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -1253,7 +1253,7 @@ export default function App() {
             onClick={() => setCurrentPage("settings")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               currentPage === "settings"
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg border border-white/10"
+                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
