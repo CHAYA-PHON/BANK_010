@@ -1,21 +1,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 export function getEffectiveBackendBaseUrl(): string {
-  const savedBase = localStorage.getItem("app_api_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "";
-  if (savedBase && typeof window !== "undefined" && window.location) {
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    if (!isLocalhost && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1"))) {
-      return "";
-    }
-  }
-
-  // If hosted on an external domain (like Vercel) and no base URL is defined yet,
-  // automatically default to the Cloud Run service URL to handle Express-side API calls.
-  if (!savedBase && typeof window !== "undefined" && window.location) {
+  let savedBase = localStorage.getItem("app_api_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "";
+  
+  if (typeof window !== "undefined" && window.location) {
     const hostname = window.location.hostname;
     const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.includes("192.168.");
     const isCloudRun = hostname.endsWith(".run.app");
-    
-    if (!isLocalhost && !isCloudRun) {
+
+    // If we're not on localhost, but savedBase is localhost, ignore it
+    if (!isLocalhost && savedBase && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1"))) {
+      savedBase = "";
+    }
+
+    // If savedBase is a vercel.app or matches our current hostname (which is NOT a Cloud Run backend), ignore it
+    if (savedBase && (savedBase.includes(".vercel.app") || (!isLocalhost && !isCloudRun && savedBase.includes(hostname)))) {
+      savedBase = "";
+    }
+
+    // If we have no valid backend base URL and we are hosted externally (like Vercel), default to Cloud Run
+    if (!savedBase && !isLocalhost && !isCloudRun) {
       return "https://ais-pre-vzwnta4t5vklyptliik43g-446396597239.asia-east1.run.app";
     }
   }

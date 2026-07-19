@@ -110,11 +110,13 @@ export default function SettingsScreen({
     localStorage.setItem("app_line_send_type", lineSendType);
 
     // Silently register the token on the server
-    fetch("/api/send-line-message", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channelAccessToken: lineChannelAccessToken.trim(), message: "", sendType: "broadcast" })
-    }).catch(e => console.log("Silent seed error:", e));
+    import("../lib/api").then(({ getApiUrl }) => {
+      fetch(getApiUrl("/api/send-line-message"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelAccessToken: lineChannelAccessToken.trim(), message: "", sendType: "broadcast" })
+      }).catch(e => console.log("Silent seed error:", e));
+    }).catch(e => console.log("Import error:", e));
 
     if (currentUser) {
       try {

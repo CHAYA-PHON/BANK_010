@@ -4,7 +4,7 @@ import {
   Bell, Send, Check, Loader2, AlertCircle, Calendar, Sparkles, 
   Lock, Settings, ShieldAlert, MessageSquare, Info, AlertTriangle, Users, User
 } from "lucide-react";
-import { sendLineNotification, sendLineMessage, analyzeSpendingWithFallback } from "../lib/api";
+import { sendLineNotification, sendLineMessage, analyzeSpendingWithFallback, getApiUrl } from "../lib/api";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -199,7 +199,7 @@ export default function LineSummarySender({ transactions, wallets, currentUser }
     localStorage.setItem("app_line_send_type", sendType);
 
     // Sync token cache on backend
-    fetch("/api/send-line-message", {
+    fetch(getApiUrl("/api/send-line-message"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channelAccessToken: channelAccessToken.trim(), message: "", sendType: "broadcast" })
