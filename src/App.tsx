@@ -1134,7 +1134,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-white font-sans selection:bg-indigo-500/30 relative overflow-x-hidden pb-24 md:pb-12">
+    <div className="min-h-screen bg-[#090d16] text-slate-100 font-sans selection:bg-indigo-500/30 relative overflow-x-hidden pb-24 md:pb-12">
       {/* Visual Mesh Gradients */}
       <div className="absolute top-[-15%] left-[-15%] w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[140px] pointer-events-none"></div>
       <div className="absolute bottom-[10%] right-[-15%] w-[600px] h-[600px] bg-emerald-900/10 rounded-full blur-[150px] pointer-events-none"></div>

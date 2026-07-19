@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, collection, getDocs } from "firebase/firestore";
 
 dotenv.config();
@@ -1037,7 +1037,6 @@ async function runLineSummaryTask(bkkDate: Date, forceRunMonthly: boolean = fals
     return { success: false, reason: "No firebase config found" };
   }
 
-  const { getApps } = await import("firebase/app");
   const apps = getApps();
   let fApp;
   if (apps.length > 0) {
@@ -1352,7 +1351,8 @@ function startBackgroundScheduler() {
 // Configure Vite or Static serving
 async function setupServer() {
   if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
+    const viteModName = "vite";
+    const { createServer: createViteServer } = await import(viteModName);
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

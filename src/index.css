@@ -103,6 +103,114 @@ body {
   background-color: #f1f5f9 !important;
   border-color: rgba(15, 23, 42, 0.08) !important;
 }
+.theme-light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+.theme-light ::placeholder,
+.theme-light input::placeholder,
+.theme-light textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* LIGHT THEME BRIGHT-TEXT HIGH-CONTRAST ADJUSTMENTS */
+.theme-light .text-emerald-400,
+.theme-light .text-emerald-500 {
+  color: #047857 !important;
+}
+.theme-light .text-indigo-300,
+.theme-light .text-indigo-400 {
+  color: #4338ca !important;
+}
+.theme-light .text-amber-400,
+.theme-light .text-amber-500 {
+  color: #b45309 !important;
+}
+.theme-light .text-rose-400,
+.theme-light .text-rose-500 {
+  color: #be123c !important;
+}
+
+/* LIGHT THEME ACCENT COLOR ADJUSTMENTS (DEEP/RICH) */
+.theme-light.accent-emerald .text-indigo-600, .theme-light .accent-emerald .text-indigo-600 { color: #047857 !important; }
+.theme-light.accent-emerald .text-indigo-500, .theme-light .accent-emerald .text-indigo-500 { color: #059669 !important; }
+.theme-light.accent-emerald .text-indigo-400, .theme-light .accent-emerald .text-indigo-400 { color: #10b981 !important; }
+.theme-light.accent-emerald .text-indigo-300, .theme-light .accent-emerald .text-indigo-300 { color: #047857 !important; }
+
+.theme-light.accent-teal .text-indigo-600, .theme-light .accent-teal .text-indigo-600 { color: #0f766e !important; }
+.theme-light.accent-teal .text-indigo-500, .theme-light .accent-teal .text-indigo-500 { color: #0d9488 !important; }
+.theme-light.accent-teal .text-indigo-400, .theme-light .accent-teal .text-indigo-400 { color: #14b8a6 !important; }
+.theme-light.accent-teal .text-indigo-300, .theme-light .accent-teal .text-indigo-300 { color: #0f766e !important; }
+
+.theme-light.accent-rose .text-indigo-600, .theme-light .accent-rose .text-indigo-600 { color: #be123c !important; }
+.theme-light.accent-rose .text-indigo-500, .theme-light .accent-rose .text-indigo-500 { color: #e11d48 !important; }
+.theme-light.accent-rose .text-indigo-400, .theme-light .accent-rose .text-indigo-400 { color: #f43f5e !important; }
+.theme-light.accent-rose .text-indigo-300, .theme-light .accent-rose .text-indigo-300 { color: #be123c !important; }
+
+.theme-light.accent-violet .text-indigo-600, .theme-light .accent-violet .text-indigo-600 { color: #6d28d9 !important; }
+.theme-light.accent-violet .text-indigo-500, .theme-light .accent-violet .text-indigo-500 { color: #7c3aed !important; }
+.theme-light.accent-violet .text-indigo-400, .theme-light .accent-violet .text-indigo-400 { color: #8b5cf6 !important; }
+.theme-light.accent-violet .text-indigo-300, .theme-light .accent-violet .text-indigo-300 { color: #6d28d9 !important; }
+
+.theme-light.accent-amber .text-indigo-600, .theme-light .accent-amber .text-indigo-600 { color: #b45309 !important; }
+.theme-light.accent-amber .text-indigo-500, .theme-light .accent-amber .text-indigo-500 { color: #d97706 !important; }
+.theme-light.accent-amber .text-indigo-400, .theme-light .accent-amber .text-indigo-400 { color: #f59e0b !important; }
+.theme-light.accent-amber .text-indigo-300, .theme-light .accent-amber .text-indigo-300 { color: #b45309 !important; }
+
+/* RESTORE WHITE TEXT FOR EXPLICIT BUTTONS/COLORED ELEMENTS IN LIGHT MODE */
+.theme-light button.text-white,
+.theme-light button .text-white,
+.theme-light [role="button"].text-white,
+.theme-light [role="button"] .text-white,
+.theme-light a.text-white,
+.theme-light a .text-white,
+.theme-light .bg-indigo-600,
+.theme-light .bg-indigo-600 .text-white,
+.theme-light .bg-indigo-500,
+.theme-light .bg-indigo-500 .text-white,
+.theme-light .bg-emerald-600,
+.theme-light .bg-emerald-600 .text-white,
+.theme-light .bg-emerald-500,
+.theme-light .bg-emerald-500 .text-white,
+.theme-light .bg-[#10b981],
+.theme-light .bg-[#10b981] .text-white,
+.theme-light .bg-[#059669],
+.theme-light .bg-[#059669] .text-white,
+.theme-light .bg-rose-500,
+.theme-light .bg-rose-500 .text-white,
+.theme-light .bg-rose-600,
+.theme-light .bg-rose-600 .text-white,
+.theme-light .bg-amber-500,
+.theme-light .bg-amber-500 .text-white,
+.theme-light .bg-amber-600,
+.theme-light .bg-amber-600 .text-white,
+.theme-light .bg-violet-600,
+.theme-light .bg-violet-600 .text-white,
+.theme-light .bg-violet-500,
+.theme-light .bg-violet-500 .text-white,
+.theme-light [class*="bg-indigo-"].text-white,
+.theme-light [class*="bg-indigo-"] .text-white,
+.theme-light [class*="bg-emerald-"].text-white,
+.theme-light [class*="bg-emerald-"] .text-white,
+.theme-light [class*="bg-rose-"].text-white,
+.theme-light [class*="bg-rose-"] .text-white,
+.theme-light [class*="bg-violet-"].text-white,
+.theme-light [class*="bg-violet-"] .text-white,
+.theme-light [class*="bg-amber-"].text-white,
+.theme-light [class*="bg-amber-"] .text-white,
+.theme-light [class*="bg-slate-700"].text-white,
+.theme-light [class*="bg-slate-800"].text-white,
+.theme-light [class*="bg-slate-900"].text-white,
+.theme-light [class*="bg-slate-700"] .text-white,
+.theme-light [class*="bg-slate-800"] .text-white,
+.theme-light [class*="bg-slate-900"] .text-white,
+.theme-light [class*="from-"].text-white,
+.theme-light [class*="from-"] .text-white,
+.theme-light [class*="to-"].text-white,
+.theme-light [class*="to-"] .text-white {
+  color: #ffffff !important;
+}
 
 /* ACCENT OVERRIDE ENGINE */
 
