@@ -527,20 +527,42 @@ export default function MonthlyReport({
         
         const imgData = canvas.toDataURL("image/jpeg", 1.0);
         const pdf = new jsPDF("p", "mm", "a4");
-        const imgWidth = 210; // A4 size
-        const pageHeight = 295;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        let heightLeft = imgHeight;
-        let position = 0;
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const canvasRatio = canvasHeight / canvasWidth;
         
-        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-        
-        while (heightLeft >= 0) {
-          position = heightLeft - imgHeight;
-          pdf.addPage();
+        if (canvasRatio <= 1.4142) {
+          // Case 1: Content fits within A4 page aspect ratio perfectly.
+          // Center it vertically.
+          const imgWidth = 210;
+          const imgHeight = 210 * canvasRatio;
+          const topMargin = (297 - imgHeight) / 2;
+          pdf.addImage(imgData, "JPEG", 0, topMargin, imgWidth, imgHeight);
+        } else if (canvasRatio <= 1.75) {
+          // Case 2: Content is slightly taller than A4, but fits within 1.75x ratio.
+          // Scale it down slightly so the entire document fits perfectly on exactly one A4 page with zero cut-offs.
+          const imgHeight = 293; // 297 minus tiny padding
+          const imgWidth = imgHeight / canvasRatio;
+          const leftMargin = (210 - imgWidth) / 2;
+          pdf.addImage(imgData, "JPEG", leftMargin, 2, imgWidth, imgHeight);
+        } else {
+          // Case 3: Content is very tall (multi-page).
+          // Fallback to standard multi-page rendering.
+          const imgWidth = 210;
+          const pageHeight = 297;
+          const imgHeight = 210 * canvasRatio;
+          let heightLeft = imgHeight;
+          let position = 0;
+          
           pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
           heightLeft -= pageHeight;
+          
+          while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+          }
         }
         
         pdf.save(`รายงานทางการเงิน_ประจำเดือน_${selectedMonth}.pdf`);
@@ -614,23 +636,66 @@ export default function MonthlyReport({
       {/* Printable page styling injection */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          body {
+          @page {
+            size: A4 portrait;
+            margin: 15mm 15mm 15mm 15mm;
+          }
+          html, body, #root, [class*="min-h-screen"], main, .print-container {
             background: white !important;
             color: #0f172a !important;
-          }
-          header, nav, footer, .no-print {
-            display: none !important;
-          }
-          .print-container {
-            background: white !important;
-            color: #0f172a !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
             padding: 0 !important;
             margin: 0 !important;
             border: none !important;
             box-shadow: none !important;
-            width: 100% !important;
-            max-width: 100% !important;
           }
+          header, nav, footer, .no-print {
+            display: none !important;
+          }
+          
+          /* CRITICAL: Bypass overflow wrappers to let tables repeat thead natively */
+          .overflow-hidden,
+          .overflow-x-auto,
+          div.overflow-hidden,
+          div.overflow-x-auto {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            display: contents !important;
+          }
+          
+          table {
+            display: table !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+            page-break-inside: auto !important;
+          }
+          
+          thead {
+            display: table-header-group !important;
+          }
+          
+          tbody {
+            display: table-row-group !important;
+          }
+          
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+          
+          th, td {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
           /* Force standard visible colors on print */
           .text-white { color: #0f172a !important; }
           .text-slate-400, .text-slate-300, .text-slate-200 { color: #334155 !important; }
@@ -648,14 +713,10 @@ export default function MonthlyReport({
             background: #f1f5f9 !important;
             border: 1px solid #cbd5e1 !important;
           }
-          /* Prevent page breaks */
+          /* Prevent page breaks inside cards, tables, panels */
           h1, h2, h3, h4, h5, h6 {
             break-after: avoid-page !important;
             page-break-after: avoid !important;
-          }
-          tr {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
           }
           .break-inside-avoid {
             break-inside: avoid !important;
@@ -669,18 +730,82 @@ export default function MonthlyReport({
             align-items: center !important;
             justify-content: space-between !important;
           }
+          
+          thead tr {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+            border-bottom: 2px solid #cbd5e1 !important;
+          }
+          thead th {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+          }
         }
 
-        /* Capture mode for html2canvas to look like a premium bank statement */
+        /* Capture mode for html2canvas to look like a premium bank statement and fit A4 beautifully */
         .print-capture-mode {
           background: #ffffff !important;
           color: #0f172a !important;
-          padding: 32px !important;
+          padding: 24px 32px !important;
           border-radius: 0px !important;
+          width: 800px !important;
+          max-width: 800px !important;
+          box-sizing: border-box !important;
         }
         .print-capture-mode * {
           text-shadow: none !important;
           box-shadow: none !important;
+        }
+        .print-capture-mode .report-header-panel {
+          padding-bottom: 12px !important;
+          margin-bottom: 12px !important;
+          border-bottom-width: 1.5px !important;
+          border-bottom-color: #e2e8f0 !important;
+        }
+        .print-capture-mode table th,
+        .print-capture-mode table td {
+          padding: 6px 10px !important;
+          font-size: 11px !important;
+        }
+        .print-capture-mode .space-y-6 > * + * {
+          margin-top: 12px !important;
+        }
+        .print-capture-mode .p-4 {
+          padding: 10px 14px !important;
+        }
+        .print-capture-mode .p-6,
+        .print-capture-mode .md\\:p-8 {
+          padding: 16px !important;
+        }
+        .print-capture-mode .gap-6 {
+          gap: 12px !important;
+        }
+        .print-capture-mode .gap-4 {
+          gap: 10px !important;
+        }
+        .print-capture-mode .w-16,
+        .print-capture-mode .md\\:w-20 {
+          width: 48px !important;
+          height: 48px !important;
+        }
+        .print-capture-mode .h-16,
+        .print-capture-mode .md\\:h-20 {
+          height: 48px !important;
+        }
+        .print-capture-mode h1 {
+          font-size: 18px !important;
+        }
+        .print-capture-mode .text-xl,
+        .print-capture-mode .md\\:text-2xl {
+          font-size: 16px !important;
+        }
+        .print-capture-mode .text-base,
+        .print-capture-mode .md\\:text-xl {
+          font-size: 14px !important;
+        }
+        .print-capture-mode .text-sm,
+        .print-capture-mode .md\\:text-base {
+          font-size: 12px !important;
         }
         .print-capture-mode .text-white {
           color: #0f172a !important;
@@ -1079,6 +1204,84 @@ export default function MonthlyReport({
             </div>
           </div>
         </div>
+
+        {/* Detailed Transactions List for Month (Separated clearly by Type and Colors) */}
+        {isGenerating !== "image" && (
+          <div className="space-y-3 pt-4 border-t border-slate-100 break-inside-avoid">
+            <h3 className="text-xs md:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              📋 บันทึกรายการแบบละเอียดแยกตามรายรับ-รายจ่าย-โอนเงิน
+            </h3>
+
+            <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-xs">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                    <th className="py-3 px-4">วันเวลาทำรายการ</th>
+                    <th className="py-3 px-4">หมวดหมู่</th>
+                    <th className="py-3 px-4">รายละเอียดผู้โอน/ผู้รับเงิน/ร้านค้า</th>
+                    <th className="py-3 px-4">กระเป๋าเงิน</th>
+                    <th className="py-3 px-4 text-right">ประเภท</th>
+                    <th className="py-3 px-4 text-right">จำนวนเงิน</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white font-medium text-slate-700">
+                  {monthlyTransactionsList.length > 0 ? (
+                    monthlyTransactionsList.map((tx) => {
+                      const foundWallet = wallets.find(w => w.id === tx.walletId);
+                      const toWallet = wallets.find(w => w.id === tx.toWalletId);
+                      
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3 px-4 font-semibold text-slate-600 whitespace-nowrap">
+                            {tx.date} {tx.time ? `(${tx.time} น.)` : ""}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
+                              {tx.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-800 font-semibold">
+                            {tx.merchantName || "-"}
+                            {tx.note && <span className="block text-[10px] text-slate-500 font-normal mt-0.5">📝 {tx.note}</span>}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {foundWallet ? (
+                              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                <span>{foundWallet.icon}</span>
+                                <span>{foundWallet.name}</span>
+                              </span>
+                            ) : "-"}
+                            {tx.type === "transfer" && toWallet && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md ml-1.5 border border-indigo-100 whitespace-nowrap">
+                                <ArrowRightLeft className="w-3 h-3" /> {toWallet.name}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black uppercase text-[10px] md:text-xs whitespace-nowrap">
+                            {tx.type === "income" && <span className="text-[#00c853]">รายรับ 💰</span>}
+                            {tx.type === "expense" && <span className="text-[#ff2d55]">รายจ่าย 💸</span>}
+                            {tx.type === "transfer" && <span className="text-indigo-600">โอนเงิน 🔄</span>}
+                          </td>
+                          <td className="py-3 px-4 text-right font-black font-mono whitespace-nowrap">
+                            {tx.type === "income" && <span className="text-[#00c853] font-extrabold">+฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
+                            {tx.type === "expense" && <span className="text-[#ff2d55] font-extrabold">-฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
+                            {tx.type === "transfer" && <span className="text-indigo-600">฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-400 font-semibold">
+                        ไม่มีรายการเคลื่อนไหวทางบัญชีในเดือนนี้
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
 
 
