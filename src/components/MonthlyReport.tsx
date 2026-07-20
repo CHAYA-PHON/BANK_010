@@ -521,6 +521,80 @@ export default function MonthlyReport({
                 return patchComputedStyleObject(style);
               };
             }
+
+            // CRITICAL: Prevent elements from breaking across A4 pages in PDF
+            const clonedContent = clonedDoc.getElementById("monthly-report-content");
+            if (clonedContent) {
+              const pxPageHeight = 1131; // precisely A4 height at 800px width (800 * 297 / 210)
+              const contentTop = clonedContent.getBoundingClientRect().top;
+              
+              // Select elements that must not break inside (e.g., cards, headings, and table rows)
+              const avoidElements = Array.from(clonedContent.querySelectorAll(".break-inside-avoid, tr, h3"));
+              
+              for (const el of avoidElements) {
+                const htmlEl = el as HTMLElement;
+                // Skip spacer rows/divs we created
+                if (htmlEl.classList.contains("pdf-page-break-spacer-row") || htmlEl.classList.contains("pdf-page-break-spacer")) {
+                  continue;
+                }
+                
+                const elRect = htmlEl.getBoundingClientRect();
+                const elTop = elRect.top - contentTop;
+                const elBottom = elRect.bottom - contentTop;
+                const elHeight = elBottom - elTop;
+                
+                if (elHeight <= 0) continue;
+                if (elHeight >= pxPageHeight) continue; // Skip elements taller than a single page
+                
+                const pageOfTop = Math.floor(elTop / pxPageHeight);
+                const pageOfBottom = Math.floor(elBottom / pxPageHeight);
+                
+                if (pageOfTop !== pageOfBottom) {
+                  // Element crosses a page boundary. Calculate necessary spacer to push it to the next page.
+                  const boundaryY = pageOfBottom * pxPageHeight;
+                  const neededSpacer = boundaryY - elTop;
+                  
+                  if (neededSpacer > 0 && neededSpacer < pxPageHeight) {
+                    if (htmlEl.parentNode) {
+                      if (htmlEl.tagName.toLowerCase() === "tr") {
+                        // For table rows, insert a clean, valid HTML spacer row with matching colspan
+                        const parentTable = htmlEl.closest("table");
+                        const cols = parentTable ? parentTable.querySelectorAll("tr:first-child th, tr:first-child td").length || 6 : 6;
+                        
+                        const spacerRow = clonedDoc.createElement("tr");
+                        spacerRow.className = "pdf-page-break-spacer-row";
+                        spacerRow.style.pageBreakInside = "avoid";
+                        spacerRow.style.breakInside = "avoid";
+                        
+                        const spacerTd = clonedDoc.createElement("td");
+                        spacerTd.colSpan = cols;
+                        spacerTd.style.height = `${neededSpacer}px`;
+                        spacerTd.style.padding = "0";
+                        spacerTd.style.margin = "0";
+                        spacerTd.style.border = "none";
+                        spacerTd.style.background = "transparent";
+                        
+                        spacerRow.appendChild(spacerTd);
+                        htmlEl.parentNode.insertBefore(spacerRow, htmlEl);
+                      } else {
+                        // For generic block elements, insert a clean block spacer div
+                        const spacerDiv = clonedDoc.createElement("div");
+                        spacerDiv.className = "pdf-page-break-spacer";
+                        spacerDiv.style.height = `${neededSpacer}px`;
+                        spacerDiv.style.width = "100%";
+                        spacerDiv.style.display = "block";
+                        spacerDiv.style.background = "transparent";
+                        spacerDiv.style.border = "none";
+                        spacerDiv.style.margin = "0";
+                        spacerDiv.style.padding = "0";
+                        
+                        htmlEl.parentNode.insertBefore(spacerDiv, htmlEl);
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         });
         
@@ -558,7 +632,7 @@ export default function MonthlyReport({
           pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
           heightLeft -= pageHeight;
           
-          while (heightLeft >= 0) {
+          while (heightLeft > 0.1) {
             position = heightLeft - imgHeight;
             pdf.addPage();
             pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
