@@ -12,10 +12,11 @@ import DebtManager from "./components/DebtManager";
 import LoginScreen from "./components/LoginScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import LineSummarySender from "./components/LineSummarySender";
+import MonthlyReport from "./components/MonthlyReport";
 import { 
   Sparkles, Coins, HelpCircle, ArrowUpRight, Plus, ScanLine, 
   History, PieChart, Landmark, ArrowRightLeft, Settings, LogOut, CheckCircle, Wallet as WalletIcon, ShieldAlert,
-  Keyboard, Monitor, X
+  Keyboard, Monitor, X, FileSpreadsheet
 } from "lucide-react";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
@@ -122,7 +123,7 @@ export default function App() {
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("scan");
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts">("dashboard");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report">("dashboard");
   
   // Dynamically calculate balances of each wallet
   const walletBalances = useMemo(() => {
@@ -152,6 +153,23 @@ export default function App() {
     });
     return balances;
   }, [wallets, transactions]);
+
+  // Extract unique merchant and sender names from previous transactions for search autocompletion
+  const expenseHistoryNames = useMemo(() => {
+    const names = transactions
+      .filter((tx) => tx.type === "expense")
+      .map((tx) => tx.merchantName)
+      .filter((name) => name && name.trim() !== "" && !name.startsWith("โอนเงินจาก "));
+    return Array.from(new Set(names));
+  }, [transactions]);
+
+  const incomeHistoryNames = useMemo(() => {
+    const names = transactions
+      .filter((tx) => tx.type === "income")
+      .map((tx) => tx.merchantName)
+      .filter((name) => name && name.trim() !== "" && !name.startsWith("โอนเงินจาก "));
+    return Array.from(new Set(names));
+  }, [transactions]);
   
   // Scanned data ready for user review/confirmation
   const [pendingReviewData, setPendingReviewData] = useState<Partial<Transaction> | null>(null);
@@ -1204,7 +1222,7 @@ export default function App() {
 
       {/* Primary Navigation Hub (Desktop & Tablet) */}
       <nav className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-5 gap-1.5 max-w-3xl mx-auto">
+        <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-6 gap-1.5 max-w-4xl mx-auto">
           <button
             onClick={() => setCurrentPage("dashboard")}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
@@ -1226,6 +1244,17 @@ export default function App() {
           >
             <ScanLine className="w-4 h-4" />
             บันทึก/สแกน
+          </button>
+          <button
+            onClick={() => setCurrentPage("report")}
+            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              currentPage === "report"
+                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                : "text-slate-400 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            รายงานประจำเดือน
           </button>
           <button
             onClick={() => setCurrentPage("wallets")}
@@ -1265,7 +1294,7 @@ export default function App() {
 
       {/* Mobile Sticky Bottom Navigation Bar (App-like Navigation) */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#090d16]/95 backdrop-blur-lg border-t border-white/10 shadow-[0_-8px_30px_rgb(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2.5">
-        <div className="grid grid-cols-5 h-12 max-w-md mx-auto px-1">
+        <div className="grid grid-cols-6 h-12 max-w-md mx-auto px-1">
           <button
             onClick={() => setCurrentPage("dashboard")}
             className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
@@ -1282,7 +1311,16 @@ export default function App() {
             }`}
           >
             <ScanLine className={`w-5 h-5 ${currentPage === "records" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">สแกน/บันทึก</span>
+            <span className="text-[10px] scale-95 leading-none">บันทึก</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage("report")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "report" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <FileSpreadsheet className={`w-5 h-5 ${currentPage === "report" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[10px] scale-95 leading-none">รายงาน</span>
           </button>
           <button
             onClick={() => setCurrentPage("wallets")}
@@ -1417,6 +1455,8 @@ export default function App() {
                     wallets={wallets}
                     walletBalances={walletBalances}
                     debts={debts}
+                    expenseHistoryNames={expenseHistoryNames}
+                    incomeHistoryNames={incomeHistoryNames}
                   />
                 )}
               </div>
@@ -1500,6 +1540,21 @@ export default function App() {
               setTheme={setTheme}
               accentColor={accentColor}
               setAccentColor={setAccentColor}
+            />
+          </div>
+        )}
+
+        {/* VIEW 6: Monthly Statement & Financial Report */}
+        {currentPage === "report" && (
+          <div className="animate-fade-in">
+            <MonthlyReport
+              transactions={transactions}
+              wallets={wallets}
+              debts={debts}
+              debtPayments={debtPayments}
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              availableMonths={availableMonths}
             />
           </div>
         )}

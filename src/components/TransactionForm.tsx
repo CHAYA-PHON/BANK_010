@@ -1,6 +1,6 @@
 import { useState, useEffect, FormEvent } from "react";
 import { CATEGORIES, Transaction, TransactionType, Wallet, Debt } from "../types";
-import { Plus, Check, ImageIcon, X, HelpCircle, Calendar, DollarSign, Edit, ArrowRightLeft } from "lucide-react";
+import { Plus, Check, ImageIcon, X, HelpCircle, Calendar, DollarSign, Edit, ArrowRightLeft, Calculator, Delete } from "lucide-react";
 
 interface TransactionFormProps {
   initialData?: Partial<Transaction> | null;
@@ -10,6 +10,8 @@ interface TransactionFormProps {
   wallets: Wallet[];
   walletBalances?: Record<string, number>;
   debts?: Debt[];
+  expenseHistoryNames?: string[];
+  incomeHistoryNames?: string[];
 }
 
 export default function TransactionForm({
@@ -20,6 +22,8 @@ export default function TransactionForm({
   wallets,
   walletBalances,
   debts = [],
+  expenseHistoryNames = [],
+  incomeHistoryNames = [],
 }: TransactionFormProps) {
   const [type, setType] = useState<TransactionType>("expense");
   const [amount, setAmount] = useState<string>("");
@@ -32,6 +36,81 @@ export default function TransactionForm({
   const [walletId, setWalletId] = useState<string>("");
   const [toWalletId, setToWalletId] = useState<string>("");
   const [selectedDebtId, setSelectedDebtId] = useState<string>("");
+
+  // Calculator states
+  const [showCalculator, setShowCalculator] = useState<boolean>(false);
+  const [calcExpression, setCalcExpression] = useState<string>("");
+  const [calcResult, setCalcResult] = useState<string>("");
+
+  const evaluateExpression = (expr: string): number | null => {
+    try {
+      // Allow only safe characters: digits, decimal point, operators, parentheses, space
+      const sanitized = expr.replace(/[^0-9+\-*/(). ]/g, "");
+      if (!sanitized.trim()) return null;
+      
+      const result = new Function(`return (${sanitized})`)();
+      if (typeof result === "number" && !isNaN(result) && isFinite(result)) {
+        return Number(result.toFixed(2));
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const evaluateRealTime = (expr: string) => {
+    const res = evaluateExpression(expr);
+    if (res !== null) {
+      setCalcResult(res.toString());
+    } else {
+      setCalcResult("");
+    }
+  };
+
+  const handleCalcKeyPress = (key: string) => {
+    if (key === "C") {
+      setCalcExpression("");
+      setCalcResult("");
+    } else if (key === "DEL") {
+      // If ends with spaces (operator), delete more
+      let nextExpr = calcExpression;
+      if (nextExpr.endsWith(" ")) {
+        nextExpr = nextExpr.trim().slice(0, -1).trim();
+      } else {
+        nextExpr = nextExpr.slice(0, -1);
+      }
+      setCalcExpression(nextExpr);
+      evaluateRealTime(nextExpr);
+    } else if (key === "=") {
+      const res = evaluateExpression(calcExpression);
+      if (res !== null) {
+        setCalcExpression(res.toString());
+        setCalcResult(res.toString());
+      }
+    } else {
+      let char = key;
+      if (["+", "-", "*", "/"].includes(key)) {
+        char = ` ${key} `;
+      }
+      const nextExpr = calcExpression + char;
+      setCalcExpression(nextExpr);
+      evaluateRealTime(nextExpr);
+    }
+  };
+
+  const applyCalcValue = () => {
+    const finalVal = calcResult || evaluateExpression(calcExpression)?.toString() || calcExpression;
+    if (finalVal && !isNaN(Number(finalVal))) {
+      setAmount(finalVal);
+      setShowCalculator(false);
+    } else {
+      const evaluated = evaluateExpression(calcExpression);
+      if (evaluated !== null) {
+        setAmount(evaluated.toString());
+        setShowCalculator(false);
+      }
+    }
+  };
 
   // Sync with initial data (especially when scanning a slip)
   useEffect(() => {
@@ -227,9 +306,30 @@ export default function TransactionForm({
           </div>
         )}
 
-        {/* Amount input */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-400 mb-1">จำนวนเงิน (THB)</label>
+        {/* Amount input with Calculator integration */}
+        <div className="relative">
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-semibold text-slate-400">จำนวนเงิน (THB)</label>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCalculator(!showCalculator);
+                if (!showCalculator) {
+                  setCalcExpression(amount || "");
+                  setCalcResult(amount || "");
+                }
+              }}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                showCalculator
+                  ? "bg-emerald-500/10 border-emerald-500 text-emerald-400"
+                  : "bg-white/5 border-white/10 text-slate-300 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              <Calculator className="w-3 h-3" />
+              {showCalculator ? "ปิดเครื่องคิดเลข" : "เปิดเครื่องคิดเลข"}
+            </button>
+          </div>
+          
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">฿</span>
             <input
@@ -238,10 +338,230 @@ export default function TransactionForm({
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
-              className="w-full pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-base font-semibold text-white"
+              className="w-full pl-8 pr-12 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-base font-semibold text-white"
               required
             />
+            {/* Direct quick-calc trigger icon inside input */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowCalculator(!showCalculator);
+                if (!showCalculator) {
+                  setCalcExpression(amount || "");
+                  setCalcResult(amount || "");
+                }
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+              title="เครื่องคิดเลข"
+            >
+              <Calculator className="w-4 h-4" />
+            </button>
           </div>
+
+          {/* Calculator Popover Dropdown */}
+          {showCalculator && (
+            <div className="absolute left-0 right-0 mt-2 z-50 p-4 bg-[#121826] border border-white/10 rounded-2xl shadow-2xl space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  🧮 คำนวณจำนวนเงิน
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowCalculator(false)}
+                  className="p-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Calculator Screen */}
+              <div className="bg-[#090d16]/80 border border-white/5 rounded-xl p-3 text-right space-y-1">
+                <div className="text-slate-400 text-xs font-semibold overflow-x-auto whitespace-nowrap min-h-[16px] font-mono">
+                  {calcExpression || "0"}
+                </div>
+                <div className="text-white text-lg font-black font-mono">
+                  ฿ {calcResult ? Number(calcResult).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "0.00"}
+                </div>
+              </div>
+
+              {/* Keypad Grid */}
+              <div className="grid grid-cols-4 gap-2">
+                {/* Row 1 */}
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("C")}
+                  className="py-2.5 text-xs font-black bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl hover:bg-rose-500 hover:text-white transition-all cursor-pointer"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("(")}
+                  className="py-2.5 text-sm font-bold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  (
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress(")")}
+                  className="py-2.5 text-sm font-bold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  )
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("/")}
+                  className="py-2.5 text-sm font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all cursor-pointer"
+                >
+                  ÷
+                </button>
+
+                {/* Row 2 */}
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("7")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  7
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("8")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  8
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("9")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  9
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("*")}
+                  className="py-2.5 text-sm font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all cursor-pointer"
+                >
+                  ×
+                </button>
+
+                {/* Row 3 */}
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("4")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  4
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("5")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  5
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("6")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  6
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("-")}
+                  className="py-2.5 text-sm font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all cursor-pointer"
+                >
+                  -
+                </button>
+
+                {/* Row 4 */}
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("1")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("2")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  2
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("3")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  3
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("+")}
+                  className="py-2.5 text-sm font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl hover:bg-indigo-500 hover:text-white transition-all cursor-pointer"
+                >
+                  +
+                </button>
+
+                {/* Row 5 */}
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("0")}
+                  className="py-2.5 text-sm font-semibold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  0
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress(".")}
+                  className="py-2.5 text-sm font-bold bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/5 transition-all cursor-pointer"
+                >
+                  .
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("DEL")}
+                  className="py-2.5 text-xs font-bold bg-rose-500/5 text-rose-300 border border-rose-500/10 rounded-xl hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                  title="ลบหลักหน่วย"
+                >
+                  <Delete className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCalcKeyPress("=")}
+                  className="py-2.5 text-sm font-black bg-emerald-500 text-white rounded-xl hover:bg-emerald-400 transition-all cursor-pointer shadow-md"
+                >
+                  =
+                </button>
+              </div>
+
+              {/* Action buttons */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalcExpression("");
+                    setCalcResult("");
+                    setShowCalculator(false);
+                  }}
+                  className="py-2 text-xs font-semibold text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={applyCalcValue}
+                  className="py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-all shadow-md flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  ยืนยันนำค่าไปใช้
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Wallet Selectors */}
@@ -369,11 +689,17 @@ export default function TransactionForm({
             </label>
             <input
               type="text"
+              list="merchant-autocomplete"
               value={merchantName}
               onChange={(e) => setMerchantName(e.target.value)}
               placeholder={type === "expense" ? "เช่น เซเว่น, BTS, เติมน้ำมัน (เว้นว่าง = ใช้ชื่อหมวดหมู่)" : "เช่น เงินเดือน, งานเสริม, โอนคืน (เว้นว่าง = ใช้ชื่อหมวดหมู่)"}
               className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
             />
+            <datalist id="merchant-autocomplete">
+              {(type === "expense" ? expenseHistoryNames : incomeHistoryNames).map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </div>
         )}
 
