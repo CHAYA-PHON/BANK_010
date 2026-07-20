@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface LoginScreenProps {
-  onLoginSuccess: (username: string) => void;
+  onLoginSuccess: (username: string, rememberDevice?: boolean) => void;
   theme?: "dark" | "light";
 }
 
@@ -23,6 +23,10 @@ export default function LoginScreen({ onLoginSuccess, theme = "dark" }: LoginScr
   const [setupPinConfirm, setSetupPinConfirm] = useState<string>("");
   const [setupPassword, setSetupPassword] = useState<string>("");
   
+  const [rememberDevice, setRememberDevice] = useState<boolean>(() => {
+    const stored = localStorage.getItem("remember_device");
+    return stored === null ? true : stored === "true";
+  });
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [successMessage, setSuccessMessage] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -111,7 +115,7 @@ export default function LoginScreen({ onLoginSuccess, theme = "dark" }: LoginScr
           setSuccessMessage("ยินดีต้อนรับกลับเข้าสู่ระบบ!");
           localStorage.setItem("last_logged_in_username", trimmedUsername);
           setTimeout(() => {
-            onLoginSuccess(userData.username || trimmedUsername);
+            onLoginSuccess(userData.username || trimmedUsername, rememberDevice);
           }, 500);
         } else {
           setErrorMessage("รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
@@ -167,7 +171,7 @@ export default function LoginScreen({ onLoginSuccess, theme = "dark" }: LoginScr
           setSuccessMessage("ลงชื่อเข้าใช้สำเร็จ!");
           localStorage.setItem("last_logged_in_username", trimmedUsername);
           setTimeout(() => {
-            onLoginSuccess(userData.username || trimmedUsername);
+            onLoginSuccess(userData.username || trimmedUsername, rememberDevice);
           }, 500);
         } else {
           setErrorMessage("รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง");
@@ -227,7 +231,7 @@ export default function LoginScreen({ onLoginSuccess, theme = "dark" }: LoginScr
       localStorage.setItem("last_logged_in_username", trimmedUsername);
       
       setTimeout(() => {
-        onLoginSuccess(setupUsername.trim());
+        onLoginSuccess(setupUsername.trim(), rememberDevice);
       }, 1000);
     } catch (err) {
       console.error("Setup error:", err);
@@ -419,6 +423,25 @@ export default function LoginScreen({ onLoginSuccess, theme = "dark" }: LoginScr
                     : "bg-[#121826] border border-white/10 text-white"
                 }`}
               />
+            </div>
+
+            {/* Remember Device Checkbox */}
+            <div className="flex items-center gap-2.5 px-1 py-0.5">
+              <input
+                id="remember-device-checkbox"
+                type="checkbox"
+                checked={rememberDevice}
+                onChange={(e) => setRememberDevice(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-transparent cursor-pointer"
+              />
+              <label 
+                htmlFor="remember-device-checkbox" 
+                className={`text-xs font-semibold cursor-pointer select-none transition-colors duration-200 ${
+                  isLight ? "text-slate-600 hover:text-slate-800" : "text-slate-300 hover:text-white"
+                }`}
+              >
+                จดจำอุปกรณ์นี้ (ไม่ต้องใส่ PIN ทุกครั้ง)
+              </label>
             </div>
 
             {/* Mode Selector */}

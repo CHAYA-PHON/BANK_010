@@ -92,11 +92,17 @@ export default function App() {
   }, []);
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return sessionStorage.getItem("is_logged_in") === "true";
+    const sessionLoggedIn = sessionStorage.getItem("is_logged_in") === "true";
+    const rememberDevice = localStorage.getItem("remember_device") === "true";
+    const rememberedUser = localStorage.getItem("remembered_user");
+    return sessionLoggedIn || (rememberDevice && !!rememberedUser);
   });
   
   const [currentUser, setCurrentUser] = useState<string>(() => {
-    return sessionStorage.getItem("current_user") || "";
+    const sessionUser = sessionStorage.getItem("current_user") || "";
+    const rememberDevice = localStorage.getItem("remember_device") === "true";
+    const rememberedUser = localStorage.getItem("remembered_user") || "";
+    return sessionUser || (rememberDevice ? rememberedUser : "");
   });
 
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -1130,11 +1136,18 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = (username: string) => {
+  const handleLoginSuccess = (username: string, rememberDevice?: boolean) => {
     setCurrentUser(username);
     sessionStorage.setItem("current_user", username);
     setIsLoggedIn(true);
     sessionStorage.setItem("is_logged_in", "true");
+    if (rememberDevice) {
+      localStorage.setItem("remember_device", "true");
+      localStorage.setItem("remembered_user", username);
+    } else {
+      localStorage.removeItem("remember_device");
+      localStorage.removeItem("remembered_user");
+    }
   };
 
   const handleLogout = () => {
@@ -1142,6 +1155,8 @@ export default function App() {
     setCurrentUser("");
     sessionStorage.removeItem("is_logged_in");
     sessionStorage.removeItem("current_user");
+    localStorage.removeItem("remember_device");
+    localStorage.removeItem("remembered_user");
     setTransactions([]);
     setWallets([]);
   };
