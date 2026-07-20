@@ -122,7 +122,7 @@ export default function App() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"scan" | "manual">("scan");
+  const [activeTab, setActiveTab] = useState<"scan" | "manual">("manual");
   const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report">("dashboard");
   
   // Dynamically calculate balances of each wallet
@@ -1158,7 +1158,7 @@ export default function App() {
       <div className="absolute bottom-[10%] right-[-15%] w-[600px] h-[600px] bg-emerald-900/10 rounded-full blur-[150px] pointer-events-none"></div>
       
       {/* Sticky Premium Header */}
-      <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-white/5">
+      <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-white/5 pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-0.5 bg-white/5 border border-white/10 rounded-xl shadow-lg">
@@ -1175,6 +1175,19 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Quick Scan Slip AI Button */}
+            <button
+              onClick={() => {
+                setCurrentPage("records");
+                setActiveTab("scan");
+              }}
+              className="flex items-center gap-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 border border-indigo-500/30 rounded-full px-3 py-1.5 shadow-lg shadow-indigo-600/20 transition-all cursor-pointer shrink-0 animate-pulse"
+              title="กดเพื่อสแกนบิล/สลิปทันทีด้วย AI"
+            >
+              <ScanLine className="w-3.5 h-3.5" />
+              <span>สแกนสลิป AI</span>
+            </button>
+
             {firebaseStatus.status === "connected" ? (
               <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
                 <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
@@ -1195,7 +1208,7 @@ export default function App() {
                 <span>ออฟไลน์โหมด (แตะดูข้อผิดพลาด)</span>
               </button>
             )}
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
+            <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
               <span>ปลอดภัยสูง</span>
             </div>
@@ -1235,15 +1248,18 @@ export default function App() {
             แดชบอร์ด
           </button>
           <button
-            onClick={() => setCurrentPage("records")}
+            onClick={() => {
+              setCurrentPage("records");
+              setActiveTab("manual");
+            }}
             className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               currentPage === "records"
                 ? "bg-indigo-600 text-white shadow-lg border border-white/10"
                 : "text-slate-400 hover:text-white hover:bg-white/5"
             }`}
           >
-            <ScanLine className="w-4 h-4" />
-            บันทึก/สแกน
+            <Plus className="w-4 h-4" />
+            บันทึกเอง
           </button>
           <button
             onClick={() => setCurrentPage("report")}
@@ -1305,13 +1321,16 @@ export default function App() {
             <span className="text-[10px] scale-95 leading-none">แดชบอร์ด</span>
           </button>
           <button
-            onClick={() => setCurrentPage("records")}
+            onClick={() => {
+              setCurrentPage("records");
+              setActiveTab("manual");
+            }}
             className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               currentPage === "records" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <ScanLine className={`w-5 h-5 ${currentPage === "records" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">บันทึก</span>
+            <Plus className={`w-5 h-5 ${currentPage === "records" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[10px] scale-95 leading-none">บันทึกเอง</span>
           </button>
           <button
             onClick={() => setCurrentPage("report")}
@@ -1450,7 +1469,7 @@ export default function App() {
                     onCancel={() => {
                       setPendingReviewData(null);
                       setEditingTransaction(null);
-                      setActiveTab("scan");
+                      setActiveTab("manual");
                     }}
                     wallets={wallets}
                     walletBalances={walletBalances}
