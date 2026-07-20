@@ -260,169 +260,143 @@ export default function MonthlyReport({
     window.print();
   };
 
+  // 1. Color conversion formulas (OKLAB -> RGB & OKLCH -> RGB)
+  const oklabToRgb = (L: number, a: number, b: number, alpha = 1) => {
+    const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+    const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+    const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
+
+    const l_lin = l_ * l_ * l_;
+    const m_lin = m_ * m_ * m_;
+    const s_lin = s_ * s_ * s_;
+
+    let r_val = +4.0767416621 * l_lin - 3.3077115913 * m_lin + 0.2309699292 * s_lin;
+    let g_val = -1.2684380046 * l_lin + 2.6097574011 * m_lin - 0.3413193965 * s_lin;
+    let b_val = -0.0041960863 * l_lin - 0.7034186147 * m_lin + 1.7076210013 * s_lin;
+
+    const gamma = (c: number) => {
+      if (c <= 0.0031308) {
+        return 12.92 * c;
+      } else {
+        return 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+      }
+    };
+
+    const R = Math.max(0, Math.min(255, Math.round(gamma(r_val) * 255)));
+    const G = Math.max(0, Math.min(255, Math.round(gamma(g_val) * 255)));
+    const B = Math.max(0, Math.min(255, Math.round(gamma(b_val) * 255)));
+
+    return alpha === 1 ? `rgb(${R},${G},${B})` : `rgba(${R},${G},${B},${alpha})`;
+  };
+
+  const oklchToRgb = (L: number, C: number, H: number, alpha = 1) => {
+    const h_rad = (H * Math.PI) / 180;
+    const a = C * Math.cos(h_rad);
+    const b = C * Math.sin(h_rad);
+    return oklabToRgb(L, a, b, alpha);
+  };
+
+  const parseVal = (str: string, range = 1): number => {
+    if (!str) return 0;
+    str = str.trim();
+    if (str.endsWith("%")) {
+      return (parseFloat(str) / 100) * range;
+    }
+    return parseFloat(str);
+  };
+
+  const sanitizeCssText = (cssText: string): string => {
+    if (typeof cssText !== "string") return cssText;
+    let result = cssText;
+
+    // Fast regex replace for oklch(...)
+    result = result.replace(/oklch\(([^)]+)\)/g, (match, argsStr) => {
+      try {
+        const cleaned = argsStr.replace(/,/g, " ").replace(/\//g, " ").replace(/\s+/g, " ").trim();
+        const parts = cleaned.split(" ");
+        if (parts.length >= 3) {
+          const L = parseVal(parts[0], 1);
+          const C = parseVal(parts[1], 1);
+          const H = parseVal(parts[2], 360);
+          const alpha = parts[3] ? parseVal(parts[3], 1) : 1;
+          
+          if (!isNaN(L) && !isNaN(C) && !isNaN(H)) {
+            return oklchToRgb(L, C, H, alpha);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      return "rgb(120, 120, 120)";
+    });
+
+    // Fast regex replace for oklab(...)
+    result = result.replace(/oklab\(([^)]+)\)/g, (match, argsStr) => {
+      try {
+        const cleaned = argsStr.replace(/,/g, " ").replace(/\//g, " ").replace(/\s+/g, " ").trim();
+        const parts = cleaned.split(" ");
+        if (parts.length >= 3) {
+          const L = parseVal(parts[0], 1);
+          const a = parseVal(parts[1], 1);
+          const b = parseVal(parts[2], 1);
+          const alpha = parts[3] ? parseVal(parts[3], 1) : 1;
+          
+          if (!isNaN(L) && !isNaN(a) && !isNaN(b)) {
+            return oklabToRgb(L, a, b, alpha);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      return "rgb(120, 120, 120)";
+    });
+
+    return result;
+  };
+
+  const sanitizeValue = (val: string): string => {
+    if (typeof val !== "string") return val;
+    if (!val.includes("oklch") && !val.includes("oklab")) return val;
+    return sanitizeCssText(val);
+  };
+
+  const patchComputedStyleObject = (origStyle: CSSStyleDeclaration) => {
+    return new Proxy(origStyle, {
+      get(target, prop) {
+        // Use target as receiver to avoid "Illegal invocation" on native getter properties
+        const value = Reflect.get(target, prop, target);
+        if (typeof value === "function") {
+          if (prop === "getPropertyValue") {
+            return function (propertyName: string) {
+              return sanitizeValue(target.getPropertyValue(propertyName));
+            };
+          }
+          return value.bind(target);
+        }
+        if (typeof prop === "string" && !isNaN(Number(prop))) {
+          return value;
+        }
+        if (typeof value === "string") {
+          return sanitizeValue(value);
+        }
+        return value;
+      }
+    });
+  };
+
   // Helper to temporarily sanitize oklch and oklab colors in stylesheets so html2canvas doesn't crash
   const executeWithSanitizedStyles = async (callback: () => Promise<void>) => {
-    // 1. Color conversion formulas (OKLAB -> RGB & OKLCH -> RGB)
-    const oklabToRgb = (L: number, a: number, b: number, alpha = 1) => {
-      const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
-      const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
-      const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
-
-      const l_lin = l_ * l_ * l_;
-      const m_lin = m_ * m_ * m_;
-      const s_lin = s_ * s_ * s_;
-
-      let r_val = +4.0767416621 * l_lin - 3.3077115913 * m_lin + 0.2309699292 * s_lin;
-      let g_val = -1.2684380046 * l_lin + 2.6097574011 * m_lin - 0.3413193965 * s_lin;
-      let b_val = -0.0041960863 * l_lin - 0.7034186147 * m_lin + 1.7076210013 * s_lin;
-
-      const gamma = (c: number) => {
-        if (c <= 0.0031308) {
-          return 12.92 * c;
-        } else {
-          return 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
-        }
-      };
-
-      const R = Math.max(0, Math.min(255, Math.round(gamma(r_val) * 255)));
-      const G = Math.max(0, Math.min(255, Math.round(gamma(g_val) * 255)));
-      const B = Math.max(0, Math.min(255, Math.round(gamma(b_val) * 255)));
-
-      return alpha === 1 ? `rgb(${R},${G},${B})` : `rgba(${R},${G},${B},${alpha})`;
-    };
-
-    const oklchToRgb = (L: number, C: number, H: number, alpha = 1) => {
-      const h_rad = (H * Math.PI) / 180;
-      const a = C * Math.cos(h_rad);
-      const b = C * Math.sin(h_rad);
-      return oklabToRgb(L, a, b, alpha);
-    };
-
-    const parseVal = (str: string, range = 1): number => {
-      if (!str) return 0;
-      str = str.trim();
-      if (str.endsWith("%")) {
-        return (parseFloat(str) / 100) * range;
-      }
-      return parseFloat(str);
-    };
-
-    const sanitizeCssText = (cssText: string): string => {
-      if (typeof cssText !== "string") return cssText;
-      let result = cssText;
-
-      // Fast regex replace for oklch(...)
-      result = result.replace(/oklch\(([^)]+)\)/g, (match, argsStr) => {
-        try {
-          const cleaned = argsStr.replace(/,/g, " ").replace(/\//g, " ").replace(/\s+/g, " ").trim();
-          const parts = cleaned.split(" ");
-          if (parts.length >= 3) {
-            const L = parseVal(parts[0], 1);
-            const C = parseVal(parts[1], 1);
-            const H = parseVal(parts[2], 360);
-            const alpha = parts[3] ? parseVal(parts[3], 1) : 1;
-            
-            if (!isNaN(L) && !isNaN(C) && !isNaN(H)) {
-              return oklchToRgb(L, C, H, alpha);
-            }
-          }
-        } catch (e) {
-          // ignore
-        }
-        return "rgb(120, 120, 120)";
-      });
-
-      // Fast regex replace for oklab(...)
-      result = result.replace(/oklab\(([^)]+)\)/g, (match, argsStr) => {
-        try {
-          const cleaned = argsStr.replace(/,/g, " ").replace(/\//g, " ").replace(/\s+/g, " ").trim();
-          const parts = cleaned.split(" ");
-          if (parts.length >= 3) {
-            const L = parseVal(parts[0], 1);
-            const a = parseVal(parts[1], 1);
-            const b = parseVal(parts[2], 1);
-            const alpha = parts[3] ? parseVal(parts[3], 1) : 1;
-            
-            if (!isNaN(L) && !isNaN(a) && !isNaN(b)) {
-              return oklabToRgb(L, a, b, alpha);
-            }
-          }
-        } catch (e) {
-          // ignore
-        }
-        return "rgb(120, 120, 120)";
-      });
-
-      return result;
-    };
-
     const disabledSheets: { sheet: CSSStyleSheet; originalDisabled: boolean }[] = [];
     const temporaryStyleTags: HTMLStyleElement[] = [];
     const originalInlineStyles = new Map<HTMLElement, string>();
 
     // Patch getComputedStyle to sanitize on the fly!
     const originalGetComputedStyle = window.getComputedStyle;
-    const originalCreateElement = document.createElement;
-
-    const sanitizeValue = (val: string): string => {
-      if (typeof val !== "string") return val;
-      if (!val.includes("oklch") && !val.includes("oklab")) return val;
-      return sanitizeCssText(val);
-    };
-
-    const patchComputedStyleObject = (origStyle: CSSStyleDeclaration) => {
-      return new Proxy(origStyle, {
-        get(target, prop) {
-          // Use target as receiver to avoid "Illegal invocation" on native getter properties
-          const value = Reflect.get(target, prop, target);
-          if (typeof value === "function") {
-            if (prop === "getPropertyValue") {
-              return function (propertyName: string) {
-                return sanitizeValue(target.getPropertyValue(propertyName));
-              };
-            }
-            return value.bind(target);
-          }
-          if (typeof prop === "string" && !isNaN(Number(prop))) {
-            return value;
-          }
-          if (typeof value === "string") {
-            return sanitizeValue(value);
-          }
-          return value;
-        }
-      });
-    };
 
     // Override parent window's getComputedStyle
     window.getComputedStyle = function (el, pseudoEl) {
       const style = originalGetComputedStyle.call(window, el, pseudoEl);
       return patchComputedStyleObject(style);
-    };
-
-    // Override document.createElement to intercept iframe loading
-    document.createElement = function (tagName, options) {
-      const el = originalCreateElement.call(document, tagName, options);
-      if (tagName.toLowerCase() === "iframe") {
-        const iframe = el as HTMLIFrameElement;
-        Object.defineProperty(iframe, "contentWindow", {
-          get() {
-            // Use 'iframe' instead of 'this' to guarantee the correct HTMLIFrameElement context
-            const win = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow")?.get?.call(iframe);
-            if (win && !win.getComputedStyle.__patched) {
-              const origGetStyle = win.getComputedStyle;
-              win.getComputedStyle = function (e, p) {
-                const style = origGetStyle.call(win, e, p);
-                return patchComputedStyleObject(style);
-              };
-              (win.getComputedStyle as any).__patched = true;
-            }
-            return win;
-          },
-          configurable: true
-        });
-      }
-      return el;
     };
 
     try {
@@ -492,7 +466,6 @@ export default function MonthlyReport({
     } finally {
       // Restore standard getters and functions
       window.getComputedStyle = originalGetComputedStyle;
-      document.createElement = originalCreateElement;
 
       // Restore all original styles
       disabledSheets.forEach(({ sheet, originalDisabled }) => {
@@ -526,6 +499,28 @@ export default function MonthlyReport({
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
+          onclone: (clonedDoc) => {
+            // Sanitize cloned document inline styles for safety
+            const els = clonedDoc.querySelectorAll("*");
+            els.forEach((el) => {
+              const htmlEl = el as HTMLElement;
+              if (htmlEl.getAttribute) {
+                const styleAttr = htmlEl.getAttribute("style");
+                if (styleAttr && (styleAttr.includes("oklch") || styleAttr.includes("oklab"))) {
+                  htmlEl.setAttribute("style", sanitizeCssText(styleAttr));
+                }
+              }
+            });
+            // Patch cloned window computed styles
+            const win = clonedDoc.defaultView;
+            if (win) {
+              const originalGetStyle = win.getComputedStyle;
+              win.getComputedStyle = function (e, p) {
+                const style = originalGetStyle.call(win, e, p);
+                return patchComputedStyleObject(style);
+              };
+            }
+          }
         });
         
         element.classList.remove("print-capture-mode");
@@ -573,6 +568,28 @@ export default function MonthlyReport({
           useCORS: true,
           backgroundColor: "#ffffff",
           logging: false,
+          onclone: (clonedDoc) => {
+            // Sanitize cloned document inline styles for safety
+            const els = clonedDoc.querySelectorAll("*");
+            els.forEach((el) => {
+              const htmlEl = el as HTMLElement;
+              if (htmlEl.getAttribute) {
+                const styleAttr = htmlEl.getAttribute("style");
+                if (styleAttr && (styleAttr.includes("oklch") || styleAttr.includes("oklab"))) {
+                  htmlEl.setAttribute("style", sanitizeCssText(styleAttr));
+                }
+              }
+            });
+            // Patch cloned window computed styles
+            const win = clonedDoc.defaultView;
+            if (win) {
+              const originalGetStyle = win.getComputedStyle;
+              win.getComputedStyle = function (e, p) {
+                const style = originalGetStyle.call(win, e, p);
+                return patchComputedStyleObject(style);
+              };
+            }
+          }
         });
         
         element.classList.remove("print-capture-mode");
@@ -804,14 +821,60 @@ export default function MonthlyReport({
         {/* Document Header Panel */}
         <div className="report-header-panel border-b-2 border-slate-100 pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            {/* UpToMe Logo */}
-            <div className="w-16 h-16 md:w-20 md:h-20 shrink-0 select-none">
-              <img 
-                src="/favicon.svg" 
-                alt="UpToMe Logo" 
-                className="w-full h-full object-contain rounded-[22px]" 
-                referrerPolicy="no-referrer" 
-              />
+            {/* UpToMe Logo (Inlined to prevent html2canvas external SVG load failure) */}
+            <div className="w-16 h-16 md:w-20 md:h-20 shrink-0 select-none rounded-[16px] md:rounded-[22px] overflow-hidden shadow-md">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-full h-full">
+                <defs>
+                  <linearGradient id="repBgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#fd2d72" />
+                    <stop offset="50%" stopColor="#ff6b2b" />
+                    <stop offset="100%" stopColor="#ff9f00" />
+                  </linearGradient>
+                  <linearGradient id="repGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#fbbf24" />
+                    <stop offset="100%" stopColor="#d97706" />
+                  </linearGradient>
+                  <linearGradient id="repCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#fbbf24" />
+                    <stop offset="100%" stopColor="#ea580c" />
+                  </linearGradient>
+                  <filter id="repShadow" x="-10%" y="-10%" width="120%" height="120%">
+                    <feDropShadow dx="0" dy="10" stdDeviation="12" floodColor="#000000" floodOpacity="0.3" />
+                  </filter>
+                  <clipPath id="repIconClip">
+                    <rect width="512" height="512" rx="112" />
+                  </clipPath>
+                </defs>
+                <g clipPath="url(#repIconClip)">
+                  <rect width="512" height="512" fill="url(#repBgGrad)" />
+                  <g filter="url(#repShadow)" transform="translate(-4, 0)">
+                    <path d="M 120 100 L 120 210 C 120 275, 240 275, 240 210 L 240 100 L 265 100 L 220 40 L 175 100 L 200 100 L 200 210 C 200 235, 160 235, 160 210 L 160 100 Z" fill="#ffffff" />
+                    <rect x="262" y="110" width="40" height="150" rx="10" fill="#ffffff" />
+                    <circle cx="335" cy="170" r="62" fill="#ffffff" />
+                    <circle cx="335" cy="170" r="32" fill="url(#repBgGrad)" />
+                    <text x="335" y="181" fontFamily="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" fontWeight="900" fontSize="34" fill="#ffffff" textAnchor="middle">฿</text>
+                  </g>
+                  <g filter="url(#repShadow)">
+                    <text x="256" y="345" fontFamily="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" fontWeight="800" fontSize="74" fill="#ffffff" textAnchor="middle" letterSpacing="1">ToMe</text>
+                  </g>
+                  <g transform="translate(165, 395) rotate(-12)">
+                    <path d="M -35 -60 L -30 -65 L -25 -60 L -20 -65 L -15 -60 L -10 -65 L -5 -60 L 0 -65 L 5 -60 L 10 -65 L 15 -60 L 20 -65 L 25 -60 L 30 -65 L 35 -60 L 35 60 L -35 60 Z" fill="#ffffff" />
+                    <line x1="-22" y1="-35" x2="15" y2="-35" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+                    <line x1="-22" y1="-20" x2="22" y2="-20" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+                    <line x1="-22" y1="-5" x2="5" y2="-5" stroke="#f59e0b" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+                  </g>
+                  <g transform="translate(295, 410) rotate(8)">
+                    <rect x="-60" y="-45" width="120" height="80" rx="10" fill="url(#repCardGrad)" stroke="#ffffff" strokeWidth="3" />
+                    <rect x="-60" y="-22" width="120" height="15" fill="#d97706" opacity="0.7" />
+                    <circle cx="45" cy="12" r="30" fill="url(#repGoldGrad)" stroke="#ffffff" strokeWidth="3" />
+                    <text x="45" y="21" fontFamily="'Space Grotesk', 'Outfit', 'Inter', system-ui, sans-serif" fontWeight="900" fontSize="24" fill="#ffffff" textAnchor="middle">฿</text>
+                  </g>
+                  <path d="M -10 420 Q 256 465 522 420 L 522 522 L -10 522 Z" fill="#ffffff" />
+                  <path d="M 10 432 Q 256 475 502 432" fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeDasharray="8 6" opacity="0.6" />
+                  <circle cx="415" cy="448" r="16" fill="url(#repGoldGrad)" stroke="#ffffff" strokeWidth="3" />
+                  <circle cx="415" cy="448" r="6" fill="#ffffff" />
+                </g>
+              </svg>
             </div>
             
             <div className="space-y-0.5">
@@ -1017,81 +1080,7 @@ export default function MonthlyReport({
           </div>
         </div>
 
-        {/* Detailed Transactions List for Month (Separated clearly by Type and Colors) */}
-        <div className="space-y-3 pt-4 border-t border-slate-100">
-          <h3 className="text-xs md:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-            📋 บันทึกรายการแบบละเอียดแยกตามรายรับ-รายจ่าย-โอนเงิน
-          </h3>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                  <th className="py-3 px-4">วันเวลาทำรายการ</th>
-                  <th className="py-3 px-4">หมวดหมู่</th>
-                  <th className="py-3 px-4">รายละเอียดผู้โอน/ผู้รับเงิน/ร้านค้า</th>
-                  <th className="py-3 px-4">กระเป๋าเงิน</th>
-                  <th className="py-3 px-4 text-right">ประเภท</th>
-                  <th className="py-3 px-4 text-right">จำนวนเงิน</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white font-medium text-slate-700">
-                {monthlyTransactionsList.length > 0 ? (
-                  monthlyTransactionsList.map((tx) => {
-                    const foundWallet = wallets.find(w => w.id === tx.walletId);
-                    const toWallet = wallets.find(w => w.id === tx.toWalletId);
-                    
-                    return (
-                      <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3 px-4 font-semibold text-slate-600">
-                          {tx.date} {tx.time ? `(${tx.time} น.)` : ""}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
-                            {tx.category}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-800 font-semibold">
-                          {tx.merchantName || "-"}
-                          {tx.note && <span className="block text-[10px] text-slate-500 font-normal mt-0.5">📝 {tx.note}</span>}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600">
-                          {foundWallet ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <span>{foundWallet.icon}</span>
-                              <span>{foundWallet.name}</span>
-                            </span>
-                          ) : "-"}
-                          {tx.type === "transfer" && toWallet && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md ml-1.5 border border-indigo-100">
-                              <ArrowRightLeft className="w-3 h-3" /> {toWallet.name}
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right font-black uppercase text-[10px] md:text-xs">
-                          {tx.type === "income" && <span className="text-[#00c853]">รายรับ 💰</span>}
-                          {tx.type === "expense" && <span className="text-[#ff2d55]">รายจ่าย 💸</span>}
-                          {tx.type === "transfer" && <span className="text-indigo-600">โอนเงิน 🔄</span>}
-                        </td>
-                        <td className="py-3 px-4 text-right font-black font-mono">
-                          {tx.type === "income" && <span className="text-[#00c853] font-extrabold">+฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
-                          {tx.type === "expense" && <span className="text-[#ff2d55] font-extrabold">-฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
-                          {tx.type === "transfer" && <span className="text-indigo-600">฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400 font-semibold">
-                      ไม่มีรายการเคลื่อนไหวทางบัญชีในเดือนนี้
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
         {/* Colored Bottom Footer Bar */}
         <div className="bg-gradient-to-r from-[#ff007a] to-[#ff5a36] text-white py-3.5 px-6 -mx-6 -mb-6 md:-mx-8 md:-mb-8 rounded-b-3xl flex items-center justify-between text-[10px] md:text-xs font-bold shadow-md select-none break-inside-avoid">
