@@ -1130,7 +1130,7 @@ export default function App() {
 
   // If locked/not logged in, render the login gate
   if (!isLoggedIn) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} theme={theme} />;
   }
 
   return (
@@ -1390,7 +1390,7 @@ export default function App() {
 
                 {activeTab === "scan" ? (
                   <div className="space-y-4">
-                    <SlipUploader onParsed={handleSlipParsed} />
+                    <SlipUploader onParsed={handleSlipParsed} theme={theme} />
                     
                     <div className="bg-white/5 border border-white/5 p-4 rounded-2xl text-[11px] text-slate-400 space-y-2">
                       <span className="font-bold text-white flex items-center gap-1.5">

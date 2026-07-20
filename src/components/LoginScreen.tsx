@@ -5,9 +5,10 @@ import { db } from "../firebase";
 
 interface LoginScreenProps {
   onLoginSuccess: (username: string) => void;
+  theme?: "dark" | "light";
 }
 
-export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
+export default function LoginScreen({ onLoginSuccess, theme = "dark" }: LoginScreenProps) {
   const [username, setUsername] = useState<string>(() => {
     return localStorage.getItem("last_logged_in_username") || "";
   });
@@ -244,23 +245,39 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     setErrorMessage("");
   };
 
-  return (
-    <div className="min-h-screen bg-[#0b0f19] text-white flex flex-col justify-center items-center p-4 py-8 sm:py-12 relative overflow-x-hidden overflow-y-auto font-sans">
-      {/* Background radial effects */}
-      <div className="absolute top-[-20%] left-[-20%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[150px] pointer-events-none"></div>
-      <div className="absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[150px] pointer-events-none"></div>
+  const isLight = theme === "light";
 
-      <div className="w-full max-w-md bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10">
+  return (
+    <div className={`min-h-screen flex flex-col justify-center items-center p-4 py-8 sm:py-12 relative overflow-x-hidden overflow-y-auto font-sans transition-colors duration-200 ${
+      isLight ? "bg-[#f8fafc] text-slate-800" : "bg-[#0b0f19] text-white"
+    }`}>
+      {/* Background radial effects */}
+      <div className={`absolute top-[-20%] left-[-20%] w-[600px] h-[600px] rounded-full blur-[150px] pointer-events-none transition-colors duration-200 ${
+        isLight ? "bg-indigo-100/40" : "bg-indigo-600/10"
+      }`}></div>
+      <div className={`absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] rounded-full blur-[150px] pointer-events-none transition-colors duration-200 ${
+        isLight ? "bg-emerald-100/30" : "bg-emerald-500/10"
+      }`}></div>
+
+      <div className={`w-full max-w-md backdrop-blur-2xl rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 transition-all duration-200 ${
+        isLight 
+          ? "bg-white/95 border border-slate-200/80 shadow-slate-100" 
+          : "bg-slate-900/40 border border-white/10"
+      }`}>
         
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-6">
           <div className="p-0.5 bg-white/5 border border-white/10 rounded-3xl shadow-xl mb-4 animate-pulse">
             <img src="/favicon.svg" alt="up ToMe Logo" className="w-16 h-16 object-contain rounded-2xl" referrerPolicy="no-referrer" />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">
+          <h1 className={`text-3xl font-black tracking-tight transition-colors duration-200 ${
+            isLight ? "text-slate-900" : "text-white"
+          }`}>
             up ToMe
           </h1>
-          <p className="text-xs text-indigo-400 mt-1.5 uppercase tracking-widest font-extrabold">
+          <p className={`text-xs mt-1.5 uppercase tracking-widest font-extrabold transition-colors duration-200 ${
+            isLight ? "text-indigo-600" : "text-indigo-400"
+          }`}>
             ระบบบันทึกบัญชีอัจฉริยะ
           </p>
         </div>
@@ -268,8 +285,14 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         {/* Setup/Signup passcode mode */}
         {isSetupMode ? (
           <div className="space-y-5">
-            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 text-xs text-slate-300">
-              <p className="font-bold text-indigo-300 mb-1 flex items-center gap-1.5">
+            <div className={`border rounded-2xl p-4 text-xs transition-colors duration-200 ${
+              isLight 
+                ? "bg-indigo-50/70 border-indigo-100 text-slate-600" 
+                : "bg-indigo-500/10 border-indigo-500/20 text-slate-300"
+            }`}>
+              <p className={`font-bold mb-1 flex items-center gap-1.5 ${
+                isLight ? "text-indigo-600" : "text-indigo-300"
+              }`}>
                 <Sparkles className="w-4 h-4" />
                 สมัครบัญชีผู้ใช้ใหม่ (Register New User)
               </p>
@@ -278,7 +301,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
             <form onSubmit={handleSetupSubmit} className="space-y-4">
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                <label className={`block text-[11px] font-bold uppercase ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                   ชื่อผู้ใช้ (Username)
                 </label>
                 <input
@@ -286,14 +309,18 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   value={setupUsername}
                   onChange={(e) => setSetupUsername(e.target.value)}
                   placeholder="ภาษาอังกฤษ ตัวเลข หรือ _ เช่น somchai"
-                  className="w-full px-3 py-2.5 bg-[#121826] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-medium"
+                  className={`w-full px-3 py-2.5 rounded-xl placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-medium transition-all duration-200 ${
+                    isLight 
+                      ? "bg-slate-50 border border-slate-200 text-slate-900" 
+                      : "bg-[#121826] border border-white/10 text-white"
+                  }`}
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                  <label className={`block text-[11px] font-bold uppercase ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                     รหัส PIN (5-6 หลัก)
                   </label>
                   <input
@@ -304,13 +331,17 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     value={setupPin}
                     onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, ""))}
                     placeholder="ตัวเลข 5-6 หลัก"
-                    className="w-full px-3 py-2.5 bg-[#121826] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm text-center font-mono"
+                    className={`w-full px-3 py-2.5 rounded-xl placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm text-center font-mono transition-all duration-200 ${
+                      isLight 
+                        ? "bg-slate-50 border border-slate-200 text-slate-900" 
+                        : "bg-[#121826] border border-white/10 text-white"
+                    }`}
                     required
                   />
                 </div>
                 
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase">
+                  <label className={`block text-[11px] font-bold uppercase ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                     รหัสผ่านเข้าใช้งาน (Password)
                   </label>
                   <input
@@ -318,7 +349,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     value={setupPassword}
                     onChange={(e) => setSetupPassword(e.target.value)}
                     placeholder="ขั้นต่ำ 6 ตัวอักษร"
-                    className="w-full px-3 py-2.5 bg-[#121826] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm"
+                    className={`w-full px-3 py-2.5 rounded-xl placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all duration-200 ${
+                      isLight 
+                        ? "bg-slate-50 border border-slate-200 text-slate-900" 
+                        : "bg-[#121826] border border-white/10 text-white"
+                    }`}
                     required
                   />
                 </div>
@@ -352,7 +387,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     setErrorMessage("");
                     setSuccessMessage("");
                   }}
-                  className="text-[11px] text-slate-400 hover:text-white underline font-medium cursor-pointer"
+                  className={`text-[11px] underline font-medium cursor-pointer transition-colors ${
+                    isLight ? "text-slate-500 hover:text-slate-800" : "text-slate-400 hover:text-white"
+                  }`}
                 >
                   ย้อนกลับไปหน้าเข้าสู่ระบบ
                 </button>
@@ -365,7 +402,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             
             {/* Username input */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-400">
+              <label className={`block text-xs font-semibold ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                 ชื่อผู้ใช้ (Username)
               </label>
               <input
@@ -376,23 +413,41 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   setErrorMessage("");
                 }}
                 placeholder="ระบุชื่อผู้ใช้ (เช่น chayaphon)"
-                className="w-full px-4 py-2.5 bg-[#121826] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-medium"
+                className={`w-full px-4 py-2.5 rounded-xl placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-medium transition-all duration-200 ${
+                  isLight 
+                    ? "bg-slate-50 border border-slate-200 text-slate-900" 
+                    : "bg-[#121826] border border-white/10 text-white"
+                }`}
               />
             </div>
 
             {/* Mode Selector */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-white/5 rounded-xl border border-white/5 text-xs font-bold">
+            <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-xl border text-xs font-bold transition-all duration-200 ${
+              isLight ? "bg-slate-100 border-slate-200/60" : "bg-white/5 border-white/5"
+            }`}>
               <button
                 type="button"
                 onClick={() => { setAuthMode("pin"); setErrorMessage(""); setPin(""); }}
-                className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${authMode === "pin" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
+                className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${
+                  authMode === "pin" 
+                    ? "bg-indigo-600 text-white shadow-sm" 
+                    : isLight 
+                      ? "text-slate-500 hover:text-slate-800" 
+                      : "text-slate-400 hover:text-white"
+                }`}
               >
                 🔢 ปลดล็อคด้วย PIN
               </button>
               <button
                 type="button"
                 onClick={() => { setAuthMode("password"); setErrorMessage(""); setPassword(""); }}
-                className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${authMode === "password" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
+                className={`py-2 px-3 rounded-lg transition-all cursor-pointer ${
+                  authMode === "password" 
+                    ? "bg-indigo-600 text-white shadow-sm" 
+                    : isLight 
+                      ? "text-slate-500 hover:text-slate-800" 
+                      : "text-slate-400 hover:text-white"
+                }`}
               >
                 🔒 ปลดล็อคด้วยรหัสผ่าน
               </button>
@@ -401,7 +456,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             {authMode === "pin" ? (
               <div className="space-y-5">
                 <div className="text-center">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2.5">
+                  <span className={`text-xs font-bold uppercase tracking-widest block mb-2.5 ${
+                    isLight ? "text-slate-500" : "text-slate-400"
+                  }`}>
                     กรุณากรอกรหัส PIN (5-6 หลัก) เพื่อเข้าใช้งาน
                   </span>
                   
@@ -415,7 +472,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                           className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-150 ${
                             isFilled
                               ? "bg-emerald-500 border-emerald-400 scale-110 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                              : "border-slate-700 bg-transparent"
+                              : isLight 
+                                ? "border-slate-300 bg-slate-100" 
+                                : "border-slate-700 bg-transparent"
                           }`}
                         />
                       );
@@ -431,7 +490,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       type="button"
                       disabled={isLoading}
                       onClick={() => handleNumpadClick(num)}
-                      className="h-11 rounded-xl bg-white/5 border border-white/5 text-base font-bold hover:bg-white/10 active:scale-95 transition-all text-white cursor-pointer"
+                      className={`h-11 rounded-xl text-base font-bold active:scale-95 transition-all cursor-pointer ${
+                        isLight 
+                          ? "bg-slate-100 border border-slate-200 text-slate-800 hover:bg-slate-200" 
+                          : "bg-white/5 border border-white/5 text-white hover:bg-white/10"
+                      }`}
                     >
                       {num}
                     </button>
@@ -440,7 +503,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     type="button"
                     disabled={isLoading || pin.length < 5}
                     onClick={() => verifyPin(pin)}
-                    className="h-11 rounded-xl bg-emerald-600/20 border border-emerald-500/30 text-xs font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-50 disabled:bg-white/5 disabled:text-slate-500 active:scale-95 transition-all text-emerald-400 cursor-pointer"
+                    className={`h-11 rounded-xl text-xs font-bold active:scale-95 transition-all cursor-pointer ${
+                      isLight
+                        ? "bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-slate-100 disabled:text-slate-400"
+                        : "bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:text-white disabled:opacity-50 disabled:bg-white/5 disabled:text-slate-500"
+                    }`}
                   >
                     ตกลง
                   </button>
@@ -448,7 +515,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     type="button"
                     disabled={isLoading}
                     onClick={() => handleNumpadClick("0")}
-                    className="h-11 rounded-xl bg-white/5 border border-white/5 text-base font-bold hover:bg-white/10 active:scale-95 transition-all text-white cursor-pointer"
+                    className={`h-11 rounded-xl text-base font-bold active:scale-95 transition-all cursor-pointer ${
+                      isLight 
+                        ? "bg-slate-100 border border-slate-200 text-slate-800 hover:bg-slate-200" 
+                        : "bg-white/5 border border-white/5 text-white hover:bg-white/10"
+                    }`}
                   >
                     0
                   </button>
@@ -456,7 +527,11 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     type="button"
                     disabled={isLoading}
                     onClick={handleBackspace}
-                    className="h-11 rounded-xl bg-white/5 text-xs font-bold hover:bg-white/10 active:scale-95 transition-all text-slate-400 cursor-pointer"
+                    className={`h-11 rounded-xl text-xs font-bold active:scale-95 transition-all cursor-pointer ${
+                      isLight 
+                        ? "bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200" 
+                        : "bg-white/5 text-slate-400 hover:bg-white/10"
+                    }`}
                   >
                     ลบ
                   </button>
@@ -465,7 +540,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
             ) : (
               <form onSubmit={handlePasswordSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                  <label className={`block text-xs font-semibold mb-1.5 ${isLight ? "text-slate-500" : "text-slate-400"}`}>
                     รหัสผ่านเข้าใช้งาน
                   </label>
                   <div className="relative">
@@ -475,15 +550,19 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                       disabled={isLoading}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="ป้อนรหัสผ่านของคุณที่นี่"
-                      className="w-full pl-10 pr-10 py-2.5 bg-[#121826] border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm"
+                      className={`w-full pl-10 pr-10 py-2.5 rounded-xl placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm transition-all duration-200 ${
+                        isLight 
+                          ? "bg-slate-50 border border-slate-200 text-slate-900" 
+                          : "bg-[#121826] border border-white/10 text-white"
+                      }`}
                       required
                     />
-                    <KeyRound className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                    <KeyRound className={`w-4 h-4 absolute left-3.5 top-3.5 ${isLight ? "text-slate-400" : "text-slate-500"}`} />
                     <button
                       type="button"
                       disabled={isLoading}
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3 text-slate-400 hover:text-white"
+                      className={`absolute right-3.5 top-3 transition-colors ${isLight ? "text-slate-400 hover:text-slate-600" : "text-slate-400 hover:text-white"}`}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -512,7 +591,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
               </p>
             )}
 
-            <div className="text-center pt-2.5 border-t border-white/5">
+            <div className={`text-center pt-2.5 border-t ${isLight ? "border-slate-100" : "border-white/5"}`}>
               <button
                 type="button"
                 onClick={() => {
@@ -520,7 +599,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   setErrorMessage("");
                   setSuccessMessage("");
                 }}
-                className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-semibold cursor-pointer"
+                className={`text-[11px] underline font-semibold cursor-pointer transition-colors ${
+                  isLight ? "text-indigo-600 hover:text-indigo-700" : "text-indigo-400 hover:text-indigo-300"
+                }`}
               >
                 สมัครบัญชีผู้ใช้ใหม่ (Register New Account)
               </button>
@@ -529,7 +610,9 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         )}
       </div>
 
-      <div className="mt-8 text-center text-xs text-slate-600 max-w-xs leading-relaxed">
+      <div className={`mt-8 text-center text-xs max-w-xs leading-relaxed transition-colors duration-200 ${
+        isLight ? "text-slate-400" : "text-slate-600"
+      }`}>
         ข้อมูลทั้งหมดจะถูกซิงค์ผ่านเซิร์ฟเวอร์คลาวด์ Firestore ของคุณโดยตรง ปลอดภัยสูงและเชื่อมโยงได้ทุกอุปกรณ์
       </div>
     </div>

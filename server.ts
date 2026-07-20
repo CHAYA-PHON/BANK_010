@@ -5,8 +5,72 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, collection, getDocs } from "firebase/firestore";
+import https from "https";
 
 dotenv.config();
+
+// Native HTTPS POST helper for compatibility across all Node versions (especially on Vercel)
+function safeHttpPost(
+  urlStr: string,
+  headers: Record<string, string>,
+  bodyObj: any
+): Promise<{ ok: boolean; status: number; text: string; json: <T = any>() => T | null }> {
+  return new Promise((resolve, reject) => {
+    try {
+      const url = new URL(urlStr);
+      const postData = JSON.stringify(bodyObj);
+      
+      const options = {
+        hostname: url.hostname,
+        path: url.pathname + url.search,
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData),
+        },
+        timeout: 10000, // 10 seconds timeout
+      };
+
+      const req = https.request(options, (res) => {
+        let responseBody = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          responseBody += chunk;
+        });
+        res.on("end", () => {
+          const status = res.statusCode || 500;
+          resolve({
+            ok: status >= 200 && status < 300,
+            status,
+            text: responseBody,
+            json: <T = any>() => {
+              try {
+                return JSON.parse(responseBody) as T;
+              } catch (e) {
+                return null;
+              }
+            }
+          });
+        });
+      });
+
+      req.on("error", (err) => {
+        reject(err);
+      });
+
+      req.on("timeout", () => {
+        req.destroy();
+        reject(new Error("Request timed out after 10 seconds"));
+      });
+
+      req.write(postData);
+      req.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
 
 const app = express();
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -54,10 +118,9 @@ async function generateContentWithRetry(params: {
   config: any;
 }) {
   const modelsToTry = [
-    "gemini-2.5-flash",
-    "gemini-1.5-flash",
-    "gemini-2.5-pro",
-    "gemini-3.5-flash"
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest"
   ];
 
   let lastError: any = null;
@@ -87,7 +150,8 @@ async function generateContentWithRetry(params: {
         console.warn(`[Gemini] Model "${model}" failed (attempt ${attempt}): ${error.message} (status: ${statusCode})`);
 
         // Don't retry if it is a client-side bad request (400)
-        if (statusCode && statusCode >= 400 && statusCode < 500) {
+        // Keep retrying other models if the model itself was not found (404)
+        if (statusCode && statusCode >= 400 && statusCode < 500 && statusCode !== 404) {
           throw error;
         }
 
@@ -398,13 +462,12 @@ app.post("/api/line-webhook", async (req, res) => {
           if (token && event.replyToken) {
             try {
               const replyUrl = "https://api.line.me/v2/bot/message/reply";
-              await fetch(replyUrl, {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${token}`,
-                  "Content-Type": "application/json",
+              await safeHttpPost(
+                replyUrl,
+                {
+                  "Authorization": `Bearer ${token}`
                 },
-                body: JSON.stringify({
+                {
                   replyToken: event.replyToken,
                   messages: [
                     {
@@ -412,8 +475,8 @@ app.post("/api/line-webhook", async (req, res) => {
                       text: `🤖 ระบบบันทึกรหัสของคุณเรียบร้อยแล้ว!\n\nรหัสรับแจ้งเตือนของคุณคือ:\n👉 ${targetId}\n\nคัดลอกรหัสนี้ไปกรอกในหน้าตั้งค่าแอปพลิเคชัน เพื่อเปิดใช้งานระบบสรุปค่าใช้จ่ายประจำวันได้ทันทีค่ะ! 🌸`
                     }
                   ]
-                })
-              });
+                }
+              );
               console.log(`Successfully replied to LINE targetId: ${targetId}`);
             } catch (replyErr) {
               console.error("Error replying to LINE user via replyToken:", replyErr);
@@ -913,23 +976,15 @@ app.post("/api/send-line-message", async (req, res) => {
       body.to = targetId.trim();
     }
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${channelAccessToken}`,
-        "Content-Type": "application/json",
+    const response = await safeHttpPost(
+      url,
+      {
+        "Authorization": `Bearer ${channelAccessToken}`
       },
-      body: JSON.stringify(body),
-    });
+      body
+    );
 
-    const contentType = response.headers.get("content-type");
-    let resData: any = {};
-    if (contentType && contentType.includes("application/json")) {
-      resData = await response.json();
-    } else {
-      const text = await response.text();
-      resData = { message: text };
-    }
+    let resData: any = response.json() || { message: response.text };
 
     if (response.ok) {
       res.json({ success: true, data: resData });
@@ -1291,18 +1346,16 @@ async function sendLineBotMessage(token: string, targetId: string, message: stri
     body.to = targetId.trim();
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const response = await safeHttpPost(
+    url,
+    {
+      "Authorization": `Bearer ${token}`
     },
-    body: JSON.stringify(body),
-  });
+    body
+  );
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`LINE message sending failed with status ${response.status}: ${errText}`);
+    throw new Error(`LINE message sending failed with status ${response.status}: ${response.text}`);
   }
 }
 

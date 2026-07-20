@@ -41,22 +41,34 @@ body {
 .theme-light .text-white {
   color: #0f172a !important;
 }
-.theme-light .text-slate-400 {
+.theme-light .text-slate-400,
+.theme-light .text-gray-400,
+.theme-light .text-zinc-400 {
   color: #475569 !important;
 }
-.theme-light .text-slate-500 {
+.theme-light .text-slate-500,
+.theme-light .text-gray-500,
+.theme-light .text-zinc-500 {
   color: #64748b !important;
 }
-.theme-light .text-slate-300 {
+.theme-light .text-slate-300,
+.theme-light .text-gray-300,
+.theme-light .text-zinc-300 {
   color: #334155 !important;
 }
-.theme-light .text-slate-200 {
+.theme-light .text-slate-200,
+.theme-light .text-gray-200,
+.theme-light .text-zinc-200 {
   color: #1e293b !important;
 }
-.theme-light .text-slate-100 {
+.theme-light .text-slate-100,
+.theme-light .text-gray-100,
+.theme-light .text-zinc-100 {
   color: #0f172a !important;
 }
-.theme-light .text-slate-50 {
+.theme-light .text-slate-50,
+.theme-light .text-gray-50,
+.theme-light .text-zinc-50 {
   color: #020617 !important;
 }
 .theme-light .bg-\[\#090d16\] {
@@ -290,8 +302,15 @@ body {
 .theme-light #line-summary-card .text-indigo-300 {
   color: #4338ca !important;
 }
+.theme-light textarea,
+.theme-light input,
+.theme-light select,
 .theme-light #line-summary-card textarea,
-.theme-light #line-summary-card input {
+.theme-light #line-summary-card input,
+.theme-light textarea.text-white,
+.theme-light input.text-white,
+.theme-light #line-summary-card textarea.text-white,
+.theme-light #line-summary-card input.text-white {
   background-color: #ffffff !important;
   color: #0f172a !important;
   border-color: rgba(15, 23, 42, 0.1) !important;
