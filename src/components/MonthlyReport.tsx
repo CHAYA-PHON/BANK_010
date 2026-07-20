@@ -370,10 +370,11 @@ export default function MonthlyReport({
       return sanitizeCssText(val);
     };
 
-    const patchComputedStyleObject = (origStyle: CSSStyleDeclaration, win: Window) => {
+    const patchComputedStyleObject = (origStyle: CSSStyleDeclaration) => {
       return new Proxy(origStyle, {
-        get(target, prop, receiver) {
-          const value = Reflect.get(target, prop, receiver);
+        get(target, prop) {
+          // Use target as receiver to avoid "Illegal invocation" on native getter properties
+          const value = Reflect.get(target, prop, target);
           if (typeof value === "function") {
             if (prop === "getPropertyValue") {
               return function (propertyName: string) {
@@ -385,7 +386,10 @@ export default function MonthlyReport({
           if (typeof prop === "string" && !isNaN(Number(prop))) {
             return value;
           }
-          return sanitizeValue(value);
+          if (typeof value === "string") {
+            return sanitizeValue(value);
+          }
+          return value;
         }
       });
     };
@@ -393,7 +397,7 @@ export default function MonthlyReport({
     // Override parent window's getComputedStyle
     window.getComputedStyle = function (el, pseudoEl) {
       const style = originalGetComputedStyle.call(window, el, pseudoEl);
-      return patchComputedStyleObject(style, window);
+      return patchComputedStyleObject(style);
     };
 
     // Override document.createElement to intercept iframe loading
@@ -403,14 +407,15 @@ export default function MonthlyReport({
         const iframe = el as HTMLIFrameElement;
         Object.defineProperty(iframe, "contentWindow", {
           get() {
-            const win = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow")?.get?.call(this);
+            // Use 'iframe' instead of 'this' to guarantee the correct HTMLIFrameElement context
+            const win = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow")?.get?.call(iframe);
             if (win && !win.getComputedStyle.__patched) {
               const origGetStyle = win.getComputedStyle;
               win.getComputedStyle = function (e, p) {
                 const style = origGetStyle.call(win, e, p);
-                return patchComputedStyleObject(style, win);
+                return patchComputedStyleObject(style);
               };
-              win.getComputedStyle.__patched = true;
+              (win.getComputedStyle as any).__patched = true;
             }
             return win;
           },
@@ -836,7 +841,7 @@ export default function MonthlyReport({
         </div>
 
         {/* Chronological running-balance daily table */}
-        <div className="space-y-2 break-inside-avoid">
+        <div className="space-y-2">
           <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-xs">
             <table className="w-full border-collapse text-left text-xs md:text-sm">
               <thead>
@@ -1013,7 +1018,7 @@ export default function MonthlyReport({
         </div>
 
         {/* Detailed Transactions List for Month (Separated clearly by Type and Colors) */}
-        <div className="space-y-3 break-inside-avoid pt-4 border-t border-slate-100">
+        <div className="space-y-3 pt-4 border-t border-slate-100">
           <h3 className="text-xs md:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
             📋 บันทึกรายการแบบละเอียดแยกตามรายรับ-รายจ่าย-โอนเงิน
           </h3>

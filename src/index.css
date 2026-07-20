@@ -427,3 +427,141 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+/* HIGH-QUALITY PRINT DEFINITIONS FOR A4 AND REPEATING HEADERS */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm 15mm 12mm;
+  }
+
+  /* Reset layout and hide everything outside of the report card */
+  html, body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #1e293b !important;
+    font-size: 11px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide headers, sidebars, navigation layout, action panels, and options */
+  body > *:not(#root),
+  #root > *:not(.print-container-parent) {
+    display: none !important;
+  }
+
+  /* Hide other screen structures but keep monthly-report-content visible */
+  #root * {
+    visibility: hidden;
+  }
+
+  #monthly-report-content,
+  #monthly-report-content * {
+    visibility: visible !important;
+  }
+
+  /* Position report card perfectly to occupy print canvas */
+  #monthly-report-content {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+  }
+
+  /* Table rendering rules for clean breaks & header repetition */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  th, td {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* CRITICAL: Overflows must be bypassed so the thead repeats.
+     Converting overflow divs to contents so table renders natively. */
+  .overflow-hidden,
+  .overflow-x-auto,
+  div.overflow-hidden,
+  div.overflow-x-auto {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    display: contents !important;
+  }
+
+  /* Ensure background and foreground print correctly */
+  thead tr {
+    background: linear-gradient(to right, #ff007a, #ff5a36) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color: #ffffff !important;
+  }
+
+  .text-[#ff5a36] {
+    color: #ff5a36 !important;
+  }
+  
+  .text-rose-600 {
+    color: #dc2626 !important;
+  }
+
+  .text-emerald-600 {
+    color: #059669 !important;
+  }
+
+  /* Maintain readable background fills for report elements */
+  .bg-[#fff7f5] {
+    background-color: #fff7f5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  .bg-[#fef2f2] {
+    background-color: #fef2f2 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bg-[#f0fdf4] {
+    background-color: #f0fdf4 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bg-slate-50 {
+    background-color: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent split of small summaries */
+  .break-inside-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
