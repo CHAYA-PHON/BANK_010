@@ -1555,6 +1555,7 @@ export default function App() {
               selectedMonth={selectedMonth}
               onMonthChange={setSelectedMonth}
               availableMonths={availableMonths}
+              currentUser={currentUser}
             />
           </div>
         )}

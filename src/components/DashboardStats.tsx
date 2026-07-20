@@ -96,7 +96,7 @@ export default function DashboardStats({
       {/* Stats Bento Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* 1. Brought Forward Balance Card */}
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-lg flex flex-col justify-between min-h-[125px] col-span-1">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-lg flex flex-col justify-between min-h-[160px] col-span-1">
           <div>
             <div className="flex justify-between items-start">
               <span className="text-[10px] sm:text-xs font-semibold text-slate-400 block uppercase tracking-wider">
@@ -110,13 +110,63 @@ export default function DashboardStats({
               ฿{broughtForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
+
+          {/* Mini wallet starting distribution or beautiful flow icon */}
+          <div className="my-2 space-y-1.5 flex-1 flex flex-col justify-center">
+            {wallets && wallets.length > 0 ? (
+              (() => {
+                const totalWalletInitial = wallets.reduce((sum, w) => sum + w.initialBalance, 0);
+                return (
+                  <div className="space-y-1">
+                    <div className="flex h-1.5 rounded-full overflow-hidden bg-white/5">
+                      {wallets.slice(0, 3).map((w, idx) => {
+                        const pct = totalWalletInitial > 0 ? (w.initialBalance / totalWalletInitial) * 100 : 33.3;
+                        const colors = [
+                          "bg-indigo-400",
+                          "bg-emerald-400",
+                          "bg-amber-400",
+                          "bg-rose-400"
+                        ];
+                        return (
+                          <div
+                            key={w.id}
+                            className={`${colors[idx % colors.length]} h-full transition-all`}
+                            style={{ width: `${pct}%` }}
+                            title={`${w.name}: ฿${w.initialBalance}`}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[8px] text-slate-400">
+                      {wallets.slice(0, 2).map((w, idx) => {
+                        const dots = ["bg-indigo-400", "bg-emerald-400", "bg-amber-400"];
+                        return (
+                          <span key={w.id} className="flex items-center gap-0.5 truncate max-w-[65px]">
+                            <span className={`w-1.5 h-1.5 rounded-full ${dots[idx % dots.length]} shrink-0`} />
+                            <span className="truncate">{w.name}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="h-6 w-full opacity-20 relative">
+                <svg className="w-full h-full" viewBox="0 0 100 20" preserveAspectRatio="none">
+                  <path d="M0,10 Q25,20 50,10 T100,10" fill="none" stroke="currentColor" strokeWidth="2" className="text-indigo-400" />
+                </svg>
+              </div>
+            )}
+          </div>
+
           <p className="text-[9px] text-slate-500 leading-tight">
             ทุนรวมสะสมก่อนเดือนนี้
           </p>
         </div>
 
         {/* 2. Total Income Card */}
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-lg flex flex-col justify-between min-h-[125px] col-span-1">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-lg flex flex-col justify-between min-h-[160px] col-span-1">
           <div>
             <div className="flex justify-between items-start">
               <span className="text-[10px] sm:text-xs font-semibold text-slate-400 block uppercase tracking-wider">
@@ -130,13 +180,72 @@ export default function DashboardStats({
               ฿{totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
+
+          {/* Mini Daily Sparkline */}
+          <div className="my-2 flex-1 flex flex-col justify-center min-h-[40px]">
+            {(() => {
+              const incomeByDay = Array(31).fill(0);
+              transactions.forEach((tx) => {
+                if (tx.type === "income" && tx.date) {
+                  const parts = tx.date.split("-");
+                  const day = parts[2] ? parseInt(parts[2], 10) : null;
+                  if (day && day >= 1 && day <= 31) {
+                    incomeByDay[day - 1] += tx.amount;
+                  }
+                }
+              });
+
+              const maxIncomeDay = Math.max(...incomeByDay, 1);
+              const incomeSparklinePoints = incomeByDay
+                .map((amount, idx) => {
+                  const x = (idx / 30) * 100;
+                  const y = 32 - (amount / maxIncomeDay) * 28;
+                  return `${x},${y}`;
+                })
+                .join(" ");
+
+              const hasIncomeTx = transactions.some((tx) => tx.type === "income");
+
+              return hasIncomeTx ? (
+                <div className="relative w-full h-10">
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 100 35" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#34d399" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d={`M0,35 L${incomeSparklinePoints} L100,35 Z`}
+                      fill="url(#incomeGrad)"
+                    />
+                    <polyline
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="1.5"
+                      points={incomeSparklinePoints}
+                      className="drop-shadow-[0_0_4px_rgba(16,185,129,0.5)]"
+                    />
+                  </svg>
+                  <div className="absolute right-0 bottom-0 text-[8px] text-slate-500 font-mono">
+                    เทรนด์รายรับ
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[9px] text-slate-500/70 border border-dashed border-white/5 rounded-xl flex items-center justify-center py-2 h-10">
+                  ไม่มีรายรับเข้ามา
+                </div>
+              );
+            })()}
+          </div>
+
           <p className="text-[9px] text-slate-500 leading-tight">
             รายได้เข้าในช่วงเดือนนี้
           </p>
         </div>
 
         {/* 3. Total Expenses Card */}
-        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-lg flex flex-col justify-between min-h-[125px] col-span-1">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-lg flex flex-col justify-between min-h-[160px] col-span-1">
           <div>
             <div className="flex justify-between items-start">
               <span className="text-[10px] sm:text-xs font-semibold text-slate-400 block uppercase tracking-wider">
@@ -150,13 +259,72 @@ export default function DashboardStats({
               ฿{totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
+
+          {/* Mini Daily Sparkline */}
+          <div className="my-2 flex-1 flex flex-col justify-center min-h-[40px]">
+            {(() => {
+              const expenseByDay = Array(31).fill(0);
+              transactions.forEach((tx) => {
+                if (tx.type === "expense" && tx.date) {
+                  const parts = tx.date.split("-");
+                  const day = parts[2] ? parseInt(parts[2], 10) : null;
+                  if (day && day >= 1 && day <= 31) {
+                    expenseByDay[day - 1] += tx.amount;
+                  }
+                }
+              });
+
+              const maxExpenseDay = Math.max(...expenseByDay, 1);
+              const expenseSparklinePoints = expenseByDay
+                .map((amount, idx) => {
+                  const x = (idx / 30) * 100;
+                  const y = 32 - (amount / maxExpenseDay) * 28;
+                  return `${x},${y}`;
+                })
+                .join(" ");
+
+              const hasExpenseTx = transactions.some((tx) => tx.type === "expense");
+
+              return hasExpenseTx ? (
+                <div className="relative w-full h-10">
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 100 35" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#f43f5e" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d={`M0,35 L${expenseSparklinePoints} L100,35 Z`}
+                      fill="url(#expenseGrad)"
+                    />
+                    <polyline
+                      fill="none"
+                      stroke="#f43f5e"
+                      strokeWidth="1.5"
+                      points={expenseSparklinePoints}
+                      className="drop-shadow-[0_0_4px_rgba(244,63,94,0.5)]"
+                    />
+                  </svg>
+                  <div className="absolute right-0 bottom-0 text-[8px] text-slate-500 font-mono">
+                    เทรนด์รายจ่าย
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[9px] text-slate-500/70 border border-dashed border-white/5 rounded-xl flex items-center justify-center py-2 h-10">
+                  ไม่มีรายจ่ายออกไป
+                </div>
+              );
+            })()}
+          </div>
+
           <p className="text-[9px] text-slate-500 leading-tight">
             รายจ่ายออกช่วงเดือนนี้
           </p>
         </div>
 
         {/* 4. Carried Forward Balance Card */}
-        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-4 shadow-2xl flex flex-col justify-between min-h-[125px] col-span-1 relative overflow-hidden">
+        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-4 shadow-2xl flex flex-col justify-between min-h-[160px] col-span-1 relative overflow-hidden">
           <div className="absolute right-1 top-1 opacity-5 pointer-events-none">
             <Coins className="w-16 h-16 text-white" />
           </div>
@@ -168,6 +336,40 @@ export default function DashboardStats({
               ฿{carriedForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
+
+          {/* Capital Preservation Rate horizontal meter */}
+          <div className="my-2 flex-1 flex flex-col justify-center">
+            {(() => {
+              const totalAvailable = broughtForward + totalIncome;
+              const remainingPercent = totalAvailable > 0 ? (carriedForward / totalAvailable) * 100 : 0;
+              return (
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-[9px]">
+                    <span className="text-slate-400 font-medium">สัดส่วนคงเหลือ:</span>
+                    <span className={`font-black ${carriedForward >= broughtForward ? "text-emerald-400" : "text-amber-400"}`}>
+                      {Math.max(0, remainingPercent).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        carriedForward >= broughtForward
+                          ? "bg-gradient-to-r from-emerald-500 to-indigo-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]"
+                          : "bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_6px_rgba(245,158,11,0.4)]"
+                      }`}
+                      style={{ width: `${Math.max(2, Math.min(100, remainingPercent))}%` }}
+                    />
+                  </div>
+                  <p className="text-[8px] text-slate-400 leading-none">
+                    {carriedForward >= broughtForward 
+                      ? "📈 ทุนสำรองเพิ่มขึ้น" 
+                      : "📉 ทุนสำรองลดลงจากรายจ่าย"}
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+
           <div className="flex items-center gap-1">
             <span className={`px-1 rounded-sm text-[9px] font-bold ${currentMonthNet >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
               {currentMonthNet >= 0 ? "เพิ่มขึ้น" : "ลดลง"}

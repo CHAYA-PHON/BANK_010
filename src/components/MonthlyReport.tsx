@@ -16,6 +16,7 @@ interface MonthlyReportProps {
   selectedMonth: string;
   onMonthChange: (month: string) => void;
   availableMonths: string[];
+  currentUser?: string;
 }
 
 export default function MonthlyReport({
@@ -26,6 +27,7 @@ export default function MonthlyReport({
   selectedMonth,
   onMonthChange,
   availableMonths,
+  currentUser,
 }: MonthlyReportProps) {
   const [showOnlyActiveDays, setShowOnlyActiveDays] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<"none" | "pdf" | "image">("none");
@@ -213,72 +215,293 @@ export default function MonthlyReport({
     return dayRows;
   }, [dayRows, showOnlyActiveDays]);
 
+  // Compress consecutive empty days into ellipsis rows to match the statement design
+  const renderedRows = useMemo(() => {
+    if (showOnlyActiveDays) {
+      return dayRows.filter(row => row.transactionsCount > 0).map(row => ({ type: "row" as const, data: row }));
+    }
+
+    const daysInMonth = dayRows.length;
+    const isDayVisible = (d: number) => {
+      // First 5 days are always visible
+      if (d <= 5) return true;
+      // Last 2 days are always visible
+      if (d >= daysInMonth - 1) return true;
+      // Days with transactions are always visible
+      const row = dayRows.find(r => r.day === d);
+      if (row && row.transactionsCount > 0) return true;
+      return false;
+    };
+
+    const rendered: Array<{ type: "row" | "ellipsis"; data?: typeof dayRows[0] }> = [];
+    let inEllipsis = false;
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const row = dayRows.find(r => r.day === d);
+      if (!row) continue;
+
+      if (isDayVisible(d)) {
+        inEllipsis = false;
+        rendered.push({ type: "row", data: row });
+      } else {
+        if (!inEllipsis) {
+          rendered.push({ type: "ellipsis" });
+          rendered.push({ type: "ellipsis" });
+          rendered.push({ type: "ellipsis" });
+          inEllipsis = true;
+        }
+      }
+    }
+
+    return rendered;
+  }, [dayRows, showOnlyActiveDays]);
+
   const handlePrint = () => {
     window.print();
   };
 
   // Helper to temporarily sanitize oklch and oklab colors in stylesheets so html2canvas doesn't crash
   const executeWithSanitizedStyles = async (callback: () => Promise<void>) => {
-    const originalStyles: { element: HTMLStyleElement; text: string }[] = [];
-    const modifiedLinks: { element: HTMLLinkElement; disabled: boolean }[] = [];
-    const temporaryStyleTags: HTMLStyleElement[] = [];
+    // 1. Color conversion formulas (OKLAB -> RGB & OKLCH -> RGB)
+    const oklabToRgb = (L: number, a: number, b: number, alpha = 1) => {
+      const l_ = L + 0.3963377774 * a + 0.2158037573 * b;
+      const m_ = L - 0.1055613458 * a - 0.0638541728 * b;
+      const s_ = L - 0.0894841775 * a - 1.2914855480 * b;
 
-    try {
-      // 1. Process all inline <style> elements
-      document.querySelectorAll("style").forEach((styleEl) => {
-        const text = styleEl.textContent || "";
-        if (text.includes("oklch") || text.includes("oklab")) {
-          originalStyles.push({ element: styleEl, text });
-          const sanitized = text
-            .replace(/oklch\([^)]+\)/g, "rgb(120, 120, 120)")
-            .replace(/oklab\([^)]+\)/g, "rgb(120, 120, 120)");
-          styleEl.textContent = sanitized;
+      const l_lin = l_ * l_ * l_;
+      const m_lin = m_ * m_ * m_;
+      const s_lin = s_ * s_ * s_;
+
+      let r_val = +4.0767416621 * l_lin - 3.3077115913 * m_lin + 0.2309699292 * s_lin;
+      let g_val = -1.2684380046 * l_lin + 2.6097574011 * m_lin - 0.3413193965 * s_lin;
+      let b_val = -0.0041960863 * l_lin - 0.7034186147 * m_lin + 1.7076210013 * s_lin;
+
+      const gamma = (c: number) => {
+        if (c <= 0.0031308) {
+          return 12.92 * c;
+        } else {
+          return 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
         }
-      });
+      };
 
-      // 2. Process all external <link rel="stylesheet"> elements
-      const links = Array.from(document.querySelectorAll("link[rel='stylesheet']")) as HTMLLinkElement[];
-      for (const link of links) {
+      const R = Math.max(0, Math.min(255, Math.round(gamma(r_val) * 255)));
+      const G = Math.max(0, Math.min(255, Math.round(gamma(g_val) * 255)));
+      const B = Math.max(0, Math.min(255, Math.round(gamma(b_val) * 255)));
+
+      return alpha === 1 ? `rgb(${R},${G},${B})` : `rgba(${R},${G},${B},${alpha})`;
+    };
+
+    const oklchToRgb = (L: number, C: number, H: number, alpha = 1) => {
+      const h_rad = (H * Math.PI) / 180;
+      const a = C * Math.cos(h_rad);
+      const b = C * Math.sin(h_rad);
+      return oklabToRgb(L, a, b, alpha);
+    };
+
+    const parseVal = (str: string, range = 1): number => {
+      if (!str) return 0;
+      str = str.trim();
+      if (str.endsWith("%")) {
+        return (parseFloat(str) / 100) * range;
+      }
+      return parseFloat(str);
+    };
+
+    const sanitizeCssText = (cssText: string): string => {
+      if (typeof cssText !== "string") return cssText;
+      let result = cssText;
+
+      // Fast regex replace for oklch(...)
+      result = result.replace(/oklch\(([^)]+)\)/g, (match, argsStr) => {
         try {
-          const response = await fetch(link.href);
-          if (response.ok) {
-            const cssText = await response.text();
-            if (cssText.includes("oklch") || cssText.includes("oklab")) {
-              modifiedLinks.push({ element: link, disabled: link.disabled });
-              link.disabled = true;
-
-              const sanitizedText = cssText
-                .replace(/oklch\([^)]+\)/g, "rgb(120, 120, 120)")
-                .replace(/oklab\([^)]+\)/g, "rgb(120, 120, 120)");
-              
-              const tempStyle = document.createElement("style");
-              tempStyle.textContent = sanitizedText;
-              document.head.appendChild(tempStyle);
-              temporaryStyleTags.push(tempStyle);
+          const cleaned = argsStr.replace(/,/g, " ").replace(/\//g, " ").replace(/\s+/g, " ").trim();
+          const parts = cleaned.split(" ");
+          if (parts.length >= 3) {
+            const L = parseVal(parts[0], 1);
+            const C = parseVal(parts[1], 1);
+            const H = parseVal(parts[2], 360);
+            const alpha = parts[3] ? parseVal(parts[3], 1) : 1;
+            
+            if (!isNaN(L) && !isNaN(C) && !isNaN(H)) {
+              return oklchToRgb(L, C, H, alpha);
             }
           }
         } catch (e) {
-          console.warn("Could not fetch or sanitize external stylesheet:", link.href, e);
+          // ignore
         }
+        return "rgb(120, 120, 120)";
+      });
+
+      // Fast regex replace for oklab(...)
+      result = result.replace(/oklab\(([^)]+)\)/g, (match, argsStr) => {
+        try {
+          const cleaned = argsStr.replace(/,/g, " ").replace(/\//g, " ").replace(/\s+/g, " ").trim();
+          const parts = cleaned.split(" ");
+          if (parts.length >= 3) {
+            const L = parseVal(parts[0], 1);
+            const a = parseVal(parts[1], 1);
+            const b = parseVal(parts[2], 1);
+            const alpha = parts[3] ? parseVal(parts[3], 1) : 1;
+            
+            if (!isNaN(L) && !isNaN(a) && !isNaN(b)) {
+              return oklabToRgb(L, a, b, alpha);
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+        return "rgb(120, 120, 120)";
+      });
+
+      return result;
+    };
+
+    const disabledSheets: { sheet: CSSStyleSheet; originalDisabled: boolean }[] = [];
+    const temporaryStyleTags: HTMLStyleElement[] = [];
+    const originalInlineStyles = new Map<HTMLElement, string>();
+
+    // Patch getComputedStyle to sanitize on the fly!
+    const originalGetComputedStyle = window.getComputedStyle;
+    const originalCreateElement = document.createElement;
+
+    const sanitizeValue = (val: string): string => {
+      if (typeof val !== "string") return val;
+      if (!val.includes("oklch") && !val.includes("oklab")) return val;
+      return sanitizeCssText(val);
+    };
+
+    const patchComputedStyleObject = (origStyle: CSSStyleDeclaration, win: Window) => {
+      return new Proxy(origStyle, {
+        get(target, prop, receiver) {
+          const value = Reflect.get(target, prop, receiver);
+          if (typeof value === "function") {
+            if (prop === "getPropertyValue") {
+              return function (propertyName: string) {
+                return sanitizeValue(target.getPropertyValue(propertyName));
+              };
+            }
+            return value.bind(target);
+          }
+          if (typeof prop === "string" && !isNaN(Number(prop))) {
+            return value;
+          }
+          return sanitizeValue(value);
+        }
+      });
+    };
+
+    // Override parent window's getComputedStyle
+    window.getComputedStyle = function (el, pseudoEl) {
+      const style = originalGetComputedStyle.call(window, el, pseudoEl);
+      return patchComputedStyleObject(style, window);
+    };
+
+    // Override document.createElement to intercept iframe loading
+    document.createElement = function (tagName, options) {
+      const el = originalCreateElement.call(document, tagName, options);
+      if (tagName.toLowerCase() === "iframe") {
+        const iframe = el as HTMLIFrameElement;
+        Object.defineProperty(iframe, "contentWindow", {
+          get() {
+            const win = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow")?.get?.call(this);
+            if (win && !win.getComputedStyle.__patched) {
+              const origGetStyle = win.getComputedStyle;
+              win.getComputedStyle = function (e, p) {
+                const style = origGetStyle.call(win, e, p);
+                return patchComputedStyleObject(style, win);
+              };
+              win.getComputedStyle.__patched = true;
+            }
+            return win;
+          },
+          configurable: true
+        });
+      }
+      return el;
+    };
+
+    try {
+      // 1. Process all document styleSheets (including CSSOM-only injected ones)
+      const sheets = Array.from(document.styleSheets) as CSSStyleSheet[];
+      for (const sheet of sheets) {
+        try {
+          let cssText = "";
+          if (sheet.cssRules) {
+            cssText = Array.from(sheet.cssRules)
+              .map((rule) => rule.cssText)
+              .join("\n");
+          }
+          
+          if (cssText.includes("oklch") || cssText.includes("oklab")) {
+            disabledSheets.push({ sheet, originalDisabled: sheet.disabled });
+            sheet.disabled = true;
+
+            const sanitizedText = sanitizeCssText(cssText);
+            const tempStyle = document.createElement("style");
+            tempStyle.textContent = sanitizedText;
+            document.head.appendChild(tempStyle);
+            temporaryStyleTags.push(tempStyle);
+          }
+        } catch (e) {
+          // Fallback if CORS prevents rules inspection - fetch external href
+          if (sheet.href) {
+            try {
+              const response = await fetch(sheet.href);
+              if (response.ok) {
+                const cssText = await response.text();
+                if (cssText.includes("oklch") || cssText.includes("oklab")) {
+                  disabledSheets.push({ sheet, originalDisabled: sheet.disabled });
+                  sheet.disabled = true;
+
+                  const sanitizedText = sanitizeCssText(cssText);
+                  const tempStyle = document.createElement("style");
+                  tempStyle.textContent = sanitizedText;
+                  document.head.appendChild(tempStyle);
+                  temporaryStyleTags.push(tempStyle);
+                }
+              }
+            } catch (fetchErr) {
+              console.warn("Could not fetch style rules:", sheet.href, fetchErr);
+            }
+          }
+        }
+      }
+
+      // 2. Sanitize all inline style attributes of the report content and descendant elements
+      const reportContentEl = document.getElementById("monthly-report-content");
+      if (reportContentEl) {
+        const elements = [reportContentEl, ...Array.from(reportContentEl.querySelectorAll("*"))] as HTMLElement[];
+        elements.forEach((el) => {
+          if (el.getAttribute) {
+            const styleAttr = el.getAttribute("style");
+            if (styleAttr && (styleAttr.includes("oklch") || styleAttr.includes("oklab"))) {
+              originalInlineStyles.set(el, styleAttr);
+              el.setAttribute("style", sanitizeCssText(styleAttr));
+            }
+          }
+        });
       }
 
       await callback();
 
     } finally {
+      // Restore standard getters and functions
+      window.getComputedStyle = originalGetComputedStyle;
+      document.createElement = originalCreateElement;
+
       // Restore all original styles
-      originalStyles.forEach(({ element, text }) => {
-        element.textContent = text;
+      disabledSheets.forEach(({ sheet, originalDisabled }) => {
+        sheet.disabled = originalDisabled;
       });
 
-      // Restore original links and remove temporary style tags
-      modifiedLinks.forEach(({ element, disabled }) => {
-        element.disabled = disabled;
-      });
-      
       temporaryStyleTags.forEach((tag) => {
         if (tag.parentNode) {
           tag.parentNode.removeChild(tag);
         }
+      });
+
+      originalInlineStyles.forEach((styleAttr, el) => {
+        el.setAttribute("style", styleAttr);
       });
     }
   };
@@ -403,6 +626,27 @@ export default function MonthlyReport({
             background: #f1f5f9 !important;
             border: 1px solid #cbd5e1 !important;
           }
+          /* Prevent page breaks */
+          h1, h2, h3, h4, h5, h6 {
+            break-after: avoid-page !important;
+            page-break-after: avoid !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .report-header-panel {
+            background-color: #f1f5f9 !important;
+            border: 1px solid #cbd5e1 !important;
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+          }
         }
 
         /* Capture mode for html2canvas to look like a premium bank statement */
@@ -445,6 +689,21 @@ export default function MonthlyReport({
         .print-capture-mode .report-header-panel {
           background-color: #f1f5f9 !important;
           border: 1px solid #cbd5e1 !important;
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+        }
+        .print-capture-mode h1, 
+        .print-capture-mode h2, 
+        .print-capture-mode h3 {
+          break-after: avoid-page !important;
+          page-break-after: avoid !important;
+        }
+        .print-capture-mode tr,
+        .print-capture-mode .break-inside-avoid {
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
         }
       ` }} />
 
@@ -535,181 +794,218 @@ export default function MonthlyReport({
       {/* Main Report Document Container */}
       <div 
         id="monthly-report-content" 
-        className="print-container bg-white/5 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6"
+        className="print-container bg-white border border-slate-200 rounded-[32px] p-6 md:p-8 shadow-2xl space-y-6 max-w-4xl mx-auto text-slate-800 transition-all duration-300"
       >
         {/* Document Header Panel */}
-        <div className="report-header-panel border border-white/5 bg-[#121826]/70 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              📊 รายงานการเคลื่อนไหวทางบัญชี
-            </h1>
-            <p className="text-xs text-indigo-300 font-bold tracking-wider uppercase">
-              Financial Statement of {thaiMonthName}
-            </p>
-            <p className="text-[10px] text-slate-400 font-medium">
-              ออกรายงานเมื่อ: {new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })} น.
-            </p>
+        <div className="report-header-panel border-b-2 border-slate-100 pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            {/* UpToMe Logo */}
+            <div className="w-16 h-16 md:w-20 md:h-20 shrink-0 select-none">
+              <img 
+                src="/favicon.svg" 
+                alt="UpToMe Logo" 
+                className="w-full h-full object-contain rounded-[22px]" 
+                referrerPolicy="no-referrer" 
+              />
+            </div>
+            
+            <div className="space-y-0.5">
+              <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                รายงานการเคลื่อนไหว ประจำเดือน <span className="text-[#ff5a36]">{selectedMonth.split('-')[1]}-{selectedMonth.split('-')[0]}</span>
+              </h1>
+              <p className="text-[10px] md:text-xs text-slate-400 font-medium">
+                ออกรายงานเมื่อ: {new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })} น.
+              </p>
+            </div>
           </div>
           
-          <div className="text-left md:text-right md:border-l border-white/10 md:pl-6 space-y-1">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">เจ้าของบัญชี</span>
-            <span className="text-sm font-extrabold text-white bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 block inline-block text-center">
-              👤 {localStorage.getItem("current_user") || "ผู้ใช้งาน"}
+          <div className="text-left sm:text-right flex flex-col sm:items-end gap-1 shrink-0">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">เจ้าของบัญชี</span>
+            <span className="text-xs font-black text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 inline-flex items-center gap-1.5">
+              👤 {currentUser || sessionStorage.getItem("current_user") || localStorage.getItem("current_user") || "ผู้ใช้งาน"}
             </span>
           </div>
         </div>
 
-        {/* Top summary balance blocks */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white/5 border border-white/5 p-4 rounded-2xl space-y-1">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ยอดยกมา (Brought Forward)</span>
-            <span className="text-base md:text-lg font-black text-white block">
-              ฿{broughtForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </div>
-
-          <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl space-y-1">
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
-              รายรับรวมประจำเดือน (Income)
-            </span>
-            <span className="text-base md:text-lg font-black text-emerald-400 block">
-              +฿{totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </div>
-
-          <div className="bg-rose-500/5 border border-rose-500/10 p-4 rounded-2xl space-y-1">
-            <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider block flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-rose-400 rounded-full" />
-              รายจ่ายรวมประจำเดือน (Expense)
-            </span>
-            <span className="text-base md:text-lg font-black text-rose-400 block">
-              -฿{totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </div>
-
-          <div className="bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-2xl space-y-1">
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">คงเหลือสะสม (Net Remaining)</span>
-            <span className="text-base md:text-lg font-black text-indigo-400 block">
-              ฿{netRemaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </div>
+        {/* ยอดยกมา full-width banner */}
+        <div className="bg-[#fff7f5] border border-[#ffe4de] p-4 rounded-2xl flex items-center justify-between shadow-xs">
+          <span className="text-sm md:text-base font-black text-slate-700">ยอดยกมา</span>
+          <span className="text-base md:text-xl font-black text-[#ff5a36] font-mono">
+            {broughtForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
         </div>
 
         {/* Chronological running-balance daily table */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between pb-1 border-b border-white/10">
-            <h3 className="text-xs font-extrabold text-white uppercase tracking-wider flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-indigo-400" />
-              บัญชีแสดงการเคลื่อนไหวรายวัน (Daily Statement Ledger)
-            </h3>
-            <span className="text-[10px] text-slate-400 font-medium">
-              แสดง {displayedDayRows.length} รายการเคลื่อนไหว
-            </span>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl border border-white/5">
-            <table className="w-full text-left border-collapse text-xs">
+        <div className="space-y-2 break-inside-avoid">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-xs">
+            <table className="w-full border-collapse text-left text-xs md:text-sm">
               <thead>
-                <tr className="bg-[#121826] border-b border-white/5 text-slate-400 font-bold">
-                  <th className="py-2.5 px-4 font-bold text-slate-400">วันที่</th>
-                  <th className="py-2.5 px-4 font-bold text-emerald-400 text-right">รายรับ (Income)</th>
-                  <th className="py-2.5 px-4 font-bold text-rose-400 text-right">รายจ่าย (Expense)</th>
-                  <th className="py-2.5 px-4 font-bold text-indigo-300 text-right">คงเหลือสะสม (Balance)</th>
+                <tr className="bg-gradient-to-r from-[#ff007a] to-[#ff5a36] text-white font-extrabold">
+                  <th className="py-3 px-3 md:py-4 md:px-4 text-center font-extrabold w-[12%]">วันที่</th>
+                  <th className="py-3 px-3 md:py-4 md:px-4 font-extrabold w-[43%]">รายการ</th>
+                  <th className="py-3 px-3 md:py-4 md:px-4 text-right font-extrabold w-[15%]">รายรับ</th>
+                  <th className="py-3 px-3 md:py-4 md:px-4 text-right font-extrabold w-[15%]">รายจ่าย</th>
+                  <th className="py-3 px-3 md:py-4 md:px-4 text-right font-extrabold w-[15%]">คงเหลือ</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                {displayedDayRows.map((row) => (
-                  <tr 
-                    key={row.day} 
-                    className={`hover:bg-white/5 transition-colors ${row.transactionsCount > 0 ? "bg-white/[0.02]" : "opacity-60"}`}
-                  >
-                    <td className="py-2 px-4 font-semibold text-slate-200">
-                      วันที่ {row.day} <span className="text-[10px] text-slate-400 font-medium ml-1">({row.transactionsCount} รายการ)</span>
-                    </td>
-                    <td className="py-2 px-4 text-right text-emerald-400 font-medium">
-                      {row.income > 0 ? `+฿${row.income.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "฿0.00"}
-                    </td>
-                    <td className="py-2 px-4 text-right text-rose-400 font-medium">
-                      {row.expense > 0 ? `-฿${row.expense.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "฿0.00"}
-                    </td>
-                    <td className="py-2 px-4 text-right text-slate-200 font-bold font-mono">
-                      ฿{row.runningBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {renderedRows.map((item, index) => {
+                  if (item.type === "ellipsis") {
+                    return (
+                      <tr key={`ellipsis-${index}`} className="bg-white hover:bg-slate-50">
+                        <td className="py-2 px-3 text-center text-slate-400 font-extrabold font-mono">:</td>
+                        <td className="py-2 px-3 text-center text-slate-400 font-extrabold font-mono">:</td>
+                        <td className="py-2 px-3 text-right text-slate-400 font-extrabold font-mono">:</td>
+                        <td className="py-2 px-3 text-right text-slate-400 font-extrabold font-mono">:</td>
+                        <td className="py-2 px-3 text-right text-slate-400 font-extrabold font-mono">:</td>
+                      </tr>
+                    );
+                  }
+
+                  const row = item.data!;
+                  const isEven = index % 2 === 1;
+                  const dayDateStr = `${selectedMonth}-${String(row.day).padStart(2, "0")}`;
+                  const dayTxs = transactions.filter((tx) => tx.date === dayDateStr);
+                  const transactionLabel = dayTxs.length > 0
+                    ? dayTxs.map(tx => tx.category || tx.note || "รายการเคลื่อนไหว").join(", ")
+                    : "-";
+
+                  return (
+                    <tr 
+                      key={`row-${row.day}`} 
+                      className={`${isEven ? "bg-[#fcfdfe]" : "bg-white"} hover:bg-slate-50/50 transition-colors`}
+                    >
+                      <td className="py-2.5 px-3 md:py-3 md:px-4 text-center font-bold text-slate-700">
+                        {row.day}
+                      </td>
+                      <td className="py-2.5 px-3 md:py-3 md:px-4 text-slate-600 font-semibold truncate max-w-[240px]">
+                        {transactionLabel}
+                      </td>
+                      <td className={`py-2.5 px-3 md:py-3 md:px-4 text-right font-bold ${row.income > 0 ? "text-[#00c853]" : "text-slate-400"}`}>
+                        {row.income > 0 ? row.income.toFixed(2) : "0.00"}
+                      </td>
+                      <td className={`py-2.5 px-3 md:py-3 md:px-4 text-right font-bold ${row.expense > 0 ? "text-[#ff2d55]" : "text-slate-400"}`}>
+                        {row.expense > 0 ? row.expense.toFixed(2) : "0.00"}
+                      </td>
+                      <td className="py-2.5 px-3 md:py-3 md:px-4 text-right font-black text-slate-800 font-mono">
+                        {row.runningBalance.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Debt summaries block */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Liabilities Section */}
-          <div className="border border-rose-500/10 bg-rose-500/5 p-5 rounded-2xl space-y-3.5">
-            <h3 className="text-xs font-black text-rose-300 uppercase tracking-widest flex items-center gap-1.5">
-              <Landmark className="w-4 h-4 text-rose-400" />
-              สรุปหนี้สินของเรา (Borrowed / Liabilities)
-            </h3>
+        {/* สรุป Panel */}
+        <div className="bg-[#fffcfb] border border-[#ffe4de] rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs break-inside-avoid">
+          <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+            <div className="w-12 h-12 bg-[#ff007a]/10 border border-[#ff007a]/20 text-[#ff007a] rounded-xl flex items-center justify-center shadow-xs">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+              </svg>
+            </div>
+            <span className="text-xl font-black text-slate-800">สรุป</span>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:flex sm:items-center sm:gap-8 justify-end text-center sm:text-right">
+            <div className="border-r border-slate-100 pr-1 sm:pr-8 last:border-0">
+              <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">รายรับ</span>
+              <span className="text-sm md:text-xl font-black text-[#00c853] block mt-0.5">
+                {totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="border-r border-slate-100 pr-1 sm:pr-8 last:border-0">
+              <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">รายจ่าย</span>
+              <span className="text-sm md:text-xl font-black text-[#ff2d55] block mt-0.5">
+                {totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="pr-1 sm:pr-2">
+              <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">คงเหลือ</span>
+              <span className="text-sm md:text-xl font-black text-[#ff5a36] block mt-0.5">
+                {netRemaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Debt summaries blocks */}
+        <div className="space-y-4 break-inside-avoid">
+          {/* Liabilities Panel (หนี้สิน) */}
+          <div className="bg-[#fff7f5] border border-[#ffe4de] rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+              <div className="w-12 h-12 bg-[#ff5a36]/10 border border-[#ff5a36]/20 text-[#ff5a36] rounded-xl flex items-center justify-center shadow-xs">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2-.9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                </svg>
+              </div>
+              <span className="text-xl font-black text-[#ff2d55]">หนี้สิน</span>
+            </div>
             
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-2.5 bg-[#090d16]/30 border border-white/5 rounded-xl space-y-1">
-                <span className="text-[10px] text-slate-400 block font-bold">หนี้สินเดิมสะสม</span>
-                <span className="text-sm font-extrabold text-white block">
-                  ฿{debtSummary.originalBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <div className="grid grid-cols-4 gap-2 w-full sm:w-auto sm:flex sm:items-center sm:gap-6 justify-end text-center sm:text-right">
+              <div className="border-r border-slate-200 pr-1 sm:pr-6 last:border-0">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">เดิม</span>
+                <span className="text-xs md:text-base font-black text-[#d97706] block mt-0.5">
+                  {debtSummary.originalBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="p-2.5 bg-[#090d16]/30 border border-white/5 rounded-xl space-y-1">
-                <span className="text-[10px] text-slate-400 block font-bold">กู้ยืมใหม่เพิ่ม</span>
-                <span className="text-sm font-extrabold text-rose-400 block">
-                  +฿{debtSummary.newBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="border-r border-slate-200 pr-1 sm:pr-6 last:border-0">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">กู้ยืมใหม่</span>
+                <span className="text-xs md:text-base font-black text-[#d97706] block mt-0.5">
+                  {debtSummary.newBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="p-2.5 bg-[#090d16]/30 border border-white/5 rounded-xl space-y-1">
-                <span className="text-[10px] text-slate-400 block font-bold">จ่ายชำระคืนแล้ว</span>
-                <span className="text-sm font-extrabold text-emerald-400 block">
-                  -฿{debtSummary.paidBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="border-r border-slate-200 pr-1 sm:pr-6 last:border-0">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">จ่ายแล้ว</span>
+                <span className="text-xs md:text-base font-black text-[#d97706] block mt-0.5">
+                  {debtSummary.paidBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="p-2.5 bg-[#090d16]/30 border border-rose-500/20 rounded-xl space-y-1 bg-rose-950/20">
-                <span className="text-[10px] text-rose-300 block font-bold">ค้างชำระสุทธิ</span>
-                <span className="text-sm font-black text-rose-400 block font-mono">
-                  ฿{debtSummary.remainingBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="pr-1 sm:pr-2">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">ค้างชำระ</span>
+                <span className="text-xs md:text-base font-black text-[#d97706] block mt-0.5 font-mono">
+                  {debtSummary.remainingBorrowed.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Lending Section */}
-          <div className="border border-emerald-500/10 bg-emerald-500/5 p-5 rounded-2xl space-y-3.5">
-            <h3 className="text-xs font-black text-emerald-300 uppercase tracking-widest flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4 text-emerald-400" />
-              สรุปเงินกู้ยืมให้ผู้อื่น (Lent / Debt Assets)
-            </h3>
+          {/* Lent Panel (เงินให้กู้ยืม) */}
+          <div className="bg-[#f0fdf4] border border-[#bbf7d0] rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+              <div className="w-12 h-12 bg-[#10b981]/10 border border-[#10b981]/20 text-[#10b981] rounded-xl flex items-center justify-center shadow-xs">
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+              </div>
+              <span className="text-xl font-black text-[#047857]">เงินให้กู้ยืม</span>
+            </div>
             
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-2.5 bg-[#090d16]/30 border border-white/5 rounded-xl space-y-1">
-                <span className="text-[10px] text-slate-400 block font-bold">เงินที่ให้ยืมเดิมสะสม</span>
-                <span className="text-sm font-extrabold text-white block">
-                  ฿{lentSummary.originalLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <div className="grid grid-cols-4 gap-2 w-full sm:w-auto sm:flex sm:items-center sm:gap-6 justify-end text-center sm:text-right">
+              <div className="border-r border-slate-200 pr-1 sm:pr-6 last:border-0">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">เดิม</span>
+                <span className="text-xs md:text-base font-black text-[#059669] block mt-0.5">
+                  {lentSummary.originalLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="p-2.5 bg-[#090d16]/30 border border-white/5 rounded-xl space-y-1">
-                <span className="text-[10px] text-slate-400 block font-bold">ให้ยืมใหม่เพิ่ม</span>
-                <span className="text-sm font-extrabold text-indigo-400 block">
-                  +฿{lentSummary.newLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="border-r border-slate-200 pr-1 sm:pr-6 last:border-0">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">ให้ยืมใหม่</span>
+                <span className="text-xs md:text-base font-black text-[#059669] block mt-0.5">
+                  {lentSummary.newLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="p-2.5 bg-[#090d16]/30 border border-white/5 rounded-xl space-y-1">
-                <span className="text-[10px] text-slate-400 block font-bold">ได้รับคืนแล้ว</span>
-                <span className="text-sm font-extrabold text-emerald-400 block">
-                  -฿{lentSummary.receivedLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="border-r border-slate-200 pr-1 sm:pr-6 last:border-0">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">ได้รับคืน</span>
+                <span className="text-xs md:text-base font-black text-[#059669] block mt-0.5">
+                  {lentSummary.receivedLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
-              <div className="p-2.5 bg-[#090d16]/30 border border-emerald-500/20 rounded-xl space-y-1 bg-emerald-950/20">
-                <span className="text-[10px] text-emerald-300 block font-bold">ยอดที่เขายังค้างจ่าย</span>
-                <span className="text-sm font-black text-emerald-400 block font-mono">
-                  ฿{lentSummary.remainingLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="pr-1 sm:pr-2">
+                <span className="text-[10px] md:text-xs text-slate-400 font-bold block uppercase tracking-wider">ค้างรับ</span>
+                <span className="text-xs md:text-base font-black text-[#059669] block mt-0.5 font-mono">
+                  {lentSummary.remainingLent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
@@ -717,44 +1013,44 @@ export default function MonthlyReport({
         </div>
 
         {/* Detailed Transactions List for Month (Separated clearly by Type and Colors) */}
-        <div className="space-y-2">
-          <h3 className="text-xs font-black text-white uppercase tracking-wider">
+        <div className="space-y-3 break-inside-avoid pt-4 border-t border-slate-100">
+          <h3 className="text-xs md:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
             📋 บันทึกรายการแบบละเอียดแยกตามรายรับ-รายจ่าย-โอนเงิน
           </h3>
 
-          <div className="overflow-x-auto rounded-2xl border border-white/5">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-[#121826] border-b border-white/5 text-slate-400 font-bold">
-                  <th className="py-2.5 px-4">วันเวลาทำรายการ</th>
-                  <th className="py-2.5 px-4">หมวดหมู่</th>
-                  <th className="py-2.5 px-4">รายละเอียดผู้โอน/ผู้รับเงิน/ร้านค้า</th>
-                  <th className="py-2.5 px-4">กระเป๋าเงิน</th>
-                  <th className="py-2.5 px-4 text-right">ประเภท</th>
-                  <th className="py-2.5 px-4 text-right">จำนวนเงิน</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                  <th className="py-3 px-4">วันเวลาทำรายการ</th>
+                  <th className="py-3 px-4">หมวดหมู่</th>
+                  <th className="py-3 px-4">รายละเอียดผู้โอน/ผู้รับเงิน/ร้านค้า</th>
+                  <th className="py-3 px-4">กระเป๋าเงิน</th>
+                  <th className="py-3 px-4 text-right">ประเภท</th>
+                  <th className="py-3 px-4 text-right">จำนวนเงิน</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 font-medium">
+              <tbody className="divide-y divide-slate-100 bg-white font-medium text-slate-700">
                 {monthlyTransactionsList.length > 0 ? (
                   monthlyTransactionsList.map((tx) => {
                     const foundWallet = wallets.find(w => w.id === tx.walletId);
                     const toWallet = wallets.find(w => w.id === tx.toWalletId);
                     
                     return (
-                      <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-4 font-semibold text-slate-300">
+                      <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-slate-600">
                           {tx.date} {tx.time ? `(${tx.time} น.)` : ""}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/5 text-slate-300">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600">
                             {tx.category}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-slate-200">
+                        <td className="py-3 px-4 text-slate-800 font-semibold">
                           {tx.merchantName || "-"}
-                          {tx.note && <span className="block text-[10px] text-slate-400 font-normal mt-0.5">📝 {tx.note}</span>}
+                          {tx.note && <span className="block text-[10px] text-slate-500 font-normal mt-0.5">📝 {tx.note}</span>}
                         </td>
-                        <td className="py-3 px-4 text-slate-300">
+                        <td className="py-3 px-4 text-slate-600">
                           {foundWallet ? (
                             <span className="inline-flex items-center gap-1.5">
                               <span>{foundWallet.icon}</span>
@@ -762,20 +1058,20 @@ export default function MonthlyReport({
                             </span>
                           ) : "-"}
                           {tx.type === "transfer" && toWallet && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-md ml-1.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md ml-1.5 border border-indigo-100">
                               <ArrowRightLeft className="w-3 h-3" /> {toWallet.name}
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right font-bold uppercase">
-                          {tx.type === "income" && <span className="text-emerald-400">รายรับ 💰</span>}
-                          {tx.type === "expense" && <span className="text-rose-400">รายจ่าย 💸</span>}
-                          {tx.type === "transfer" && <span className="text-indigo-400">โอนเงิน 🔄</span>}
+                        <td className="py-3 px-4 text-right font-black uppercase text-[10px] md:text-xs">
+                          {tx.type === "income" && <span className="text-[#00c853]">รายรับ 💰</span>}
+                          {tx.type === "expense" && <span className="text-[#ff2d55]">รายจ่าย 💸</span>}
+                          {tx.type === "transfer" && <span className="text-indigo-600">โอนเงิน 🔄</span>}
                         </td>
-                        <td className="py-3 px-4 text-right font-bold font-mono text-slate-200">
-                          {tx.type === "income" && <span className="text-emerald-400 font-extrabold">+฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
-                          {tx.type === "expense" && <span className="text-rose-400 font-extrabold">-฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
-                          {tx.type === "transfer" && <span className="text-indigo-400">฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
+                        <td className="py-3 px-4 text-right font-black font-mono">
+                          {tx.type === "income" && <span className="text-[#00c853] font-extrabold">+฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
+                          {tx.type === "expense" && <span className="text-[#ff2d55] font-extrabold">-฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
+                          {tx.type === "transfer" && <span className="text-indigo-600">฿{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>}
                         </td>
                       </tr>
                     );
@@ -790,6 +1086,16 @@ export default function MonthlyReport({
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Colored Bottom Footer Bar */}
+        <div className="bg-gradient-to-r from-[#ff007a] to-[#ff5a36] text-white py-3.5 px-6 -mx-6 -mb-6 md:-mx-8 md:-mb-8 rounded-b-3xl flex items-center justify-between text-[10px] md:text-xs font-bold shadow-md select-none break-inside-avoid">
+          <span>
+            รายงาน ณ วันที่ {new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}
+          </span>
+          <span className="flex items-center gap-1 font-black tracking-widest uppercase text-white/90">
+            UP ToMe <span className="text-amber-300">🪙</span>
+          </span>
         </div>
       </div>
     </div>
