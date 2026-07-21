@@ -531,14 +531,15 @@ export default function WalletManager({
                   </div>
 
                   {selectedWallet ? (
-                    <div
-                      className={`relative ${selectedWallet.color} border p-6 rounded-3xl text-white shadow-xl flex flex-col justify-between min-h-[200px] group transition-all duration-300 border-white/25`}
-                    >
+                    <>
+                      <div
+                        className={`relative ${selectedWallet.color} border p-6 rounded-3xl text-white shadow-xl flex flex-col justify-between min-h-[200px] group transition-all duration-300 border-white/25`}
+                      >
                       {/* Top line info */}
                       <div>
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
-                            <span className="text-4xl filter drop-shadow-md select-none">{selectedWallet.icon}</span>
+                            <span className="text-3xl filter drop-shadow-md select-none">{selectedWallet.icon}</span>
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <h4 className="font-extrabold text-lg tracking-wide truncate max-w-[150px]">
@@ -666,7 +667,16 @@ export default function WalletManager({
                             เริ่มที่: ฿{selectedWallet.initialBalance.toLocaleString("th-TH")}
                           </span>
                         </div>
+                      </div>
+                    </div>
 
+                    {/* Savings Goal detailed panel rendered as a separate card beneath the credit card */}
+                    {selectedWallet.type === "saving" && (
+                      <div className={`p-5 rounded-3xl border shadow-lg space-y-4 animate-fade-in ${
+                        theme === "light"
+                          ? "bg-white border-slate-200/80 text-slate-800"
+                          : "bg-white/5 border-white/10 text-white"
+                      }`}>
                         {selectedWallet.type === "saving" && selectedWallet.targetAmount && selectedWallet.targetAmount > 0 ? (
                           (() => {
                             const progressPercent = (selectedBalance / selectedWallet.targetAmount) * 100;
@@ -790,7 +800,8 @@ export default function WalletManager({
                           </div>
                         ) : null}
                       </div>
-                    </div>
+                    )}
+                    </>
                   ) : (
                     <div className="text-slate-400 text-xs py-10 bg-white/5 border border-white/10 rounded-2xl text-center">ไม่พบข้อมูลกระเป๋าเงิน</div>
                   )}
