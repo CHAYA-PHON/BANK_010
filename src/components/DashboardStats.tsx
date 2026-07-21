@@ -61,6 +61,9 @@ export default function DashboardStats({
   // Local edit input state for Baht goal
   const [customBahtInput, setCustomBahtInput] = useState("");
 
+  // Track hovered day in daily cash flow stacked bar chart
+  const [hoveredDay, setHoveredDay] = useState<any | null>(null);
+
   // Sync edit input when month changes
   useEffect(() => {
     setCustomBahtInput(bahtGoalAmount > 0 ? bahtGoalAmount.toString() : "");
@@ -150,6 +153,115 @@ export default function DashboardStats({
     const thaiYear = isNaN(yVal) ? "" : ` ${yVal + 543}`;
     return `${monthNames[monthIndex] || ""}${thaiYear}`;
   };
+
+  // Calculations for Cash Flow Movement System
+  const totalInflows = broughtForward + totalIncome;
+  const maxInflow = Math.max(totalInflows, 1);
+  const expenseToIncomePctStr = totalIncome > 0 ? ((totalExpense / totalIncome) * 100).toFixed(0) : (totalExpense > 0 ? "∞" : "0");
+  
+  let carriedForwardChangePct = 0;
+  if (broughtForward > 0) {
+    carriedForwardChangePct = ((carriedForward - broughtForward) / broughtForward) * 100;
+  } else if (carriedForward > 0) {
+    carriedForwardChangePct = 100;
+  }
+
+  // Daily Cash Flow data calculations for the selected month
+  const [yearStr, monthStr] = selectedMonth.split("-");
+  const parsedYear = parseInt(yearStr, 10);
+  const parsedMonth = parseInt(monthStr, 10);
+  const daysInMonth = isNaN(parsedYear) || isNaN(parsedMonth) ? 30 : new Date(parsedYear, parsedMonth, 0).getDate();
+
+  const excludedWalletIds = new Set(
+    wallets.filter((w) => w.excludeFromTotal).map((w) => w.id)
+  );
+
+  const dailyData: Array<{
+    day: number;
+    dateStr: string;
+    income: number;
+    expense: number;
+    remaining: number;
+  }> = [];
+
+  let runningBalance = broughtForward;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayStr = `${selectedMonth}-${String(d).padStart(2, "0")}`;
+    const dayTransactions = transactions.filter((tx) => tx.date === dayStr);
+
+    const income = dayTransactions.reduce((sum, tx) => {
+      if (tx.type === "income") {
+        const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+        if (!isExcluded) return sum + tx.amount;
+      } else if (tx.type === "transfer") {
+        const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+        const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+        // Transfer from excluded to main = income to main
+        if (isSrcExcluded && !isDstExcluded) return sum + tx.amount;
+      }
+      return sum;
+    }, 0);
+
+    const expense = dayTransactions.reduce((sum, tx) => {
+      if (tx.type === "expense") {
+        const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+        if (!isExcluded) return sum + tx.amount;
+      } else if (tx.type === "transfer") {
+        const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+        const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+        // Transfer from main to excluded = expense to main
+        if (!isSrcExcluded && isDstExcluded) return sum + tx.amount;
+      }
+      return sum;
+    }, 0);
+
+    runningBalance += income - expense;
+
+    dailyData.push({
+      day: d,
+      dateStr: dayStr,
+      income,
+      expense,
+      remaining: runningBalance,
+    });
+  }
+
+  // Maximum value for scaling the chart (non-stacked)
+  const rawMax = Math.max(
+    ...dailyData.map((d) => Math.max(d.income, d.expense, d.remaining)),
+    100 // minimum scale of 100
+  );
+
+  // Get a clean ceiling so that grid lines are neat and the bars have breathing room
+  let maxStackValue = 100;
+  if (rawMax <= 100) maxStackValue = 100;
+  else if (rawMax <= 250) maxStackValue = 250;
+  else if (rawMax <= 500) maxStackValue = 500;
+  else if (rawMax <= 1000) maxStackValue = 1000;
+  else if (rawMax <= 1500) maxStackValue = 1500;
+  else if (rawMax <= 2000) maxStackValue = 2000;
+  else if (rawMax <= 3000) maxStackValue = 3000;
+  else if (rawMax <= 5000) maxStackValue = 5000;
+  else if (rawMax <= 10000) maxStackValue = 10000;
+  else if (rawMax <= 15000) maxStackValue = 15000;
+  else if (rawMax <= 20000) maxStackValue = 20000;
+  else if (rawMax <= 30000) maxStackValue = 30000;
+  else if (rawMax <= 50000) maxStackValue = 50000;
+  else if (rawMax <= 100000) maxStackValue = 100000;
+  else {
+    maxStackValue = Math.ceil(rawMax / 50000) * 50000;
+  }
+
+  const linePoints = dailyData.map((d) => {
+    const cx = 45 + (d.day - 1) * 24 + 12;
+    const cy = 140 - (d.remaining / maxStackValue) * 130;
+    return { cx, cy, day: d.day, remaining: d.remaining, income: d.income, expense: d.expense };
+  });
+
+  const pathD = linePoints.length > 0
+    ? linePoints.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.cx} ${p.cy}`).join(' ')
+    : '';
 
   return (
     <div className="space-y-6">
@@ -717,6 +829,375 @@ export default function DashboardStats({
                 )}
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Cash Flow Movement System Card */}
+      <div id="cash-flow-movement-system" className="bg-gradient-to-br from-slate-900/60 to-slate-800/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl">
+              <ArrowRightLeft className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-white">🔄 ระบบคำนวณการเคลื่อนไหวของเงิน (Cash Flow Movement)</h3>
+              <p className="text-[10px] text-slate-400 mt-0.5">วิเคราะห์สัดส่วนและความเคลื่อนไหวของเงินทุนหมุนเวียนในเดือนนี้</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 self-start sm:self-center bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full text-[9px] text-indigo-300 font-bold">
+            <span>เดือน {formatThaiMonth(selectedMonth)}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          {/* Left panel: Detailed calculations */}
+          <div className="lg:col-span-5 space-y-3">
+            {/* Row 1: ยอดยกมา */}
+            <div id="row-brought-forward" className="bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl p-3.5 transition-all flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-slate-500/10 flex items-center justify-center text-slate-400 font-bold border border-slate-500/10">
+                  📦
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">ยอดยกมาตั้งต้น</span>
+                  <span className="text-xs text-slate-300 font-bold">ทุนตั้งต้นก่อนเริ่มเดือน</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-sm sm:text-base font-extrabold text-white block">
+                  ฿{broughtForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[8px] text-slate-400 block font-medium">ยอดยกมาจากเดือนก่อน</span>
+              </div>
+            </div>
+
+            {/* Row 2: รับรวม */}
+            <div id="row-income-total" className="bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 rounded-2xl p-3.5 transition-all flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/10">
+                  🟢
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">รับรวมเดือนนี้</span>
+                  <span className="text-xs text-slate-300 font-bold">รายรับและโอนย้ายขาเข้า</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-sm sm:text-base font-extrabold text-emerald-400 block">
+                  ฿{totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[8px] text-emerald-500/80 block font-bold">
+                  + เพิ่มเข้ากระเป๋าเงิน
+                </span>
+              </div>
+            </div>
+
+            {/* Row 3: จ่ายรวม */}
+            <div id="row-expense-total" className="bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 rounded-2xl p-3.5 transition-all flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 font-bold border border-rose-500/10">
+                  🔴
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">จ่ายรวมเดือนนี้</span>
+                  <span className="text-xs text-slate-300 font-bold">รายจ่ายและโอนเข้ากระปุกซ่อน</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-sm sm:text-base font-extrabold text-rose-400 block">
+                  ฿{totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-rose-500/15 text-rose-300 mt-0.5">
+                  คิดเป็น {expenseToIncomePctStr}% ของรายรับ
+                </span>
+              </div>
+            </div>
+
+            {/* Row 4: ยอดเงินยกไปเดือนหน้า */}
+            <div id="row-carried-forward" className="bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/10 rounded-2xl p-3.5 transition-all flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-bold border border-indigo-500/10">
+                  🏦
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-semibold">ยอดเงินยกไปเดือนหน้า</span>
+                  <span className="text-xs text-slate-300 font-bold">เงินคงเหลือสะสมยกยอดไป</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-sm sm:text-base font-extrabold text-white block">
+                  ฿{carriedForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black mt-0.5 ${
+                  carriedForward >= broughtForward 
+                    ? "bg-emerald-500/15 text-emerald-400" 
+                    : "bg-rose-500/15 text-rose-300"
+                }`}>
+                  {carriedForward >= broughtForward ? "เพิ่มขึ้น" : "ติดลบ"} {Math.abs(carriedForwardChangePct).toFixed(0)}% จากยอดยกมา
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right panel: Beautiful Visual Diagram Graph */}
+          <div id="sankey-flow-chart-panel" className="lg:col-span-7 bg-black/20 rounded-2xl p-4 border border-white/5 relative overflow-hidden flex flex-col justify-between min-h-[280px]">
+            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 border-b border-white/5 pb-2 mb-2">
+              <span>📊 กราฟความเคลื่อนไหวรายวัน (Daily Cash Flow & Balance Trend)</span>
+              <span className="text-[9px] text-slate-500">หน่วย: บาท (฿)</span>
+            </div>
+
+            {/* Scrollable Container for Daily Bar Chart */}
+            <div className="overflow-x-auto select-none pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+              <div style={{ width: `${daysInMonth * 24 + 65}px` }} className="relative h-[180px]">
+                <svg className="w-full h-full" viewBox={`0 0 ${daysInMonth * 24 + 65} 180`} preserveAspectRatio="xMinYMid meet">
+                  {/* Grid Lines & Y-axis labels */}
+                  {(() => {
+                    const gridLines = [];
+                    const steps = 4;
+                    for (let i = 0; i <= steps; i++) {
+                      const val = (maxStackValue / steps) * i;
+                      const y = 140 - (val / maxStackValue) * 130;
+                      gridLines.push({ val, y });
+                    }
+                    return gridLines.map((line, idx) => (
+                      <g key={idx}>
+                        <line
+                          x1="38"
+                          y1={line.y}
+                          x2={daysInMonth * 24 + 50}
+                          y2={line.y}
+                          stroke="rgba(255, 255, 255, 0.08)"
+                          strokeWidth="1"
+                          strokeDasharray="4,4"
+                        />
+                        <text
+                          x="32"
+                          y={line.y + 3}
+                          fill="#64748b"
+                          fontSize="8"
+                          fontWeight="bold"
+                          textAnchor="end"
+                        >
+                          {(() => {
+                            const val = line.val;
+                            if (val >= 1000) {
+                              const kVal = val / 1000;
+                              if (kVal % 1 === 0) {
+                                return `${kVal.toFixed(0)}k`;
+                              }
+                              return `${kVal.toFixed(1)}k`;
+                            }
+                            return Math.round(val).toString();
+                          })()}
+                        </text>
+                      </g>
+                    ));
+                  })()}
+
+                  {/* Daily Stacked Columns for Income and Expense */}
+                  {dailyData.map((dData) => {
+                    const x = 45 + (dData.day - 1) * 24;
+                    const cx = x + 12; // Center of the slot
+                    const barWidth = 10;
+                    const barX = cx - barWidth / 2;
+
+                    const greenHeight = (dData.income / maxStackValue) * 130;
+                    const redHeight = (dData.expense / maxStackValue) * 130;
+
+                    const yGreen = 140 - greenHeight;
+                    const yRed = 140 - greenHeight - redHeight;
+
+                    const isHovered = hoveredDay && hoveredDay.day === dData.day;
+
+                    return (
+                      <g key={`bars-${dData.day}`} className="transition-all duration-200">
+                        {/* Green Block ("รับ") */}
+                        {greenHeight > 0 && (
+                          <g>
+                            <rect
+                              x={barX}
+                              y={yGreen}
+                              width={barWidth}
+                              height={greenHeight}
+                              fill="#4ade80"
+                              stroke="rgba(255, 255, 255, 0.3)"
+                              strokeWidth="0.5"
+                              rx="1.5"
+                              className="transition-all duration-200"
+                              opacity={isHovered ? 1 : 0.85}
+                            />
+                            {greenHeight > 10 && (
+                              <text
+                                x={cx}
+                                y={yGreen + greenHeight / 2 + 2.5}
+                                fill="#047857"
+                                fontSize="6.5"
+                                fontWeight="black"
+                                textAnchor="middle"
+                              >
+                                {Math.round(dData.income)}
+                              </text>
+                            )}
+                          </g>
+                        )}
+
+                        {/* Red Block ("จ่าย") */}
+                        {redHeight > 0 && (
+                          <g>
+                            <rect
+                              x={barX}
+                              y={yRed}
+                              width={barWidth}
+                              height={redHeight}
+                              fill="#f87171"
+                              stroke="rgba(255, 255, 255, 0.3)"
+                              strokeWidth="0.5"
+                              rx="1.5"
+                              className="transition-all duration-200"
+                              opacity={isHovered ? 1 : 0.85}
+                            />
+                            {redHeight > 10 && (
+                              <text
+                                x={cx}
+                                y={yRed + redHeight / 2 + 2.5}
+                                fill="#7f1d1d"
+                                fontSize="6.5"
+                                fontWeight="black"
+                                textAnchor="middle"
+                              >
+                                {Math.round(dData.expense)}
+                              </text>
+                            )}
+                          </g>
+                        )}
+
+                        {/* X-Axis day label */}
+                        <text
+                          x={cx}
+                          y="158"
+                          fill={isHovered ? "#ffffff" : "#64748b"}
+                          fontSize="9"
+                          fontWeight="bold"
+                          textAnchor="middle"
+                        >
+                          {dData.day}
+                        </text>
+
+                        {/* Interactive overlay column */}
+                        <rect
+                          x={x - 2.5}
+                          y="5"
+                          width="24"
+                          height="160"
+                          fill="transparent"
+                          className="cursor-pointer"
+                          onMouseEnter={() => setHoveredDay(dData)}
+                          onMouseLeave={() => setHoveredDay(null)}
+                        />
+                      </g>
+                    );
+                  })}
+
+                  {/* Remaining Balance Line Stroke */}
+                  {pathD && (
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="drop-shadow-[0_0_4px_rgba(59,130,246,0.8)] pointer-events-none"
+                    />
+                  )}
+
+                  {/* Remaining Balance Dots and Value Labels */}
+                  {linePoints.map((pt) => {
+                    const isHovered = hoveredDay && hoveredDay.day === pt.day;
+                    return (
+                      <g key={`dot-group-${pt.day}`} className="pointer-events-none">
+                        <circle
+                          cx={pt.cx}
+                          cy={pt.cy}
+                          r={isHovered ? "5" : "3.5"}
+                          fill="#ffffff"
+                          stroke="#3b82f6"
+                          strokeWidth="2"
+                          className="transition-all duration-200"
+                        />
+                        <text
+                          x={pt.cx}
+                          y={pt.cy - 8}
+                          fill={isHovered ? "#60a5fa" : "#38bdf8"}
+                          fontSize="7"
+                          fontWeight="black"
+                          textAnchor="middle"
+                          className="filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                        >
+                          {Math.round(pt.remaining).toLocaleString()}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Bottom line baseline */}
+                  <line
+                    x1="38"
+                    y1="140"
+                    x2={daysInMonth * 24 + 50}
+                    y2="140"
+                    stroke="#475569"
+                    strokeWidth="1.5"
+                  />
+
+                  {/* Label for X-axis */}
+                  <text
+                    x="15"
+                    y="158"
+                    fill="#94a3b8"
+                    fontSize="9"
+                    fontWeight="bold"
+                    textAnchor="start"
+                  >
+                    วันที่
+                  </text>
+                </svg>
+              </div>
+            </div>
+
+            {/* Hover details display or help tip */}
+            {hoveredDay ? (
+              <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-xl p-2.5 text-[11px] text-indigo-200 mt-2 flex flex-wrap justify-between items-center gap-2 animate-fade-in">
+                <span className="font-extrabold text-white">📅 วันที่ {hoveredDay.day} {formatThaiMonth(selectedMonth)}</span>
+                <div className="flex gap-3 font-bold">
+                  <span className="text-emerald-400">🟢 รับ: ฿{hoveredDay.income.toLocaleString()}</span>
+                  <span className="text-rose-400">🔴 จ่าย: ฿{hoveredDay.expense.toLocaleString()}</span>
+                  <span className="text-amber-400">🟡 เหลือ: ฿{hoveredDay.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white/5 border border-white/5 rounded-xl p-2 text-[10px] text-slate-400 mt-2 text-center">
+                💡 วางเมาส์หรือแตะที่แท่งกราฟเพื่อดูรายละเอียดงบรายวันแบบเจาะลึก
+              </div>
+            )}
+
+            {/* Quick Helper Legend */}
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 border-t border-white/5 pt-2 text-[8px] sm:text-[9px] text-slate-400 mt-2">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#4ade80] border border-white/20" /> รับ (รายรับ)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#f87171] border border-white/20" /> จ่าย (รายจ่าย)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="relative flex items-center justify-center w-5 h-2.5">
+                  <span className="absolute w-5 h-[2px] bg-[#3b82f6]" />
+                  <span className="absolute w-2 h-2 rounded-full bg-white border border-[#3b82f6] z-10" />
+                </span>
+                ยอดคงเหลือ (สะสม)
+              </span>
+            </div>
           </div>
         </div>
       </div>
