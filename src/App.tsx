@@ -14,7 +14,7 @@ import MonthlyReport from "./components/MonthlyReport";
 import { 
   Sparkles, Coins, HelpCircle, ArrowUpRight, Plus, ScanLine, 
   History, PieChart, Landmark, ArrowRightLeft, Settings, LogOut, CheckCircle, Wallet as WalletIcon, ShieldAlert,
-  Keyboard, Monitor, X, FileSpreadsheet
+  Keyboard, Monitor, X, FileSpreadsheet, Cloud, Shield
 } from "lucide-react";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
@@ -1289,157 +1289,132 @@ export default function App() {
       <div className="absolute bottom-[10%] right-[-15%] w-[600px] h-[600px] bg-emerald-900/10 rounded-full blur-[150px] pointer-events-none"></div>
       
       {/* Fixed Premium Header & Navigation Hub */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-[#090d16]/95 backdrop-blur-md border-b border-white/5 pt-[env(safe-area-inset-top)] pb-0 md:pb-4">
+      <div className="fixed top-0 left-0 right-0 z-40 bg-[#090d16]/95 backdrop-blur-md border-b border-white/5 pt-[env(safe-area-inset-top)]">
         {/* Premium Header */}
-        <header className="">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-0.5 bg-white/5 border border-white/10 rounded-xl shadow-lg">
-                <img src="/favicon.svg" alt="up ToMe Logo" className="w-10 h-10 object-contain rounded-lg" referrerPolicy="no-referrer" />
-              </div>
-              <div>
-                <span className="font-black text-white text-base tracking-tight block flex items-center gap-1.5">
-                  up ToMe <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md border border-indigo-500/30 font-medium">บันทึกบัญชีอัจฉริยะ</span>
-                </span>
-                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block">
-                  Secure Personal Finance & AI Slip Scanning
-                </span>
-              </div>
+        <header className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+          {/* Brand Logo & Name */}
+          <div className="flex items-center gap-2">
+            <div className="p-0.5 bg-white/5 border border-white/10 rounded-lg shadow-lg">
+              <img src="/favicon.svg" alt="up ToMe Logo" className="w-7 h-7 object-contain rounded-md" referrerPolicy="no-referrer" />
             </div>
-
-            <div className="flex items-center gap-2 sm:gap-3">
-              {/* Quick Scan Slip AI Button */}
-              <button
-                onClick={() => {
-                  setCurrentPage("records");
-                  setActiveTab("scan");
-                }}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 border border-indigo-500/30 rounded-full px-3 py-1.5 shadow-lg shadow-indigo-600/20 transition-all cursor-pointer shrink-0 animate-pulse"
-                title="กดเพื่อสแกนบิล/สลิปทันทีด้วย AI"
-              >
-                <ScanLine className="w-3.5 h-3.5" />
-                <span>สแกนสลิป AI</span>
-              </button>
-
-              {firebaseStatus.status === "connected" ? (
-                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
-                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                  <span>คลาวด์ซิงก์สำเร็จ</span>
-                </div>
-              ) : firebaseStatus.status === "connecting" ? (
-                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-3 py-1.5 shadow-sm">
-                  <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-spin" />
-                  <span>กำลังเชื่อมต่อ...</span>
-                </div>
-              ) : (
-                <button 
-                  onClick={() => setShowFirebaseErrorDetail(true)}
-                  title={firebaseStatus.error || "คลิกเพื่อดูรายละเอียดข้อผิดพลาด"}
-                  className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-full px-3 py-1.5 shadow-sm transition-all cursor-pointer"
-                >
-                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping" />
-                  <span>ออฟไลน์โหมด (แตะดูข้อผิดพลาด)</span>
-                </button>
-              )}
-              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
-                <span>ปลอดภัยสูง</span>
-              </div>
-              
-              <button
-                onClick={() => setShowShortcutsHelp(true)}
-                className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-full px-3.5 py-1.5 shadow-sm transition-all cursor-pointer"
-                title="ดูคีย์ลัดสำหรับควบคุมด้วยคีย์บอร์ดบน PC"
-              >
-                <Keyboard className="w-3.5 h-3.5" />
-                <span>คีย์ลัด PC (คีย์บอร์ด)</span>
-              </button>
-
-              <button
-                onClick={handleLogout}
-                title="ออกจากระบบเพื่อความปลอดภัย"
-                className="p-2.5 bg-white/5 hover:bg-rose-500/20 border border-white/5 hover:border-rose-500/20 rounded-xl text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
+            <span className="font-black text-white text-base tracking-tight">up ToMe</span>
           </div>
-        </header>
 
-        {/* Primary Navigation Hub (Desktop & Tablet) */}
-        <nav className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2">
-          <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-6 gap-1.5 max-w-4xl mx-auto">
+          {/* Primary Navigation Hub (Desktop & Tablet) - Compact in Header Center */}
+          <nav className="hidden md:flex items-center gap-1 bg-white/5 border border-white/5 p-1 rounded-xl">
             <button
               onClick={() => setCurrentPage("dashboard")}
-              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentPage === "dashboard"
-                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <PieChart className="w-4 h-4" />
-              แดชบอร์ด
+              <PieChart className="w-3.5 h-3.5" />
+              <span>แดชบอร์ด</span>
             </button>
             <button
               onClick={() => {
                 setCurrentPage("records");
                 setActiveTab("manual");
               }}
-              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentPage === "records"
-                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Plus className="w-4 h-4" />
-              บันทึกเอง
+              <Plus className="w-3.5 h-3.5" />
+              <span>บันทึกเอง</span>
             </button>
             <button
               onClick={() => setCurrentPage("report")}
-              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentPage === "report"
-                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              รายงานประจำเดือน
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>รายงาน</span>
             </button>
             <button
               onClick={() => setCurrentPage("wallets")}
-              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentPage === "wallets"
-                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <WalletIcon className="w-4 h-4" />
-              กระเป๋าเงิน
+              <WalletIcon className="w-3.5 h-3.5" />
+              <span>กระเป๋าเงิน</span>
             </button>
             <button
               onClick={() => setCurrentPage("debts")}
-              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentPage === "debts"
-                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Landmark className="w-4 h-4" />
-              หนี้สินและกู้ยืม
+              <Landmark className="w-3.5 h-3.5" />
+              <span>หนี้สินและกู้ยืม</span>
             </button>
             <button
               onClick={() => setCurrentPage("settings")}
-              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentPage === "settings"
-                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Settings className="w-4 h-4" />
-              ตั้งค่าระบบ
+              <Settings className="w-3.5 h-3.5" />
+              <span>ตั้งค่าระบบ</span>
+            </button>
+          </nav>
+
+          {/* Right Section: Compact Status Icons & Logout */}
+          <div className="flex items-center gap-2">
+            {firebaseStatus.status === "connected" ? (
+              <div 
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 cursor-help transition-all hover:bg-emerald-500/20"
+                title="คลาวด์ซิงก์สำเร็จ (เชื่อมต่อระบบปลอดภัย)"
+              >
+                <Cloud className="w-4 h-4 animate-pulse" />
+              </div>
+            ) : firebaseStatus.status === "connecting" ? (
+              <div 
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 cursor-help transition-all hover:bg-indigo-500/20"
+                title="กำลังเชื่อมต่อคลาวด์..."
+              >
+                <Cloud className="w-4 h-4 animate-spin" />
+              </div>
+            ) : (
+              <button 
+                onClick={() => setShowFirebaseErrorDetail(true)}
+                title={firebaseStatus.error || "ออฟไลน์โหมด (คลิกเพื่อดูรายละเอียด)"}
+                className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 cursor-pointer transition-all"
+              >
+                <Cloud className="w-4 h-4 animate-bounce" />
+              </button>
+            )}
+
+            <div 
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 cursor-help transition-all hover:bg-emerald-500/20"
+              title="ปลอดภัยสูง (เข้ารหัสข้อมูลปลายทาง)"
+            >
+              <Shield className="w-4 h-4" />
+            </div>
+
+            <button
+              onClick={handleLogout}
+              title="ออกจากระบบเพื่อความปลอดภัย"
+              className="p-2 bg-white/5 hover:bg-rose-500/20 border border-white/5 hover:border-rose-500/20 rounded-xl text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
-        </nav>
+        </header>
       </div>
 
       {/* Mobile Sticky Bottom Navigation Bar (App-like Navigation) */}
@@ -1506,7 +1481,7 @@ export default function App() {
       </nav>
 
       {/* Main Dynamic Viewport */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-36 pb-8 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-20 pb-8 relative z-10">
         
         {/* VIEW 1: Overview Dashboard */}
         {currentPage === "dashboard" && (
