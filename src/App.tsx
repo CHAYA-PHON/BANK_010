@@ -1528,7 +1528,7 @@ export default function App() {
             <AISummaryCard transactions={monthlyTransactions} selectedMonth={selectedMonth} />
 
             {/* Send Daily summary to LINE Notify */}
-            <LineSummarySender transactions={transactions} wallets={wallets} currentUser={currentUser} />
+            <LineSummarySender transactions={transactions} wallets={wallets} currentUser={currentUser} debts={debts} />
 
             {/* Visual analytics plots */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

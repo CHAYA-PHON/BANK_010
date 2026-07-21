@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Transaction, Wallet } from "../types";
+import { Transaction, Wallet, Debt } from "../types";
 import { 
   Bell, Send, Check, Loader2, AlertCircle, Calendar, Sparkles, 
   Lock, Settings, ShieldAlert, MessageSquare, Info, AlertTriangle, Users, User
@@ -12,9 +12,10 @@ interface LineSummarySenderProps {
   transactions: Transaction[];
   wallets: Wallet[];
   currentUser?: string;
+  debts?: Debt[];
 }
 
-export default function LineSummarySender({ transactions, wallets, currentUser }: LineSummarySenderProps) {
+export default function LineSummarySender({ transactions, wallets, currentUser, debts = [] }: LineSummarySenderProps) {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     // Default to local today date in YYYY-MM-DD
     const tzoffset = new Date().getTimezoneOffset() * 60000; // offset in milliseconds
@@ -77,72 +78,176 @@ export default function LineSummarySender({ transactions, wallets, currentUser }
     loadLineConfig();
   }, [currentUser]);
 
-  // Filter transactions for the selected date
-  const dayTransactions = transactions.filter((tx) => tx.date === selectedDate);
+  // Excluded wallets set
+  const excludedWalletIds = new Set(
+    wallets.filter((w) => w.excludeFromTotal).map((w) => w.id)
+  );
 
-  // Group by type & category
-  const incomes = dayTransactions.filter((tx) => tx.type === "income");
-  const expenses = dayTransactions.filter((tx) => tx.type === "expense");
-  const transfers = dayTransactions.filter((tx) => tx.type === "transfer");
+  // Filter transactions for the selected date - excluding transactions belonging ONLY to excluded wallets
+  const dayTransactions = transactions.filter((tx) => {
+    if (tx.date !== selectedDate) return false;
+    
+    // If income/expense in excluded wallet, filter it out
+    if (tx.type === "income" || tx.type === "expense") {
+      if (tx.walletId && excludedWalletIds.has(tx.walletId)) {
+        return false;
+      }
+    }
+    
+    // If transfer where both src and dst are excluded, filter it out
+    if (tx.type === "transfer") {
+      const srcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const dstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      if (srcExcluded && dstExcluded) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
-  const totalIncome = incomes.reduce((sum, tx) => sum + tx.amount, 0);
-  const totalExpense = expenses.reduce((sum, tx) => sum + tx.amount, 0);
+  // Helper to calculate net changes of non-excluded wallets for a list of transactions
+  const getNetBalanceForTransactions = (txList: Transaction[]) => {
+    return txList.reduce((sum, tx) => {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+
+      if (tx.type === "income") {
+        if (!isSrcExcluded) return sum + tx.amount;
+      } else if (tx.type === "expense") {
+        if (!isSrcExcluded) return sum - tx.amount;
+      } else if (tx.type === "transfer") {
+        if (isSrcExcluded && !isDstExcluded) {
+          return sum + tx.amount;
+        } else if (!isSrcExcluded && isDstExcluded) {
+          return sum - tx.amount;
+        }
+      }
+      return sum;
+    }, 0);
+  };
+
+  // Calculate day total income and expenses for non-excluded wallets
+  const totalIncome = dayTransactions.reduce((sum, tx) => {
+    if (tx.type === "income") {
+      const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      if (!isExcluded) return sum + tx.amount;
+    } else if (tx.type === "transfer") {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      if (isSrcExcluded && !isDstExcluded) return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
+
+  const totalExpense = dayTransactions.reduce((sum, tx) => {
+    if (tx.type === "expense") {
+      const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      if (!isExcluded) return sum + tx.amount;
+    } else if (tx.type === "transfer") {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      if (!isSrcExcluded && isDstExcluded) return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
+
   const netAmount = totalIncome - totalExpense;
+
+  // Calculate Brought Forward (ยอดยกมา) and Remaining Balance (ยอดคงเหลือสะสม)
+  const nonExcludedWallets = wallets.filter(w => !w.excludeFromTotal);
+  const initialBalanceSum = nonExcludedWallets.reduce((sum, w) => sum + w.initialBalance, 0);
+  const txsBeforeSelectedDate = transactions.filter(tx => tx.date < selectedDate);
+  const broughtForward = initialBalanceSum + getNetBalanceForTransactions(txsBeforeSelectedDate);
+  const remainingBalance = broughtForward + netAmount;
 
   // Group expenses by category
   const expenseByCategory: Record<string, number> = {};
-  expenses.forEach((tx) => {
-    expenseByCategory[tx.category] = (expenseByCategory[tx.category] || 0) + tx.amount;
+  dayTransactions.forEach((tx) => {
+    if (tx.type === "expense") {
+      const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      if (!isExcluded) {
+        expenseByCategory[tx.category] = (expenseByCategory[tx.category] || 0) + tx.amount;
+      }
+    } else if (tx.type === "transfer") {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      if (!isSrcExcluded && isDstExcluded) {
+        expenseByCategory["โอนเข้ากระปุกออมสิน (ซ่อน)"] = (expenseByCategory["โอนเข้ากระปุกออมสิน (ซ่อน)"] || 0) + tx.amount;
+      }
+    }
   });
 
-  // Automatically update the message template when date, transactions, or AI analysis changes
-  useEffect(() => {
-    if (dayTransactions.length === 0) {
-      setMessage(`[FinanceAI สรุปประจำวัน]
-🗓 ประจำวันที่: ${formatThaiDate(selectedDate)}
+  // Calculate active borrowed debts
+  const activeDebts = debts ? debts.filter(d => d.type === "borrowed" && d.status === "active") : [];
+  const totalDebtAmount = activeDebts.reduce((sum, d) => sum + d.remainingAmount, 0);
 
-⚠️ ไม่มีรายการบันทึกรายรับ-รายจ่ายในวันนี้`);
-      return;
+  // Automatically update the message template when date, transactions, debts or AI analysis changes
+  useEffect(() => {
+    const dateStr = formatThaiDate(selectedDate);
+    const absNet = Math.abs(netAmount);
+    const changePct = broughtForward > 0 ? (absNet / broughtForward) * 100 : 0;
+
+    let changeLine = "";
+    if (netAmount < 0) {
+      changeLine = `⏬ลดลง ${absNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท หรือ ${changePct.toFixed(2)}%`;
+    } else if (netAmount > 0) {
+      changeLine = `⏫เพิ่มขึ้น ${netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท หรือ ${changePct.toFixed(2)}%`;
+    } else {
+      changeLine = `⚖️ ยอดเงินคงที่ (ไม่มีการเปลี่ยนแปลง)`;
     }
 
-    const dateStr = formatThaiDate(selectedDate);
     let text = `[FinanceAI สรุปประจำวัน]
 🗓 ประจำวันที่: ${dateStr}
 
-📊 ภาพรวมวันนี้:
-🟢 รายรับรวม: ฿${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-🔴 รายจ่ายรวม: ฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-⚖️ ยอดคงเหลือสุทธิ: ฿${netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-
+📊 สรุปยอดเงินในบัญชี :
+📦 ยอดยกมาวันนี้: ฿${broughtForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+🟢 รายรับรวมวันนี้: ฿${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+🔴 รายจ่ายรวมวันนี้: ฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+${changeLine}
+🏦 ยอดเงินคงเหลือรวมสะสม: ฿${remainingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 `;
 
-    if (expenses.length > 0) {
-      text += `แยกตามหมวดหมู่รายจ่าย:\n`;
-      Object.entries(expenseByCategory).forEach(([cat, amt]) => {
-        text += `• ${cat}: ฿${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+    if (totalDebtAmount > 0) {
+      text += `\n🚨 หนี้สินค้างจ่ายทั้งหมด: ฿${totalDebtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      activeDebts.forEach((d) => {
+        text += ` • ${d.creditorDebtorName}: ค้าง ฿${d.remainingAmount.toLocaleString()}${d.dueDate ? ` (กำหนด ${d.dueDate})` : ""}\n`;
       });
-      text += `\n`;
     }
 
-    text += `รายการทั้งหมดในวันนี้ (${dayTransactions.length} รายการ):\n`;
-    dayTransactions.forEach((tx, idx) => {
-      const typeSign = tx.type === "income" ? "🟢 [รับ]" : tx.type === "expense" ? "🔴 [จ่าย]" : "🔵 [โอน]";
-      const walletName = wallets.find((w) => w.id === tx.walletId)?.name || "ทั่วไป";
-      const toWalletName = tx.type === "transfer" && tx.toWalletId 
-        ? ` -> ${wallets.find((w) => w.id === tx.toWalletId)?.name || "ทั่วไป"}` 
-        : "";
-      const details = tx.merchantName ? ` (${tx.merchantName})` : "";
-      const note = tx.note ? ` - โน้ต: ${tx.note}` : "";
-      
-      text += `${idx + 1}) ${typeSign} ฿${tx.amount.toLocaleString()} | ${tx.category}${details} [ผ่าน ${walletName}${toWalletName}]${note}\n`;
-    });
+    text += `\n`;
+
+    if (dayTransactions.length === 0) {
+      text += `📝 รายการบันทึก:\n⚠️ ไม่มีรายการบันทึกรายรับ-รายจ่ายในวันนี้\n`;
+    } else {
+      if (Object.keys(expenseByCategory).length > 0) {
+        text += `แยกตามหมวดหมู่รายจ่าย:\n`;
+        Object.entries(expenseByCategory).forEach(([cat, amt]) => {
+          text += `• ${cat}: ฿${amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+        });
+        text += `\n`;
+      }
+
+      text += `รายการทั้งหมดในวันนี้ (${dayTransactions.length} รายการ):\n`;
+      dayTransactions.forEach((tx, idx) => {
+        const typeSign = tx.type === "income" ? "🟢 [รับ]" : tx.type === "expense" ? "🔴 [จ่าย]" : "🔵 [โอน]";
+        const walletName = wallets.find((w) => w.id === tx.walletId)?.name || "ทั่วไป";
+        const toWalletName = tx.type === "transfer" && tx.toWalletId 
+          ? ` -> ${wallets.find((w) => w.id === tx.toWalletId)?.name || "ทั่วไป"}` 
+          : "";
+        const details = tx.merchantName ? ` (${tx.merchantName})` : "";
+        const note = tx.note ? ` - โน้ต: ${tx.note}` : "";
+        
+        text += `${idx + 1}) ${typeSign} ฿${tx.amount.toLocaleString()} | ${tx.category}${details} [ผ่าน ${walletName}${toWalletName}]${note}\n`;
+      });
+    }
 
     if (aiAnalysis) {
       text += `\n💡 บทวิเคราะห์สั้นๆ โดย AI:\n${aiAnalysis}`;
     }
 
     setMessage(text);
-  }, [selectedDate, dayTransactions.length, aiAnalysis]);
+  }, [selectedDate, transactions, wallets, debts, aiAnalysis]);
 
   // Thai Date Formatter
   const formatThaiDate = (dateStr: string) => {

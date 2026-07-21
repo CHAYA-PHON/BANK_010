@@ -43,8 +43,8 @@ export default function DashboardStats({
   const savingsRate = totalIncome > 0 ? (actualSavings / totalIncome) * 100 : 0;
   const netFlowRate = totalIncome > 0 ? (currentMonthNet / totalIncome) * 100 : 0;
 
-  const [goalMode, setGoalMode] = useState<"baht" | "percent">(() => {
-    return (localStorage.getItem("savings_goal_mode") as "baht" | "percent") || "baht";
+  const [goalMode, setGoalMode] = useState<"saving_wallets" | "baht" | "percent">(() => {
+    return (localStorage.getItem("savings_goal_mode") as any) || "saving_wallets";
   });
 
   const [savingsGoal, setSavingsGoal] = useState(() => {
@@ -67,19 +67,74 @@ export default function DashboardStats({
   }, [bahtGoalAmount, selectedMonth]);
 
   // Handle saving goal mode
-  const handleGoalModeToggle = (mode: "baht" | "percent") => {
+  const handleGoalModeToggle = (mode: "saving_wallets" | "baht" | "percent") => {
     setGoalMode(mode);
     localStorage.setItem("savings_goal_mode", mode);
   };
 
+  // Helper to calculate target monthly savings for a saving wallet
+  const getWalletMonthlyTarget = (w: Wallet) => {
+    const target = w.targetAmount ?? 0;
+    if (target <= 0) return 0;
+    const val = w.goalPeriodValue ?? 1;
+    const unit = w.goalPeriodUnit ?? 'year';
+    const months = unit === 'year' ? val * 12 : val;
+    return target / months;
+  };
+
+  // Filter saving wallets with a valid target amount
+  const savingWallets = wallets.filter(w => w.type === "saving" && w.targetAmount && w.targetAmount > 0);
+
+  // Calculate stats for each saving wallet for the currently selected month
+  const savingWalletsWithTargets = savingWallets.map(w => {
+    const monthlyTarget = getWalletMonthlyTarget(w);
+    
+    // Calculate net change of this wallet in the selected month
+    const monthlyNetChange = transactions
+      .filter(tx => tx.date.startsWith(selectedMonth))
+      .reduce((sum, tx) => {
+        if (tx.type === "income" && tx.walletId === w.id) {
+          return sum + tx.amount;
+        }
+        if (tx.type === "expense" && tx.walletId === w.id) {
+          return sum - tx.amount;
+        }
+        if (tx.type === "transfer") {
+          if (tx.toWalletId === w.id) {
+            return sum + tx.amount;
+          }
+          if (tx.walletId === w.id) {
+            return sum - tx.amount;
+          }
+        }
+        return sum;
+      }, 0);
+      
+    return {
+      wallet: w,
+      monthlyTarget,
+      monthlySaved: Math.max(0, monthlyNetChange),
+    };
+  });
+
+  const totalSavingWalletsMonthlyTarget = savingWalletsWithTargets.reduce((sum, item) => sum + item.monthlyTarget, 0);
+  const totalSavingWalletsMonthlySaved = savingWalletsWithTargets.reduce((sum, item) => sum + item.monthlySaved, 0);
+
   // Recommended/Target Savings based on mode
-  const recommendedSavings = goalMode === "baht" 
+  const recommendedSavings = goalMode === "saving_wallets"
+    ? totalSavingWalletsMonthlyTarget
+    : goalMode === "baht" 
     ? bahtGoalAmount 
     : totalIncome * (savingsGoal / 100);
 
+  // Actual Savings used for the target indicator based on mode
+  const actualSavingsGoalAmount = goalMode === "saving_wallets"
+    ? totalSavingWalletsMonthlySaved
+    : actualSavings;
+
   const achievementPercent = recommendedSavings > 0 
-    ? (actualSavings / recommendedSavings) * 100 
-    : (currentMonthNet > 0 || actualSavings > 0 ? 100 : 0);
+    ? (actualSavingsGoalAmount / recommendedSavings) * 100 
+    : (currentMonthNet > 0 || actualSavingsGoalAmount > 0 ? 100 : 0);
 
   // Thai Month Formatter
   const formatThaiMonth = (monthStr: string) => {
@@ -432,16 +487,23 @@ export default function DashboardStats({
                   }
                 </span>
                 <span className="text-[8px] text-slate-500 block">
-                  {goalMode === "baht" ? "🎯 ตั้งเป้าแบบรายเดือน" : `🎯 ${savingsGoal}% ของรายรับ`}
+                  {goalMode === "saving_wallets" 
+                    ? "🐷 ดึงจากกระปุกออมสิน" 
+                    : goalMode === "baht" 
+                    ? "🎯 ตั้งเป้าแบบรายเดือน" 
+                    : `🎯 ${savingsGoal}% ของรายรับ`}
                 </span>
               </div>
               <div>
                 <span className="text-slate-400 block">สะสมได้จริง:</span>
-                <span className={`font-bold ${actualSavings >= recommendedSavings && recommendedSavings > 0 ? "text-emerald-400" : "text-pink-400"}`}>
-                  ฿{actualSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                <span className={`font-bold ${actualSavingsGoalAmount >= recommendedSavings && recommendedSavings > 0 ? "text-emerald-400" : "text-pink-400"}`}>
+                  ฿{actualSavingsGoalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
                 <span className="text-[8px] text-slate-500 block">
-                  ({savingsRate.toFixed(1)}% ของรายรับ)
+                  ({goalMode === "saving_wallets" 
+                    ? `${recommendedSavings > 0 ? ((actualSavingsGoalAmount / recommendedSavings) * 100).toFixed(1) : 0}% ของเป้ากระปุก`
+                    : `${savingsRate.toFixed(1)}% ของรายรับ`
+                  })
                 </span>
               </div>
             </div>
@@ -470,6 +532,57 @@ export default function DashboardStats({
                 />
               </div>
             </div>
+
+            {/* Saving Wallets breakdown list when in saving_wallets mode */}
+            {goalMode === "saving_wallets" && (
+              <div className="mt-3.5 space-y-2">
+                <div className="flex justify-between items-center text-[9px] font-bold text-pink-300">
+                  <span>🐷 รายการกระปุกออมสินเป้าหมาย:</span>
+                  <span className="text-[8px] text-slate-400">กำหนดออมรายเดือน</span>
+                </div>
+                {savingWalletsWithTargets.length > 0 ? (
+                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-0.5 custom-scrollbar">
+                    {savingWalletsWithTargets.map(({ wallet, monthlyTarget, monthlySaved }) => {
+                      const pct = monthlyTarget > 0 ? (monthlySaved / monthlyTarget) * 100 : 0;
+                      return (
+                        <div key={wallet.id} className="bg-black/20 hover:bg-black/30 border border-white/5 rounded-xl p-2 transition-all space-y-1.5">
+                          <div className="flex justify-between items-center text-[9px]">
+                            <span className="font-bold text-slate-200 flex items-center gap-1 truncate max-w-[120px]">
+                              <span>🐷 {wallet.name}</span>
+                              {wallet.excludeFromTotal && (
+                                <span className="text-[7px] bg-indigo-500/20 text-indigo-300 px-1 py-0.2 rounded border border-indigo-500/10">ซ่อนยอด</span>
+                              )}
+                            </span>
+                            <span className="font-semibold text-slate-300">
+                              ฿{monthlySaved.toLocaleString()} / <span className="text-pink-300 font-bold">฿{monthlyTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </span>
+                          </div>
+                          <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                pct >= 100 ? "bg-emerald-400" : "bg-pink-400"
+                              }`}
+                              style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between items-center text-[8px] text-slate-500">
+                            <span>เก็บเพิ่มเดือนนี้:</span>
+                            <span className={pct >= 100 ? "text-emerald-400 font-bold" : "text-slate-400"}>
+                              {pct.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center p-3 bg-black/10 rounded-xl border border-white/5 text-[9px] text-slate-400 leading-relaxed">
+                    ⚠️ ไม่พบกระปุกออมสินที่มีการตั้งยอดเป้าหมายการออม<br/>
+                    <span className="text-[8px] text-slate-500">สร้างหรือระบุยอดเป้าหมายออมได้ที่เมนู "จัดการกระเป๋าเงิน"</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Explanation if Negative */}
@@ -483,7 +596,13 @@ export default function DashboardStats({
           <div className="space-y-2 pt-2 border-t border-white/5">
             <div className="flex justify-between items-center">
               <div className="text-[9px] text-slate-400">
-                รูปแบบ: <span className="font-bold text-slate-200">{goalMode === "baht" ? "จำนวนเงินบาท" : "อิงอัตราเปอร์เซ็นต์"}</span>
+                รูปแบบ: <span className="font-bold text-slate-200">
+                  {goalMode === "saving_wallets" 
+                    ? "ดึงจากกระปุกออมสิน" 
+                    : goalMode === "baht" 
+                    ? "จำนวนเงินบาท" 
+                    : "อิงอัตราเปอร์เซ็นต์"}
+                </span>
               </div>
               <button
                 type="button"
@@ -497,11 +616,22 @@ export default function DashboardStats({
             {isEditingGoal && (
               <div className="space-y-3 pt-1.5 animate-fade-in bg-white/5 p-2.5 rounded-2xl border border-white/5">
                 {/* Mode Selector */}
-                <div className="grid grid-cols-2 gap-1 p-0.5 bg-black/20 rounded-lg">
+                <div className="grid grid-cols-3 gap-1 p-0.5 bg-black/20 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => handleGoalModeToggle("saving_wallets")}
+                    className={`py-1 text-[8px] sm:text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                      goalMode === "saving_wallets" 
+                        ? "bg-pink-500/20 text-pink-300 border border-pink-500/20" 
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    🐷 ดึงจากกระปุก
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleGoalModeToggle("baht")}
-                    className={`py-1 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                    className={`py-1 text-[8px] sm:text-[9px] font-bold rounded-md transition-all cursor-pointer ${
                       goalMode === "baht" 
                         ? "bg-pink-500/20 text-pink-300 border border-pink-500/20" 
                         : "text-slate-400 hover:text-slate-200"
@@ -512,7 +642,7 @@ export default function DashboardStats({
                   <button
                     type="button"
                     onClick={() => handleGoalModeToggle("percent")}
-                    className={`py-1 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                    className={`py-1 text-[8px] sm:text-[9px] font-bold rounded-md transition-all cursor-pointer ${
                       goalMode === "percent" 
                         ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" 
                         : "text-slate-400 hover:text-slate-200"
@@ -523,7 +653,15 @@ export default function DashboardStats({
                 </div>
 
                 {/* Input Fields based on mode */}
-                {goalMode === "baht" ? (
+                {goalMode === "saving_wallets" ? (
+                  <div className="space-y-1.5 text-[9px] sm:text-[10px] text-slate-300 leading-normal">
+                    <span className="font-extrabold text-pink-300 block">🐷 ดึงเป้าหมายจากกระปุกออมสิน:</span>
+                    <div>คำนวณเป้าหมายรายเดือนอัตโนมัติจากแผนการออมเงินในแต่ละกระปุกรวมกัน</div>
+                    <div className="text-[8px] text-slate-400 italic mt-1 leading-relaxed">
+                      *สามารถสร้างกระปุกใหม่ ระบุเป้าหมาย และระยะเวลาออมเงินได้จากแถบเมนู "จัดการกระเป๋าเงิน" แล้วระบบจะดึงข้อมูลมาแสดงที่นี่โดยอัตโนมัติ
+                    </div>
+                  </div>
+                ) : goalMode === "baht" ? (
                   <div className="space-y-1.5">
                     <label className="block text-[8px] font-semibold text-slate-400">
                       เป้าหมายการออมเดือน {formatThaiMonth(selectedMonth)}
