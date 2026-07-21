@@ -3,8 +3,6 @@ import { Transaction, Wallet, Debt, DebtPayment, MonthlyGoal } from "./types";
 import SlipUploader from "./components/SlipUploader";
 import TransactionForm from "./components/TransactionForm";
 import DashboardStats from "./components/DashboardStats";
-import CategoryBreakdown from "./components/CategoryBreakdown";
-import MonthlyTrendChart from "./components/MonthlyTrendChart";
 import AISummaryCard from "./components/AISummaryCard";
 import HistoryList from "./components/HistoryList";
 import WalletManager from "./components/WalletManager";
@@ -1509,31 +1507,32 @@ export default function App() {
         
         {/* VIEW 1: Overview Dashboard */}
         {currentPage === "dashboard" && (
-          <div className="space-y-6 animate-fade-in">
-            {/* Top overview statistics */}
-            <DashboardStats
-              totalIncome={totalIncome}
-              totalExpense={totalExpense}
-              availableMonths={availableMonths}
-              selectedMonth={selectedMonth}
-              onMonthChange={setSelectedMonth}
-              broughtForward={broughtForward}
-              transactions={monthlyTransactions}
-              wallets={wallets}
-              monthlyGoals={monthlyGoals}
-              onSaveMonthlyGoal={handleAddOrUpdateMonthlyGoal}
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in items-start">
+            {/* Left Column: Stats Cards (spans 2/3 width on PC) */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Top overview statistics */}
+              <DashboardStats
+                totalIncome={totalIncome}
+                totalExpense={totalExpense}
+                availableMonths={availableMonths}
+                selectedMonth={selectedMonth}
+                onMonthChange={setSelectedMonth}
+                broughtForward={broughtForward}
+                transactions={monthlyTransactions}
+                allTransactions={transactions}
+                wallets={wallets}
+                monthlyGoals={monthlyGoals}
+                onSaveMonthlyGoal={handleAddOrUpdateMonthlyGoal}
+              />
+            </div>
 
-            {/* Smart AI Financial Analysis */}
-            <AISummaryCard transactions={monthlyTransactions} selectedMonth={selectedMonth} />
+            {/* Right Column: AI Analysis and LINE Notify (spans 1/3 width on PC) */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Smart AI Financial Analysis */}
+              <AISummaryCard transactions={monthlyTransactions} selectedMonth={selectedMonth} />
 
-            {/* Send Daily summary to LINE Notify */}
-            <LineSummarySender transactions={transactions} wallets={wallets} currentUser={currentUser} debts={debts} />
-
-            {/* Visual analytics plots */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <MonthlyTrendChart transactions={transactions} selectedMonth={selectedMonth} />
-              <CategoryBreakdown transactions={monthlyTransactions} />
+              {/* Send Daily summary to LINE Notify */}
+              <LineSummarySender transactions={transactions} wallets={wallets} currentUser={currentUser} debts={debts} />
             </div>
           </div>
         )}
