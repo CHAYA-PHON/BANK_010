@@ -148,6 +148,94 @@ body {
   color: #be123c !important;
 }
 
+/* RESTORE BRIGHT TEXT INSIDE SOLID GRADIENT WALLET CARDS IN LIGHT THEME */
+.theme-light [class*="from-indigo-600"] .text-slate-400,
+.theme-light [class*="from-indigo-600"] .text-gray-400,
+.theme-light [class*="from-indigo-600"] .text-zinc-400,
+.theme-light [class*="from-emerald-600"] .text-slate-400,
+.theme-light [class*="from-emerald-600"] .text-gray-400,
+.theme-light [class*="from-emerald-600"] .text-zinc-400,
+.theme-light [class*="from-rose-600"] .text-slate-400,
+.theme-light [class*="from-rose-600"] .text-gray-400,
+.theme-light [class*="from-rose-600"] .text-zinc-400,
+.theme-light [class*="from-amber-500"] .text-slate-400,
+.theme-light [class*="from-amber-500"] .text-gray-400,
+.theme-light [class*="from-amber-500"] .text-zinc-400,
+.theme-light [class*="from-blue-600"] .text-slate-400,
+.theme-light [class*="from-blue-600"] .text-gray-400,
+.theme-light [class*="from-blue-600"] .text-zinc-400,
+.theme-light [class*="from-slate-700"] .text-slate-400,
+.theme-light [class*="from-slate-700"] .text-gray-400,
+.theme-light [class*="from-slate-700"] .text-zinc-400 {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-slate-300,
+.theme-light [class*="from-indigo-600"] .text-gray-300,
+.theme-light [class*="from-indigo-600"] .text-zinc-300,
+.theme-light [class*="from-emerald-600"] .text-slate-300,
+.theme-light [class*="from-emerald-600"] .text-gray-300,
+.theme-light [class*="from-emerald-600"] .text-zinc-300,
+.theme-light [class*="from-rose-600"] .text-slate-300,
+.theme-light [class*="from-rose-600"] .text-gray-300,
+.theme-light [class*="from-rose-600"] .text-zinc-300,
+.theme-light [class*="from-amber-500"] .text-slate-300,
+.theme-light [class*="from-amber-500"] .text-gray-300,
+.theme-light [class*="from-amber-500"] .text-zinc-300,
+.theme-light [class*="from-blue-600"] .text-slate-300,
+.theme-light [class*="from-blue-600"] .text-gray-300,
+.theme-light [class*="from-blue-600"] .text-zinc-300,
+.theme-light [class*="from-slate-700"] .text-slate-300,
+.theme-light [class*="from-slate-700"] .text-gray-300,
+.theme-light [class*="from-slate-700"] .text-zinc-300 {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-white,
+.theme-light [class*="from-emerald-600"] .text-white,
+.theme-light [class*="from-rose-600"] .text-white,
+.theme-light [class*="from-amber-500"] .text-white,
+.theme-light [class*="from-blue-600"] .text-white,
+.theme-light [class*="from-slate-700"] .text-white {
+  color: #ffffff !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-pink-300,
+.theme-light [class*="from-blue-600"] .text-pink-300,
+.theme-light [class*="from-rose-600"] .text-pink-300 {
+  color: #fbcfe8 !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-pink-200,
+.theme-light [class*="from-blue-600"] .text-pink-200,
+.theme-light [class*="from-rose-600"] .text-pink-200 {
+  color: #fdf2f8 !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-emerald-400,
+.theme-light [class*="from-blue-600"] .text-emerald-400,
+.theme-light [class*="from-rose-600"] .text-emerald-400 {
+  color: #34d399 !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-emerald-300,
+.theme-light [class*="from-blue-600"] .text-emerald-300,
+.theme-light [class*="from-rose-600"] .text-emerald-300 {
+  color: #6ee7b7 !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-rose-400,
+.theme-light [class*="from-blue-600"] .text-rose-400,
+.theme-light [class*="from-rose-600"] .text-rose-400 {
+  color: #fb7185 !important;
+}
+
+.theme-light [class*="from-indigo-600"] .text-rose-300,
+.theme-light [class*="from-blue-600"] .text-rose-300,
+.theme-light [class*="from-rose-600"] .text-rose-300 {
+  color: #fca5a5 !important;
+}
+
 /* LIGHT THEME ACCENT COLOR ADJUSTMENTS (DEEP/RICH) */
 .theme-light.accent-emerald .text-indigo-600, .theme-light .accent-emerald .text-indigo-600 { color: #047857 !important; }
 .theme-light.accent-emerald .text-indigo-500, .theme-light .accent-emerald .text-indigo-500 { color: #059669 !important; }

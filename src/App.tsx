@@ -1481,7 +1481,7 @@ export default function App() {
       </nav>
 
       {/* Main Dynamic Viewport */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-20 pb-8 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-[calc(4.5rem+env(safe-area-inset-top))] md:pt-24 pb-8 relative z-10">
         
         {/* VIEW 1: Overview Dashboard */}
         {currentPage === "dashboard" && (
