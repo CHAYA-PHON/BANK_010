@@ -636,11 +636,26 @@ export default function DashboardStats({
           {/* Expense Category Breakdown */}
           {(() => {
             const catExpenseTotalsMap: Record<string, number> = {};
+            const excludedWalletIds = new Set(
+              wallets.filter((w) => w.excludeFromTotal).map((w) => w.id)
+            );
+
             transactions.forEach((tx) => {
               if (tx.type === "expense") {
-                catExpenseTotalsMap[tx.category] = (catExpenseTotalsMap[tx.category] || 0) + tx.amount;
+                const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+                if (!isExcluded) {
+                  catExpenseTotalsMap[tx.category] = (catExpenseTotalsMap[tx.category] || 0) + tx.amount;
+                }
+              } else if (tx.type === "transfer") {
+                const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+                const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+                if (!isSrcExcluded && isDstExcluded) {
+                  // This is a transfer from non-excluded to excluded wallet (e.g. savings)
+                  catExpenseTotalsMap["ออม"] = (catExpenseTotalsMap["ออม"] || 0) + tx.amount;
+                }
               }
             });
+
             const expenseCategories = Object.entries(catExpenseTotalsMap)
               .map(([category, amount]) => {
                 const percentage = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
@@ -654,19 +669,22 @@ export default function DashboardStats({
               <div className="my-1.5 space-y-1">
                 <div className="flex h-1 rounded-full overflow-hidden bg-white/5">
                   {expenseCategories.map((item, idx) => {
-                    const colors = [
-                      "bg-rose-400",
-                      "bg-amber-400",
-                      "bg-blue-400",
-                      "bg-purple-400",
-                      "bg-cyan-400",
-                      "bg-pink-400",
-                      "bg-emerald-400"
-                    ];
+                    const getCategoryColor = (category: string, index: number) => {
+                      if (category === "ออม") return "bg-emerald-400";
+                      const colors = [
+                        "bg-rose-400",
+                        "bg-sky-400",
+                        "bg-amber-400",
+                        "bg-purple-400",
+                        "bg-orange-400",
+                        "bg-indigo-400"
+                      ];
+                      return colors[index % colors.length];
+                    };
                     return (
                       <div
                         key={item.category}
-                        className={`${colors[idx % colors.length]} h-full transition-all`}
+                        className={`${getCategoryColor(item.category, idx)} h-full transition-all`}
                         style={{ width: `${item.percentage}%` }}
                         title={`${item.category}: ฿${item.amount.toLocaleString()} (${item.percentage.toFixed(0)}%)`}
                       />
@@ -675,18 +693,21 @@ export default function DashboardStats({
                 </div>
                 <div className="flex flex-wrap gap-1 max-h-[44px] overflow-y-auto scrollbar-none pt-0.5">
                   {expenseCategories.map((item, idx) => {
-                    const dots = [
-                      "bg-rose-400",
-                      "bg-amber-400",
-                      "bg-blue-400",
-                      "bg-purple-400",
-                      "bg-cyan-400",
-                      "bg-pink-400",
-                      "bg-emerald-400"
-                    ];
+                    const getCategoryDotColor = (category: string, index: number) => {
+                      if (category === "ออม") return "bg-emerald-400";
+                      const dots = [
+                        "bg-rose-400",
+                        "bg-sky-400",
+                        "bg-amber-400",
+                        "bg-purple-400",
+                        "bg-orange-400",
+                        "bg-indigo-400"
+                      ];
+                      return dots[index % dots.length];
+                    };
                     return (
                       <span key={item.category} className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-white/5 border border-white/5 text-[8px] text-slate-300 whitespace-nowrap">
-                        <span className={`w-1 h-1 rounded-full ${dots[idx % dots.length]} shrink-0`} />
+                        <span className={`w-1 h-1 rounded-full ${getCategoryDotColor(item.category, idx)} shrink-0`} />
                         <span className="truncate max-w-[45px] font-medium">{item.category}</span>
                         <span className="font-bold text-white">
                           {item.percentage.toFixed(0)}%

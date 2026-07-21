@@ -1288,156 +1288,159 @@ export default function App() {
       <div className="absolute top-[-15%] left-[-15%] w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[140px] pointer-events-none"></div>
       <div className="absolute bottom-[10%] right-[-15%] w-[600px] h-[600px] bg-emerald-900/10 rounded-full blur-[150px] pointer-events-none"></div>
       
-      {/* Sticky Premium Header */}
-      <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-md border-b border-white/5 pt-[env(safe-area-inset-top)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-0.5 bg-white/5 border border-white/10 rounded-xl shadow-lg">
-              <img src="/favicon.svg" alt="up ToMe Logo" className="w-10 h-10 object-contain rounded-lg" referrerPolicy="no-referrer" />
+      {/* Fixed Premium Header & Navigation Hub */}
+      <div className="fixed top-0 left-0 right-0 z-40 bg-[#090d16]/95 backdrop-blur-md border-b border-white/5 pt-[env(safe-area-inset-top)] pb-0 md:pb-4">
+        {/* Premium Header */}
+        <header className="">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-0.5 bg-white/5 border border-white/10 rounded-xl shadow-lg">
+                <img src="/favicon.svg" alt="up ToMe Logo" className="w-10 h-10 object-contain rounded-lg" referrerPolicy="no-referrer" />
+              </div>
+              <div>
+                <span className="font-black text-white text-base tracking-tight block flex items-center gap-1.5">
+                  up ToMe <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md border border-indigo-500/30 font-medium">บันทึกบัญชีอัจฉริยะ</span>
+                </span>
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block">
+                  Secure Personal Finance & AI Slip Scanning
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="font-black text-white text-base tracking-tight block flex items-center gap-1.5">
-                up ToMe <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md border border-indigo-500/30 font-medium">บันทึกบัญชีอัจฉริยะ</span>
-              </span>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block">
-                Secure Personal Finance & AI Slip Scanning
-              </span>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Quick Scan Slip AI Button */}
+              <button
+                onClick={() => {
+                  setCurrentPage("records");
+                  setActiveTab("scan");
+                }}
+                className="flex items-center gap-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 border border-indigo-500/30 rounded-full px-3 py-1.5 shadow-lg shadow-indigo-600/20 transition-all cursor-pointer shrink-0 animate-pulse"
+                title="กดเพื่อสแกนบิล/สลิปทันทีด้วย AI"
+              >
+                <ScanLine className="w-3.5 h-3.5" />
+                <span>สแกนสลิป AI</span>
+              </button>
+
+              {firebaseStatus.status === "connected" ? (
+                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
+                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                  <span>คลาวด์ซิงก์สำเร็จ</span>
+                </div>
+              ) : firebaseStatus.status === "connecting" ? (
+                <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-3 py-1.5 shadow-sm">
+                  <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-spin" />
+                  <span>กำลังเชื่อมต่อ...</span>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowFirebaseErrorDetail(true)}
+                  title={firebaseStatus.error || "คลิกเพื่อดูรายละเอียดข้อผิดพลาด"}
+                  className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-full px-3 py-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping" />
+                  <span>ออฟไลน์โหมด (แตะดูข้อผิดพลาด)</span>
+                </button>
+              )}
+              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                <span>ปลอดภัยสูง</span>
+              </div>
+              
+              <button
+                onClick={() => setShowShortcutsHelp(true)}
+                className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-full px-3.5 py-1.5 shadow-sm transition-all cursor-pointer"
+                title="ดูคีย์ลัดสำหรับควบคุมด้วยคีย์บอร์ดบน PC"
+              >
+                <Keyboard className="w-3.5 h-3.5" />
+                <span>คีย์ลัด PC (คีย์บอร์ด)</span>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                title="ออกจากระบบเพื่อความปลอดภัย"
+                className="p-2.5 bg-white/5 hover:bg-rose-500/20 border border-white/5 hover:border-rose-500/20 rounded-xl text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
+        </header>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Quick Scan Slip AI Button */}
+        {/* Primary Navigation Hub (Desktop & Tablet) */}
+        <nav className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-2">
+          <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-6 gap-1.5 max-w-4xl mx-auto">
+            <button
+              onClick={() => setCurrentPage("dashboard")}
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                currentPage === "dashboard"
+                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <PieChart className="w-4 h-4" />
+              แดชบอร์ด
+            </button>
             <button
               onClick={() => {
                 setCurrentPage("records");
-                setActiveTab("scan");
+                setActiveTab("manual");
               }}
-              className="flex items-center gap-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-500 hover:scale-105 active:scale-95 border border-indigo-500/30 rounded-full px-3 py-1.5 shadow-lg shadow-indigo-600/20 transition-all cursor-pointer shrink-0 animate-pulse"
-              title="กดเพื่อสแกนบิล/สลิปทันทีด้วย AI"
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                currentPage === "records"
+                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
             >
-              <ScanLine className="w-3.5 h-3.5" />
-              <span>สแกนสลิป AI</span>
+              <Plus className="w-4 h-4" />
+              บันทึกเอง
             </button>
-
-            {firebaseStatus.status === "connected" ? (
-              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
-                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-                <span>คลาวด์ซิงก์สำเร็จ</span>
-              </div>
-            ) : firebaseStatus.status === "connecting" ? (
-              <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-3 py-1.5 shadow-sm">
-                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-spin" />
-                <span>กำลังเชื่อมต่อ...</span>
-              </div>
-            ) : (
-              <button 
-                onClick={() => setShowFirebaseErrorDetail(true)}
-                title={firebaseStatus.error || "คลิกเพื่อดูรายละเอียดข้อผิดพลาด"}
-                className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-full px-3 py-1.5 shadow-sm transition-all cursor-pointer"
-              >
-                <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping" />
-                <span>ออฟไลน์โหมด (แตะดูข้อผิดพลาด)</span>
-              </button>
-            )}
-            <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1.5 shadow-sm">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
-              <span>ปลอดภัยสูง</span>
-            </div>
-            
             <button
-              onClick={() => setShowShortcutsHelp(true)}
-              className="hidden md:flex items-center gap-1.5 text-[10px] font-bold text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-full px-3.5 py-1.5 shadow-sm transition-all cursor-pointer"
-              title="ดูคีย์ลัดสำหรับควบคุมด้วยคีย์บอร์ดบน PC"
+              onClick={() => setCurrentPage("report")}
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                currentPage === "report"
+                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
             >
-              <Keyboard className="w-3.5 h-3.5" />
-              <span>คีย์ลัด PC (คีย์บอร์ด)</span>
+              <FileSpreadsheet className="w-4 h-4" />
+              รายงานประจำเดือน
             </button>
-
             <button
-              onClick={handleLogout}
-              title="ออกจากระบบเพื่อความปลอดภัย"
-              className="p-2.5 bg-white/5 hover:bg-rose-500/20 border border-white/5 hover:border-rose-500/20 rounded-xl text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+              onClick={() => setCurrentPage("wallets")}
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                currentPage === "wallets"
+                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
             >
-              <LogOut className="w-4 h-4" />
+              <WalletIcon className="w-4 h-4" />
+              กระเป๋าเงิน
+            </button>
+            <button
+              onClick={() => setCurrentPage("debts")}
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                currentPage === "debts"
+                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Landmark className="w-4 h-4" />
+              หนี้สินและกู้ยืม
+            </button>
+            <button
+              onClick={() => setCurrentPage("settings")}
+              className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                currentPage === "settings"
+                  ? "bg-indigo-600 text-white shadow-lg border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              ตั้งค่าระบบ
             </button>
           </div>
-        </div>
-      </header>
-
-      {/* Primary Navigation Hub (Desktop & Tablet) */}
-      <nav className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="bg-white/5 backdrop-blur-lg border border-white/10 p-1.5 rounded-2xl grid grid-cols-6 gap-1.5 max-w-4xl mx-auto">
-          <button
-            onClick={() => setCurrentPage("dashboard")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              currentPage === "dashboard"
-                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <PieChart className="w-4 h-4" />
-            แดชบอร์ด
-          </button>
-          <button
-            onClick={() => {
-              setCurrentPage("records");
-              setActiveTab("manual");
-            }}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              currentPage === "records"
-                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            บันทึกเอง
-          </button>
-          <button
-            onClick={() => setCurrentPage("report")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              currentPage === "report"
-                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            รายงานประจำเดือน
-          </button>
-          <button
-            onClick={() => setCurrentPage("wallets")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              currentPage === "wallets"
-                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <WalletIcon className="w-4 h-4" />
-            กระเป๋าเงิน
-          </button>
-          <button
-            onClick={() => setCurrentPage("debts")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              currentPage === "debts"
-                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Landmark className="w-4 h-4" />
-            หนี้สินและกู้ยืม
-          </button>
-          <button
-            onClick={() => setCurrentPage("settings")}
-            className={`py-3 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              currentPage === "settings"
-                ? "bg-indigo-600 text-white shadow-lg border border-white/10"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            ตั้งค่าระบบ
-          </button>
-        </div>
-      </nav>
+        </nav>
+      </div>
 
       {/* Mobile Sticky Bottom Navigation Bar (App-like Navigation) */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#090d16]/95 backdrop-blur-lg border-t border-white/10 shadow-[0_-8px_30px_rgb(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2.5">
@@ -1503,7 +1506,7 @@ export default function App() {
       </nav>
 
       {/* Main Dynamic Viewport */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 md:pt-36 pb-8 relative z-10">
         
         {/* VIEW 1: Overview Dashboard */}
         {currentPage === "dashboard" && (
