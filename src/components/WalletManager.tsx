@@ -14,6 +14,7 @@ interface WalletManagerProps {
   onDeleteWallet: (id: string) => void;
   onAddTransaction: (data: Omit<Transaction, "id" | "createdAt">) => void;
   onReorderWallets?: (wallets: Wallet[]) => void;
+  theme?: string;
 }
 
 const WALLET_COLORS = [
@@ -27,7 +28,58 @@ const WALLET_COLORS = [
 
 const WALLET_ICONS = ["💵", "🏦", "💳", "🐷", "💰", "💼", "🛒", "🔑"];
 
-const getWalletThemeCompact = (colorStr: string) => {
+const getWalletThemeCompact = (colorStr: string, isLight: boolean = false) => {
+  if (isLight) {
+    if (colorStr.includes("emerald")) {
+      return {
+        border: "border-emerald-500/15",
+        activeBorder: "border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)] bg-emerald-500/10",
+        text: "text-emerald-700",
+        bg: "bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/30"
+      };
+    }
+    if (colorStr.includes("rose") || colorStr.includes("pink")) {
+      return {
+        border: "border-rose-500/15",
+        activeBorder: "border-2 border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.15)] bg-rose-500/10",
+        text: "text-rose-700",
+        bg: "bg-rose-500/5 hover:bg-rose-500/10 hover:border-rose-500/30"
+      };
+    }
+    if (colorStr.includes("amber") || colorStr.includes("orange") || colorStr.includes("yellow")) {
+      return {
+        border: "border-amber-500/15",
+        activeBorder: "border-2 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] bg-amber-500/10",
+        text: "text-amber-700",
+        bg: "bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/30"
+      };
+    }
+    if (colorStr.includes("blue") || colorStr.includes("cyan")) {
+      return {
+        border: "border-blue-500/15",
+        activeBorder: "border-2 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] bg-blue-500/10",
+        text: "text-blue-700",
+        bg: "bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/30"
+      };
+    }
+    if (colorStr.includes("slate") || colorStr.includes("gray")) {
+      return {
+        border: "border-slate-500/15",
+        activeBorder: "border-2 border-slate-500 shadow-[0_0_15px_rgba(100,116,139,0.15)] bg-slate-500/10",
+        text: "text-slate-700",
+        bg: "bg-slate-500/5 hover:bg-slate-500/10 hover:border-slate-500/30"
+      };
+    }
+    // default Indigo
+    return {
+      border: "border-indigo-500/15",
+      activeBorder: "border-2 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.15)] bg-indigo-500/10",
+      text: "text-indigo-700",
+      bg: "bg-indigo-500/5 hover:bg-indigo-500/10 hover:border-indigo-500/30"
+    };
+  }
+
+  // Dark mode
   if (colorStr.includes("emerald")) {
     return {
       border: "border-emerald-500/30",
@@ -174,6 +226,7 @@ export default function WalletManager({
   onDeleteWallet,
   onAddTransaction,
   onReorderWallets,
+  theme = "dark",
 }: WalletManagerProps) {
   // Selected wallet for showing cash flow (inflow/outflow)
   const [selectedWalletFlowId, setSelectedWalletFlowId] = useState<string | null>(null);
@@ -753,7 +806,7 @@ export default function WalletManager({
                     {wallets.map((wallet) => {
                       const compactBalance = walletBalances[wallet.id] ?? 0;
                       const isSelected = wallet.id === selectedWalletFlowId;
-                      const theme = getWalletThemeCompact(wallet.color);
+                      const walletTheme = getWalletThemeCompact(wallet.color, theme === "light");
 
                       return (
                         <div
@@ -761,8 +814,8 @@ export default function WalletManager({
                           onClick={() => setSelectedWalletFlowId(wallet.id)}
                           className={`rounded-2xl p-3 flex flex-col justify-between h-[76px] transition-all duration-200 cursor-pointer ${
                             isSelected 
-                              ? theme.activeBorder 
-                              : `border border-white/5 ${theme.bg} ${theme.border}`
+                              ? walletTheme.activeBorder 
+                              : `border border-white/5 ${walletTheme.bg} ${walletTheme.border}`
                           }`}
                         >
                           <div className="flex items-center justify-between w-full">

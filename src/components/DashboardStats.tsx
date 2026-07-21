@@ -14,6 +14,7 @@ interface DashboardStatsProps {
   wallets?: Wallet[];
   monthlyGoals?: MonthlyGoal[];
   onSaveMonthlyGoal?: (month: string, amount: number) => void;
+  theme?: string;
 }
 
 export default function DashboardStats({
@@ -28,6 +29,7 @@ export default function DashboardStats({
   wallets = [],
   monthlyGoals = [],
   onSaveMonthlyGoal,
+  theme = "dark",
 }: DashboardStatsProps) {
   const currentMonthNet = totalIncome - totalExpense;
   const carriedForward = broughtForward + currentMonthNet;
@@ -1078,28 +1080,60 @@ export default function DashboardStats({
       </div>
 
       {/* 6. Cash Flow Movement System Card */}
-      <div id="cash-flow-movement-system" className="bg-gradient-to-br from-slate-900/60 to-slate-800/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
+      <div 
+        id="cash-flow-movement-system" 
+        className={`backdrop-blur-md rounded-3xl p-6 shadow-xl space-y-6 ${
+          theme === "light" 
+            ? "bg-white border border-slate-200/80" 
+            : "bg-gradient-to-br from-slate-900/60 to-slate-800/40 border border-white/10"
+        }`}
+      >
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 ${
+          theme === "light" ? "border-slate-100" : "border-white/5"
+        }`}>
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-xl">
+            <div className={`p-2 rounded-xl ${
+              theme === "light" 
+                ? "bg-indigo-50 border border-indigo-100 text-indigo-600" 
+                : "p-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400"
+            }`}>
               <ArrowRightLeft className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-sm font-extrabold text-white">🔄 ระบบคำนวณการเคลื่อนไหวของเงิน (Cash Flow Movement)</h3>
-              <p className="text-[10px] text-slate-400 mt-0.5">วิเคราะห์สัดส่วนและความเคลื่อนไหวของเงินทุนหมุนเวียนในเดือนนี้</p>
+              <h3 className={`text-sm font-extrabold ${theme === "light" ? "text-slate-900" : "text-white"}`}>
+                🔄 ระบบคำนวณการเคลื่อนไหวของเงิน (Cash Flow Movement)
+              </h3>
+              <p className={`text-[10px] mt-0.5 ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>
+                วิเคราะห์สัดส่วนและความเคลื่อนไหวของเงินทุนหมวนเวียนในเดือนนี้
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 self-start sm:self-center bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full text-[9px] text-indigo-300 font-bold">
+          <div className={`flex items-center gap-1.5 self-start sm:self-center px-2.5 py-1 rounded-full text-[9px] font-bold ${
+            theme === "light" 
+              ? "bg-indigo-50 border border-indigo-100 text-indigo-700" 
+              : "bg-indigo-500/10 border border-indigo-500/20 text-indigo-300"
+          }`}>
             <span>เดือน {formatThaiMonth(selectedMonth)}</span>
           </div>
         </div>
 
         <div className="w-full">
           {/* Beautiful Visual Diagram Graph */}
-          <div id="sankey-flow-chart-panel" className="w-full bg-black/20 rounded-2xl p-4 border border-white/5 relative overflow-hidden flex flex-col justify-between min-h-[280px]">
-            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 border-b border-white/5 pb-2 mb-2">
+          <div 
+            id="sankey-flow-chart-panel" 
+            className={`rounded-2xl p-4 relative overflow-hidden flex flex-col justify-between min-h-[280px] ${
+              theme === "light" 
+                ? "bg-slate-50 border border-slate-150" 
+                : "w-full bg-black/20 rounded-2xl p-4 border border-white/5"
+            }`}
+          >
+            <div className={`flex justify-between items-center text-[10px] font-bold border-b pb-2 mb-2 ${
+              theme === "light" 
+                ? "text-slate-500 border-slate-150" 
+                : "text-slate-400 border-white/5"
+            }`}>
               <span>📊 กราฟความเคลื่อนไหวรายวัน (Daily Cash Flow & Balance Trend)</span>
-              <span className="text-[9px] text-slate-500">หน่วย: บาท (฿)</span>
+              <span className={theme === "light" ? "text-slate-400" : "text-slate-500"}>หน่วย: บาท (฿)</span>
             </div>
 
             {/* Scrollable Container for Daily Bar Chart */}
@@ -1122,7 +1156,7 @@ export default function DashboardStats({
                           y1={line.y}
                           x2={daysInMonth * 24 + 50}
                           y2={line.y}
-                          stroke="rgba(255, 255, 255, 0.08)"
+                          stroke={theme === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)"}
                           strokeWidth="1"
                           strokeDasharray="4,4"
                         />
@@ -1231,7 +1265,7 @@ export default function DashboardStats({
                         <text
                           x={cx}
                           y="158"
-                          fill={isHovered ? "#ffffff" : "#64748b"}
+                          fill={isHovered ? (theme === "light" ? "#4f46e5" : "#ffffff") : "#64748b"}
                           fontSize="9"
                           fontWeight="bold"
                           textAnchor="middle"
@@ -1284,11 +1318,11 @@ export default function DashboardStats({
                         <text
                           x={pt.cx}
                           y={pt.cy - 8}
-                          fill={isHovered ? "#60a5fa" : "#38bdf8"}
+                          fill={isHovered ? (theme === "light" ? "#2563eb" : "#60a5fa") : (theme === "light" ? "#0284c7" : "#38bdf8")}
                           fontSize="7"
                           fontWeight="black"
                           textAnchor="middle"
-                          className="filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                          className={theme === "light" ? "" : "filter drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"}
                         >
                           {Math.round(pt.remaining).toLocaleString()}
                         </text>
@@ -1302,7 +1336,7 @@ export default function DashboardStats({
                     y1="140"
                     x2={daysInMonth * 24 + 50}
                     y2="140"
-                    stroke="#475569"
+                    stroke={theme === "light" ? "#cbd5e1" : "#475569"}
                     strokeWidth="1.5"
                   />
 
@@ -1323,22 +1357,34 @@ export default function DashboardStats({
 
             {/* Hover details display or help tip */}
             {hoveredDay ? (
-              <div className="bg-indigo-950/40 border border-indigo-500/20 rounded-xl p-2.5 text-[11px] text-indigo-200 mt-2 flex flex-wrap justify-between items-center gap-2 animate-fade-in">
-                <span className="font-extrabold text-white">📅 วันที่ {hoveredDay.day} {formatThaiMonth(selectedMonth)}</span>
+              <div className={`border rounded-xl p-2.5 text-[11px] mt-2 flex flex-wrap justify-between items-center gap-2 animate-fade-in ${
+                theme === "light" 
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-950" 
+                  : "bg-indigo-950/40 border-indigo-500/20 text-indigo-200"
+              }`}>
+                <span className={`font-extrabold ${theme === "light" ? "text-indigo-950" : "text-white"}`}>
+                  📅 วันที่ {hoveredDay.day} {formatThaiMonth(selectedMonth)}
+                </span>
                 <div className="flex gap-3 font-bold">
-                  <span className="text-emerald-400">🟢 รับ: ฿{hoveredDay.income.toLocaleString()}</span>
-                  <span className="text-rose-400">🔴 จ่าย: ฿{hoveredDay.expense.toLocaleString()}</span>
-                  <span className="text-amber-400">🟡 เหลือ: ฿{hoveredDay.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className={theme === "light" ? "text-emerald-600" : "text-emerald-400"}>🟢 รับ: ฿{hoveredDay.income.toLocaleString()}</span>
+                  <span className={theme === "light" ? "text-rose-600" : "text-rose-400"}>🔴 จ่าย: ฿{hoveredDay.expense.toLocaleString()}</span>
+                  <span className={theme === "light" ? "text-amber-600" : "text-amber-400"}>🟡 เหลือ: ฿{hoveredDay.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
             ) : (
-              <div className="bg-white/5 border border-white/5 rounded-xl p-2 text-[10px] text-slate-400 mt-2 text-center">
+              <div className={`border rounded-xl p-2 text-[10px] mt-2 text-center ${
+                theme === "light" 
+                  ? "bg-slate-100 border-slate-200 text-slate-600" 
+                  : "bg-white/5 border-white/5 text-slate-400"
+              }`}>
                 💡 วางเมาส์หรือแตะที่แท่งกราฟเพื่อดูรายละเอียดงบรายวันแบบเจาะลึก
               </div>
             )}
 
             {/* Quick Helper Legend */}
-            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 border-t border-white/5 pt-2 text-[8px] sm:text-[9px] text-slate-400 mt-2">
+            <div className={`flex flex-wrap justify-center gap-x-4 gap-y-1.5 border-t pt-2 text-[8px] sm:text-[9px] mt-2 ${
+              theme === "light" ? "border-slate-200 text-slate-500" : "border-white/5 text-slate-400"
+            }`}>
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-xs bg-[#4ade80] border border-white/20" /> รับ (รายรับ)
               </span>
@@ -1348,7 +1394,7 @@ export default function DashboardStats({
               <span className="flex items-center gap-1.5">
                 <span className="relative flex items-center justify-center w-5 h-2.5">
                   <span className="absolute w-5 h-[2px] bg-[#3b82f6]" />
-                  <span className="absolute w-2 h-2 rounded-full bg-white border border-[#3b82f6] z-10" />
+                  <span className={`absolute w-2 h-2 rounded-full border border-[#3b82f6] z-10 ${theme === "light" ? "bg-slate-100" : "bg-white"}`} />
                 </span>
                 ยอดคงเหลือ (สะสม)
               </span>

@@ -1501,6 +1501,7 @@ export default function App() {
                 wallets={wallets}
                 monthlyGoals={monthlyGoals}
                 onSaveMonthlyGoal={handleAddOrUpdateMonthlyGoal}
+                theme={theme}
               />
             </div>
 
@@ -1638,6 +1639,7 @@ export default function App() {
               onDeleteWallet={handleDeleteWallet}
               onAddTransaction={handleAddTransaction}
               onReorderWallets={handleReorderWallets}
+              theme={theme}
             />
           </div>
         )}
