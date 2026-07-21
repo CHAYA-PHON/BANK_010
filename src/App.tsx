@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Transaction, Wallet, Debt, DebtPayment } from "./types";
+import { Transaction, Wallet, Debt, DebtPayment, MonthlyGoal } from "./types";
 import SlipUploader from "./components/SlipUploader";
 import TransactionForm from "./components/TransactionForm";
 import DashboardStats from "./components/DashboardStats";
@@ -127,6 +127,7 @@ export default function App() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
+  const [monthlyGoals, setMonthlyGoals] = useState<MonthlyGoal[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("manual");
   const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report">("dashboard");
@@ -250,6 +251,45 @@ export default function App() {
       }
     } catch (err) {
       console.error("Error syncing debt payments to Firestore:", err);
+    }
+  };
+
+  // Helper to sync monthly goals to Firestore
+  const syncMonthlyGoalsToFirestore = async (goals: MonthlyGoal[]) => {
+    if (!currentUser) return;
+    const userDocId = currentUser.toLowerCase().trim();
+    try {
+      for (const g of goals) {
+        await setDoc(doc(db, "users", userDocId, "monthly_goals", g.id), cleanObjectForFirestore(g));
+      }
+    } catch (err) {
+      console.error("Error syncing monthly goals to Firestore:", err);
+    }
+  };
+
+  const handleAddOrUpdateMonthlyGoal = async (month: string, amount: number) => {
+    const goalId = `goal-${month}`;
+    const newGoal: MonthlyGoal = {
+      id: goalId,
+      month,
+      amount,
+      createdAt: new Date().toISOString()
+    };
+    
+    const updatedGoals = [...monthlyGoals.filter(g => g.id !== goalId), newGoal];
+    setMonthlyGoals(updatedGoals);
+    
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_monthly_goals_${userDocId}`, JSON.stringify(updatedGoals));
+      
+      try {
+        await setDoc(doc(db, "users", userDocId, "monthly_goals", goalId), cleanObjectForFirestore(newGoal));
+      } catch (err) {
+        console.error("Failed to save monthly goal to Firestore:", err);
+      }
+    } else {
+      localStorage.setItem("money_tracker_monthly_goals", JSON.stringify(updatedGoals));
     }
   };
 
@@ -485,6 +525,35 @@ export default function App() {
         }
       }
 
+      // 5. Load Monthly Goals
+      let monthlyGoalsList: MonthlyGoal[] = [];
+      let monthlyGoalLoadSuccess = false;
+      try {
+        const monthlyGoalsColRef = collection(db, "users", userDocId, "monthly_goals");
+        const monthlyGoalsSnapshot = await getDocs(monthlyGoalsColRef);
+        monthlyGoalsSnapshot.forEach((doc) => {
+          monthlyGoalsList.push(doc.data() as MonthlyGoal);
+        });
+        monthlyGoalLoadSuccess = true;
+      } catch (err) {
+        console.error("Failed to load monthly goals from Firestore:", err);
+        monthlyGoalLoadSuccess = false;
+      }
+
+      if (monthlyGoalLoadSuccess) {
+        setMonthlyGoals(monthlyGoalsList);
+        localStorage.setItem(`money_tracker_monthly_goals_${userDocId}`, JSON.stringify(monthlyGoalsList));
+      } else {
+        const savedMonthlyGoals = localStorage.getItem(`money_tracker_monthly_goals_${userDocId}`);
+        if (savedMonthlyGoals) {
+          try {
+            setMonthlyGoals(JSON.parse(savedMonthlyGoals));
+          } catch (e) {
+            setMonthlyGoals([]);
+          }
+        }
+      }
+
       // Set global Firestore status based on loading success
       if (walletLoadSuccess && transactionLoadSuccess) {
         setFirebaseStatus({ status: "connected", error: null });
@@ -570,25 +639,73 @@ export default function App() {
     (tx) => tx.date.substring(0, 7) === selectedMonth
   );
 
-  // Brought forward balance calculations
-  const startingBalanceSum = wallets.reduce((sum, w) => sum + w.initialBalance, 0);
+  // Find excluded wallet IDs
+  const excludedWalletIds = new Set(
+    wallets.filter((w) => w.excludeFromTotal).map((w) => w.id)
+  );
+
+  // Brought forward balance calculations with excludeFromTotal support
+  const startingBalanceSum = wallets.reduce((sum, w) => {
+    if (w.excludeFromTotal) return sum;
+    return sum + w.initialBalance;
+  }, 0);
+
   const previousTransactions = transactions.filter((tx) => tx.date.substring(0, 7) < selectedMonth);
-  const previousIncomes = previousTransactions
-    .filter((tx) => tx.type === "income")
-    .reduce((sum, tx) => sum + tx.amount, 0);
-  const previousExpenses = previousTransactions
-    .filter((tx) => tx.type === "expense")
-    .reduce((sum, tx) => sum + tx.amount, 0);
+  
+  const previousIncomes = previousTransactions.reduce((sum, tx) => {
+    if (tx.type === "income") {
+      const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      if (!isExcluded) return sum + tx.amount;
+    } else if (tx.type === "transfer") {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      // Transfer from excluded to main = income to main
+      if (isSrcExcluded && !isDstExcluded) return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
+
+  const previousExpenses = previousTransactions.reduce((sum, tx) => {
+    if (tx.type === "expense") {
+      const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      if (!isExcluded) return sum + tx.amount;
+    } else if (tx.type === "transfer") {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      // Transfer from main to excluded = expense to main
+      if (!isSrcExcluded && isDstExcluded) return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
+
   const broughtForward = startingBalanceSum + previousIncomes - previousExpenses;
 
-  // Calculations for current selected month
-  const totalIncome = monthlyTransactions
-    .filter((tx) => tx.type === "income")
-    .reduce((sum, tx) => sum + tx.amount, 0);
+  // Calculations for current selected month (with excludeFromTotal support)
+  const totalIncome = monthlyTransactions.reduce((sum, tx) => {
+    if (tx.type === "income") {
+      const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      if (!isExcluded) return sum + tx.amount;
+    } else if (tx.type === "transfer") {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      // Transfer from excluded to main = income to main
+      if (isSrcExcluded && !isDstExcluded) return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
 
-  const totalExpense = monthlyTransactions
-    .filter((tx) => tx.type === "expense")
-    .reduce((sum, tx) => sum + tx.amount, 0);
+  const totalExpense = monthlyTransactions.reduce((sum, tx) => {
+    if (tx.type === "expense") {
+      const isExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      if (!isExcluded) return sum + tx.amount;
+    } else if (tx.type === "transfer") {
+      const isSrcExcluded = tx.walletId ? excludedWalletIds.has(tx.walletId) : false;
+      const isDstExcluded = tx.toWalletId ? excludedWalletIds.has(tx.toWalletId) : false;
+      // Transfer from main to excluded = expense to main
+      if (!isSrcExcluded && isDstExcluded) return sum + tx.amount;
+    }
+    return sum;
+  }, 0);
 
   // Add new transaction
   const handleAddTransaction = async (data: Omit<Transaction, "id" | "createdAt">) => {
@@ -1159,6 +1276,7 @@ export default function App() {
     localStorage.removeItem("remembered_user");
     setTransactions([]);
     setWallets([]);
+    setMonthlyGoals([]);
   };
 
   // If locked/not logged in, render the login gate
@@ -1402,6 +1520,8 @@ export default function App() {
               broughtForward={broughtForward}
               transactions={monthlyTransactions}
               wallets={wallets}
+              monthlyGoals={monthlyGoals}
+              onSaveMonthlyGoal={handleAddOrUpdateMonthlyGoal}
             />
 
             {/* Smart AI Financial Analysis */}

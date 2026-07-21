@@ -16,6 +16,9 @@ service cloud.firestore {
       match /debt_payments/{paymentId} {
         allow read, write: if true;
       }
+      match /monthly_goals/{goalId} {
+        allow read, write: if true;
+      }
     }
     match /transactions/{transactionId} {
       allow read, write: if true;
@@ -27,6 +30,9 @@ service cloud.firestore {
       allow read, write: if true;
     }
     match /debt_payments/{paymentId} {
+      allow read, write: if true;
+    }
+    match /monthly_goals/{goalId} {
       allow read, write: if true;
     }
   }

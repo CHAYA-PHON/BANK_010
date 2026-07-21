@@ -29,7 +29,9 @@
         "icon": "string",
         "color": "string",
         "accountNumber": "string",
-        "createdAt": "string"
+        "createdAt": "string",
+        "targetAmount": "number",
+        "dueDate": "string"
       }
     },
     {
@@ -57,6 +59,16 @@
         "walletId": "string",
         "date": "string",
         "note": "string",
+        "createdAt": "string"
+      }
+    },
+    {
+      "name": "monthly_goals",
+      "description": "User defined monthly savings goals",
+      "fields": {
+        "id": "string",
+        "month": "string",
+        "amount": "number",
         "createdAt": "string"
       }
     }

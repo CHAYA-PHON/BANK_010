@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { Wallet, Transaction } from "../types";
 import { 
   Plus, Edit, Trash2, Landmark, Wallet as WalletIcon, CreditCard, 
@@ -27,6 +27,145 @@ const WALLET_COLORS = [
 
 const WALLET_ICONS = ["💵", "🏦", "💳", "🐷", "💰", "💼", "🛒", "🔑"];
 
+const getWalletThemeCompact = (colorStr: string) => {
+  if (colorStr.includes("emerald")) {
+    return {
+      border: "border-emerald-500/30",
+      activeBorder: "border-2 border-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.3)] bg-emerald-500/10",
+      text: "text-emerald-400",
+      bg: "bg-[#111625]/60 hover:bg-[#182032]/80 hover:border-emerald-500/50"
+    };
+  }
+  if (colorStr.includes("rose") || colorStr.includes("pink")) {
+    return {
+      border: "border-rose-500/30",
+      activeBorder: "border-2 border-rose-400 shadow-[0_0_15px_rgba(251,113,133,0.3)] bg-rose-500/10",
+      text: "text-rose-400",
+      bg: "bg-[#111625]/60 hover:bg-[#182032]/80 hover:border-rose-500/50"
+    };
+  }
+  if (colorStr.includes("amber") || colorStr.includes("orange") || colorStr.includes("yellow")) {
+    return {
+      border: "border-amber-500/30",
+      activeBorder: "border-2 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)] bg-amber-500/10",
+      text: "text-amber-400",
+      bg: "bg-[#111625]/60 hover:bg-[#182032]/80 hover:border-amber-500/50"
+    };
+  }
+  if (colorStr.includes("blue") || colorStr.includes("cyan")) {
+    return {
+      border: "border-blue-500/30",
+      activeBorder: "border-2 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)] bg-blue-500/10",
+      text: "text-blue-400",
+      bg: "bg-[#111625]/60 hover:bg-[#182032]/80 hover:border-blue-500/50"
+    };
+  }
+  if (colorStr.includes("slate") || colorStr.includes("gray")) {
+    return {
+      border: "border-slate-500/30",
+      activeBorder: "border-2 border-slate-300 shadow-[0_0_15px_rgba(148,163,184,0.3)] bg-slate-500/10",
+      text: "text-slate-300",
+      bg: "bg-[#111625]/60 hover:bg-[#182032]/80 hover:border-slate-500/50"
+    };
+  }
+  // default Indigo
+  return {
+    border: "border-indigo-500/30",
+    activeBorder: "border-2 border-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.3)] bg-indigo-500/10",
+    text: "text-indigo-400",
+    bg: "bg-[#111625]/60 hover:bg-[#182032]/80 hover:border-indigo-500/50"
+  };
+};
+
+interface GoalCalculations {
+  remainingAmount: number;
+  isOverdue: boolean;
+  remainingMonths: number;
+  remainingYears: number;
+  requiredPerMonth: number;
+  requiredPerYear: number;
+  initialPerMonth: number;
+  initialPerYear: number;
+}
+
+export function getRemainingGoalCalculations(wallet: Wallet, currentBalance: number): GoalCalculations | null {
+  const target = wallet.targetAmount ?? 0;
+  if (target <= 0) return null;
+
+  // Remaining money to save
+  const remainingAmount = Math.max(0, target - currentBalance);
+
+  // Remaining time calculation from TODAY
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dueDate = wallet.dueDate ? new Date(wallet.dueDate) : null;
+  
+  // Total initial duration defined by user
+  const totalPeriodVal = wallet.goalPeriodValue ?? 1;
+  const totalPeriodUnit = wallet.goalPeriodUnit ?? 'year';
+  const initialPerMonth = totalPeriodUnit === 'year' ? (target / (totalPeriodVal * 12)) : (target / totalPeriodVal);
+  const initialPerYear = totalPeriodUnit === 'year' ? (target / totalPeriodVal) : (target / (totalPeriodVal / 12));
+
+  if (!dueDate || isNaN(dueDate.getTime())) {
+    return {
+      remainingAmount,
+      isOverdue: false,
+      remainingMonths: totalPeriodUnit === 'year' ? totalPeriodVal * 12 : totalPeriodVal,
+      remainingYears: totalPeriodUnit === 'year' ? totalPeriodVal : totalPeriodVal / 12,
+      requiredPerMonth: totalPeriodUnit === 'year' ? (remainingAmount / (totalPeriodVal * 12)) : (remainingAmount / totalPeriodVal),
+      requiredPerYear: totalPeriodUnit === 'year' ? (remainingAmount / totalPeriodVal) : (remainingAmount / (totalPeriodVal / 12)),
+      initialPerMonth,
+      initialPerYear,
+    };
+  }
+
+  dueDate.setHours(0, 0, 0, 0);
+
+  const diffTime = dueDate.getTime() - today.getTime();
+  const isOverdue = diffTime < 0;
+
+  let remainingMonths = 0;
+  let remainingYears = 0;
+
+  if (!isOverdue) {
+    // Difference in months
+    const yDiff = dueDate.getFullYear() - today.getFullYear();
+    const mDiff = dueDate.getMonth() - today.getMonth();
+    
+    // Convert to float months
+    let totalMonths = yDiff * 12 + mDiff;
+    
+    // Adjust day difference
+    const dayDiff = dueDate.getDate() - today.getDate();
+    if (dayDiff > 0) {
+      totalMonths += (dayDiff / 30);
+    } else if (dayDiff < 0) {
+      totalMonths += (dayDiff / 30);
+    }
+    
+    remainingMonths = Math.max(0.1, totalMonths);
+    remainingYears = remainingMonths / 12;
+  } else {
+    remainingMonths = 0;
+    remainingYears = 0;
+  }
+
+  const requiredPerMonth = remainingMonths > 0 ? (remainingAmount / remainingMonths) : remainingAmount;
+  const requiredPerYear = remainingYears > 0 ? (remainingAmount / remainingYears) : remainingAmount;
+
+  return {
+    remainingAmount,
+    isOverdue,
+    remainingMonths,
+    remainingYears,
+    requiredPerMonth,
+    requiredPerYear,
+    initialPerMonth,
+    initialPerYear,
+  };
+}
+
 export default function WalletManager({
   wallets,
   transactions,
@@ -52,6 +191,11 @@ export default function WalletManager({
   const [walletColor, setWalletColor] = useState(WALLET_COLORS[0].value);
   const [accountNumber, setAccountNumber] = useState("");
   const [isDefault, setIsDefault] = useState(false);
+  const [walletTargetAmount, setWalletTargetAmount] = useState("");
+  const [walletDueDate, setWalletDueDate] = useState("");
+  const [excludeFromTotal, setExcludeFromTotal] = useState(false);
+  const [goalPeriodValue, setGoalPeriodValue] = useState("1");
+  const [goalPeriodUnit, setGoalPeriodUnit] = useState<"month" | "year">("year");
 
   // Form states - Transfer
   const [fromWalletId, setFromWalletId] = useState("");
@@ -59,6 +203,22 @@ export default function WalletManager({
   const [transferAmount, setTransferAmount] = useState("");
   const [transferNote, setTransferNote] = useState("");
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
+
+  // Automatically calculate target dueDate when duration values change in add/edit modal
+  useEffect(() => {
+    if (walletType === "saving" && goalPeriodValue) {
+      const val = parseInt(goalPeriodValue, 10);
+      if (!isNaN(val) && val > 0) {
+        const date = new Date();
+        if (goalPeriodUnit === "year") {
+          date.setFullYear(date.getFullYear() + val);
+        } else {
+          date.setMonth(date.getMonth() + val);
+        }
+        setWalletDueDate(date.toISOString().split("T")[0]);
+      }
+    }
+  }, [goalPeriodValue, goalPeriodUnit, walletType]);
 
   // Dynamically calculate balances of each wallet
   const walletBalances: Record<string, number> = {};
@@ -86,7 +246,10 @@ export default function WalletManager({
     }
   });
 
-  const totalBalance = Object.values(walletBalances).reduce((sum, bal) => sum + bal, 0);
+  const totalBalance = wallets.reduce((sum, w) => {
+    if (w.excludeFromTotal) return sum;
+    return sum + (walletBalances[w.id] ?? 0);
+  }, 0);
 
   const openAddWalletModal = () => {
     setEditingWallet(null);
@@ -97,6 +260,11 @@ export default function WalletManager({
     setWalletColor(WALLET_COLORS[0].value);
     setAccountNumber("");
     setIsDefault(wallets.length === 0);
+    setWalletTargetAmount("");
+    setWalletDueDate("");
+    setExcludeFromTotal(false);
+    setGoalPeriodValue("1");
+    setGoalPeriodUnit("year");
     setIsWalletModalOpen(true);
   };
 
@@ -109,6 +277,11 @@ export default function WalletManager({
     setWalletColor(w.color);
     setAccountNumber(w.accountNumber || "");
     setIsDefault(!!w.isDefault);
+    setWalletTargetAmount(w.targetAmount ? w.targetAmount.toString() : "");
+    setWalletDueDate(w.dueDate || "");
+    setExcludeFromTotal(!!w.excludeFromTotal);
+    setGoalPeriodValue(w.goalPeriodValue ? w.goalPeriodValue.toString() : "1");
+    setGoalPeriodUnit(w.goalPeriodUnit || "year");
     setIsWalletModalOpen(true);
   };
 
@@ -140,6 +313,11 @@ export default function WalletManager({
       color: walletColor,
       accountNumber: accountNumber.trim() || undefined,
       isDefault: isDefault,
+      targetAmount: walletType === "saving" && walletTargetAmount ? parseFloat(walletTargetAmount) : undefined,
+      dueDate: walletType === "saving" && walletDueDate ? walletDueDate : undefined,
+      excludeFromTotal: walletType === "saving" ? excludeFromTotal : false,
+      goalPeriodValue: walletType === "saving" && walletTargetAmount ? (parseInt(goalPeriodValue, 10) || undefined) : undefined,
+      goalPeriodUnit: walletType === "saving" && walletTargetAmount ? goalPeriodUnit : undefined,
     };
 
     if (editingWallet) {
@@ -275,6 +453,360 @@ export default function WalletManager({
               สร้างกระเป๋าตังใบแรก
             </button>
           </div>
+        ) : selectedWalletFlowId ? (
+          (() => {
+            const selectedWallet = wallets.find(w => w.id === selectedWalletFlowId);
+            const selectedIdx = wallets.findIndex(w => w.id === selectedWalletFlowId);
+            const selectedBalance = selectedWallet ? (walletBalances[selectedWallet.id] ?? 0) : 0;
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* LEFT: Selected Wallet (Large Detailed Card) */}
+                <div className="lg:col-span-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🔍 กำลังแสดงกระเป๋าขนาดใหญ่</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedWalletFlowId(null)}
+                      className="text-xs text-indigo-400 hover:text-indigo-300 font-bold bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer border border-indigo-500/20"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      ย่อกลับทั้งหมด
+                    </button>
+                  </div>
+
+                  {selectedWallet ? (
+                    <div
+                      className={`relative ${selectedWallet.color} border p-6 rounded-3xl text-white shadow-xl flex flex-col justify-between min-h-[200px] group transition-all duration-300 border-white/25`}
+                    >
+                      {/* Top line info */}
+                      <div>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-4xl filter drop-shadow-md select-none">{selectedWallet.icon}</span>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h4 className="font-extrabold text-lg tracking-wide truncate max-w-[150px]">
+                                  {selectedWallet.name}
+                                </h4>
+                                {selectedWallet.isDefault && (
+                                  <span className="text-[9px] bg-amber-500/20 text-amber-300 font-extrabold px-1.5 py-0.5 rounded-md border border-amber-400/30 flex items-center gap-0.5 uppercase shrink-0">
+                                    <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" /> หลัก
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] bg-black/25 text-white/90 font-semibold px-2 py-0.5 rounded-full border border-white/10 uppercase block w-fit mt-1">
+                                {selectedWallet.type === "cash" ? "💸 เงินสด" : selectedWallet.type === "bank" ? "🏦 ธนาคาร" : selectedWallet.type === "credit" ? "💳 บัตรเครดิต" : selectedWallet.type === "saving" ? "🐷 กระปุกออมสิน" : "💼 อื่นๆ"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex gap-1 shrink-0 flex-wrap justify-end max-w-[140px]">
+                            {onReorderWallets && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (selectedIdx > 0) {
+                                      const newWallets = [...wallets];
+                                      const temp = newWallets[selectedIdx];
+                                      newWallets[selectedIdx] = newWallets[selectedIdx - 1];
+                                      newWallets[selectedIdx - 1] = temp;
+                                      onReorderWallets(newWallets);
+                                    }
+                                  }}
+                                  disabled={selectedIdx === 0}
+                                  className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                                  title="เลื่อนขึ้น"
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (selectedIdx < wallets.length - 1) {
+                                      const newWallets = [...wallets];
+                                      const temp = newWallets[selectedIdx];
+                                      newWallets[selectedIdx] = newWallets[selectedIdx + 1];
+                                      newWallets[selectedIdx + 1] = temp;
+                                      onReorderWallets(newWallets);
+                                    }
+                                  }}
+                                  disabled={selectedIdx === wallets.length - 1}
+                                  className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                                  title="เลื่อนลง"
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpdateWallet(selectedWallet.id, {
+                                  name: selectedWallet.name,
+                                  type: selectedWallet.type,
+                                  initialBalance: selectedWallet.initialBalance,
+                                  icon: selectedWallet.icon,
+                                  color: selectedWallet.color,
+                                  accountNumber: selectedWallet.accountNumber,
+                                  isDefault: true
+                                });
+                              }}
+                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                selectedWallet.isDefault 
+                                  ? "bg-amber-500 text-slate-900 font-bold" 
+                                  : "bg-black/20 text-white/60 hover:text-white hover:bg-black/40"
+                              }`}
+                              title={selectedWallet.isDefault ? "กระเป๋าตังค่าเริ่มต้น" : "ตั้งเป็นกระเป๋าเงินค่าเริ่มต้น"}
+                            >
+                              <Star className={`w-3.5 h-3.5 ${selectedWallet.isDefault ? "fill-slate-900 text-slate-900" : ""}`} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditWalletModal(selectedWallet);
+                              }}
+                              className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
+                              title="แก้ไขกระเป๋าตัง"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(selectedWallet.id, selectedWallet.name);
+                              }}
+                              className="p-1.5 bg-black/20 hover:bg-rose-600/60 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
+                              title="ลบกระเป๋าตัง"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {selectedWallet.accountNumber && (
+                          <div className="mt-3 font-mono text-xs text-white/85 tracking-wider bg-black/25 py-1 px-2.5 rounded-lg border border-white/10 w-fit">
+                            เลขบัญชี: {selectedWallet.accountNumber}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bottom line: Balance display */}
+                      <div className="mt-5 border-t border-white/10 pt-4">
+                        <span className="text-xs text-white/70 block font-medium">ยอดเงินปัจจุบัน</span>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-3xl font-black tracking-tight">
+                            ฿{selectedBalance.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span className="text-[10px] text-white/60 font-semibold italic">
+                            เริ่มที่: ฿{selectedWallet.initialBalance.toLocaleString("th-TH")}
+                          </span>
+                        </div>
+
+                        {selectedWallet.type === "saving" && selectedWallet.targetAmount && selectedWallet.targetAmount > 0 ? (
+                          (() => {
+                            const progressPercent = (selectedBalance / selectedWallet.targetAmount) * 100;
+                            const cal = getRemainingGoalCalculations(selectedWallet, selectedBalance);
+                            
+                            return (
+                              <div className="mt-4 pt-3 border-t border-white/10 space-y-4">
+                                {/* Exclude Total Status Badge */}
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] uppercase font-bold text-slate-400">สถานะกระปุกออมสิน</span>
+                                  {selectedWallet.excludeFromTotal ? (
+                                    <span className="text-[10px] bg-amber-500/10 text-amber-300 font-extrabold px-2.5 py-1 rounded-full border border-amber-500/20 flex items-center gap-1">
+                                      🔒 ซ่อนยอด (แยกจากยอดรวม)
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] bg-emerald-500/10 text-emerald-300 font-extrabold px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
+                                      🔓 รวมยอดกับกระเป๋าอื่นๆ
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Progress Bar */}
+                                <div className="space-y-1.5">
+                                  <div className="flex justify-between items-center text-xs text-white/90">
+                                    <span className="font-bold text-pink-200 flex items-center gap-1">
+                                      🎯 เป้าหมายออมเงิน: ฿{selectedWallet.targetAmount.toLocaleString("th-TH")}
+                                    </span>
+                                    <span className="font-black text-pink-300 bg-pink-500/20 px-2 py-0.5 rounded-md text-[10px] border border-pink-400/20">
+                                      {progressPercent.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-white/10 h-2.5 rounded-full overflow-hidden border border-white/5">
+                                    <div
+                                      className="h-full rounded-full bg-gradient-to-r from-pink-400 via-rose-500 to-pink-400 transition-all duration-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]"
+                                      style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Goals & Period info */}
+                                {cal && (
+                                  <div className="bg-black/30 border border-white/5 rounded-2xl p-3.5 space-y-3">
+                                    <div className="grid grid-cols-2 gap-3 text-[11px] leading-relaxed">
+                                      <div>
+                                        <span className="text-slate-400 block font-semibold">💰 ยอดที่เหลือต้องออมเพิ่ม:</span>
+                                        <span className="font-black text-white text-xs">
+                                          ฿{cal.remainingAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-400 block font-semibold">📅 วันสิ้นสุด & ระยะเวลาคงเหลือ:</span>
+                                        {cal.isOverdue ? (
+                                          <span className="font-bold text-rose-400 text-[10px]">
+                                            ⚠️ เลยกำหนด ({selectedWallet.dueDate})
+                                          </span>
+                                        ) : (
+                                          <span className="font-bold text-white text-[10px]">
+                                            {cal.remainingMonths >= 12 
+                                              ? `${cal.remainingYears.toFixed(1)} ปี (${cal.remainingMonths.toFixed(0)} เดือน)` 
+                                              : `${cal.remainingMonths.toFixed(1)} เดือน`
+                                            }
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Smart Calculation display: ยอดที่เหลือ หาร ระยะเวลาที่เหลือ */}
+                                    <div className="pt-2.5 border-t border-white/5">
+                                      <span className="text-[10px] font-extrabold text-pink-300 block uppercase tracking-wider mb-1.5">
+                                        📈 แผนการออมเฉลี่ยเพื่อให้ถึงเป้าหมาย:
+                                      </span>
+                                      
+                                      {cal.isOverdue ? (
+                                        <div className="text-[10px] text-rose-300 leading-normal bg-rose-500/10 p-2 rounded-xl border border-rose-500/20">
+                                          เกินกำหนดระยะเวลาเป้าหมายแล้ว กรุณาขยายเวลาสิ้นสุดของเป้าหมายในเมนูแก้ไข เพื่อให้ระบบคำนวณออมเฉลี่ยต่อเดือนที่เหลือให้ใหม่
+                                        </div>
+                                      ) : cal.remainingAmount <= 0 ? (
+                                        <div className="text-[10px] text-emerald-300 font-extrabold leading-normal bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 flex items-center gap-1">
+                                          🏆 ยินดีด้วย! คุณสะสมเงินออมครบตามเป้าหมายของกระปุกนี้แล้ว
+                                        </div>
+                                      ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          <div className="bg-white/5 p-2 rounded-xl border border-white/5">
+                                            <span className="text-[8px] text-slate-400 block">ออมเฉลี่ยจากยอดคงเหลือ:</span>
+                                            <span className="text-xs font-black text-emerald-400">
+                                              ฿{cal.requiredPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })}
+                                            </span>
+                                            <span className="text-[8px] text-slate-400"> / เดือน</span>
+                                            
+                                            {selectedWallet.goalPeriodUnit === "year" && (
+                                              <div className="text-[9px] font-semibold text-slate-300 mt-0.5">
+                                                หรือ ฿{cal.requiredPerYear.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / ปี
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          <div className="bg-white/5 p-2 rounded-xl border border-white/5 opacity-70">
+                                            <span className="text-[8px] text-slate-400 block">แผนออมเฉลี่ยเริ่มแรก:</span>
+                                            <span className="text-xs font-bold text-slate-300">
+                                              ฿{cal.initialPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })}
+                                            </span>
+                                            <span className="text-[8px] text-slate-400"> / เดือน</span>
+
+                                            {selectedWallet.goalPeriodUnit === "year" && (
+                                              <div className="text-[9px] text-slate-400 mt-0.5">
+                                                หรือ ฿{cal.initialPerYear.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / ปี
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()
+                        ) : selectedWallet.type === "saving" ? (
+                          <div className="mt-2 text-xs text-pink-300/90 italic font-medium flex items-center gap-1.5 bg-pink-500/10 px-2.5 py-1 rounded-xl w-fit border border-pink-500/10">
+                            🐷 ยังไม่ตั้งเป้าหมายเงินออม (คลิกแก้ไขเพื่อเปิด)
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 text-xs py-10 bg-white/5 border border-white/10 rounded-2xl text-center">ไม่พบข้อมูลกระเป๋าเงิน</div>
+                  )}
+                </div>
+
+                {/* RIGHT: Compact Wallets List ("เป๋าเล็ก ๆ") */}
+                <div className="lg:col-span-7 space-y-3">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                    💳 รายการกระเป๋าทั้งหมดในรูปแบบย่อ (คลิกเพื่อเลือก)
+                  </span>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2.5">
+                    {wallets.map((wallet) => {
+                      const compactBalance = walletBalances[wallet.id] ?? 0;
+                      const isSelected = wallet.id === selectedWalletFlowId;
+                      const theme = getWalletThemeCompact(wallet.color);
+
+                      return (
+                        <div
+                          key={wallet.id}
+                          onClick={() => setSelectedWalletFlowId(wallet.id)}
+                          className={`rounded-2xl p-3 flex flex-col justify-between h-[76px] transition-all duration-200 cursor-pointer ${
+                            isSelected 
+                              ? theme.activeBorder 
+                              : `border border-white/5 ${theme.bg} ${theme.border}`
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-lg select-none shrink-0">{wallet.icon}</span>
+                              <span className="font-extrabold text-xs text-white truncate" title={wallet.name}>
+                                {wallet.name}
+                              </span>
+                            </div>
+                            {wallet.isDefault && (
+                              <span className="text-[8px] bg-amber-500/20 text-amber-300 font-extrabold px-1 rounded-sm border border-amber-400/20 uppercase shrink-0">
+                                หลัก
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-baseline justify-between mt-1">
+                            <span className="text-[9px] text-slate-400">ยอดเงิน:</span>
+                            <span className={`text-[13px] font-black tracking-tight ${isSelected ? "text-white" : "text-slate-200"}`}>
+                              ฿{compactBalance.toLocaleString("th-TH", { maximumFractionDigits: 1 })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Render empty dashed slots up to at least 6 total slots */}
+                    {Array.from({ length: Math.max(0, 6 - wallets.length) }).map((_, i) => (
+                      <div
+                        key={`empty-slot-${i}`}
+                        className="border border-white/5 border-dashed rounded-2xl h-[76px] flex flex-col items-center justify-center bg-white/[0.01]"
+                      >
+                        <span className="text-[9px] text-slate-600 font-medium tracking-wider uppercase">
+                          ช่องกระเป๋าว่าง
+                        </span>
+                        <span className="text-[8px] text-slate-700 font-semibold mt-0.5">
+                          ช่องที่ {wallets.length + i + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {wallets.map((wallet, idx) => {
@@ -414,10 +946,16 @@ export default function WalletManager({
                         เลขบัญชี: {wallet.accountNumber}
                       </div>
                     )}
+
+                    {wallet.excludeFromTotal && (
+                      <div className="mt-2 inline-flex items-center gap-1 text-[8px] bg-slate-500/25 text-slate-300 font-extrabold px-1.5 py-0.5 rounded-md border border-slate-400/10">
+                        🔒 แยกออกจากยอดเงินรวม
+                      </div>
+                    )}
                   </div>
 
                   {/* Bottom line: Balance display */}
-                  <div className="mt-6 border-t border-white/10 pt-3">
+                  <div className="mt-4 border-t border-white/10 pt-3">
                     <span className="text-[10px] text-white/70 block font-medium">ยอดเงินปัจจุบัน</span>
                     <div className="flex items-baseline justify-between">
                       <span className="text-2xl font-black tracking-tight">
@@ -427,6 +965,50 @@ export default function WalletManager({
                         เริ่มที่: ฿{wallet.initialBalance.toLocaleString("th-TH")}
                       </span>
                     </div>
+
+                    {wallet.type === "saving" && wallet.targetAmount && wallet.targetAmount > 0 ? (
+                      (() => {
+                        const progressPercent = (balance / wallet.targetAmount) * 100;
+                        const cal = getRemainingGoalCalculations(wallet, balance);
+                        
+                        return (
+                          <div className="mt-2.5 pt-2 border-t border-white/5 space-y-2">
+                            <div className="flex justify-between items-center text-[10px] text-white/90">
+                              <span className="font-semibold text-pink-200">🎯 เป้าหมาย: ฿{wallet.targetAmount.toLocaleString("th-TH")}</span>
+                              <span className="font-bold text-pink-300 bg-pink-500/20 px-1.5 py-0.5 rounded-md">
+                                {progressPercent.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-pink-300 via-rose-400 to-pink-300 transition-all duration-500"
+                                style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
+                              />
+                            </div>
+                            
+                            {cal && !cal.isOverdue && cal.remainingAmount > 0 && (
+                              <div className="bg-white/5 px-2 py-1.5 rounded-lg text-[9px] text-slate-300 flex items-center justify-between border border-white/5 leading-tight">
+                                <span>🚀 ต้องออมอีก:</span>
+                                <span className="font-bold text-emerald-400">
+                                  ฿{cal.requiredPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / เดือน
+                                </span>
+                              </div>
+                            )}
+
+                            {wallet.dueDate && (
+                              <div className="text-[9px] text-pink-200/80 flex justify-between items-center pt-0.5">
+                                <span>📅 กำหนดออมภายใน:</span>
+                                <span className="font-mono font-semibold">{wallet.dueDate}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : wallet.type === "saving" ? (
+                      <div className="mt-1.5 text-[9px] text-pink-300/80 italic font-medium flex items-center gap-1 bg-pink-500/10 px-2 py-0.5 rounded-lg w-fit">
+                        🐷 ยังไม่ตั้งเป้าหมายเงินออม (คลิกแก้ไขเพื่อเปิด)
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               );
@@ -724,6 +1306,105 @@ export default function WalletManager({
                   จำนวนเงินจริงที่มีอยู่ในกระเป๋าใบนี้ ณ วันที่เปิดใช้งานระบบ เพื่อให้ผลรวมคำนวณได้อย่างเที่ยงตรง
                 </span>
               </div>
+
+              {/* Savings Goal Target Fields (Only for Saving Wallet/Piggy Bank) */}
+              {walletType === "saving" && (
+                <div className="bg-pink-500/5 border border-pink-500/10 p-4 rounded-2xl space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-pink-400">
+                    <span>🐷 ตั้งเป้าหมายออมเงินสำหรับกระปุกนี้</span>
+                  </div>
+                  
+                  {/* Goal and Duration Grid */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                        เป้าหมายเงินออม (บาท)
+                      </label>
+                      <input
+                        type="number"
+                        value={walletTargetAmount}
+                        onChange={(e) => setWalletTargetAmount(e.target.value)}
+                        placeholder="เช่น 12000 หรือ 120000"
+                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 text-xs font-semibold"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-1">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                          ระยะเวลา
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={goalPeriodValue}
+                          onChange={(e) => setGoalPeriodValue(e.target.value)}
+                          className="w-full px-2 py-2 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-hidden focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 text-xs font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                          หน่วย
+                        </label>
+                        <select
+                          value={goalPeriodUnit}
+                          onChange={(e) => setGoalPeriodUnit(e.target.value as any)}
+                          className="w-full px-1 py-2 bg-[#1e293b] border border-white/10 rounded-xl text-white focus:outline-hidden focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 text-xs font-semibold cursor-pointer"
+                        >
+                          <option value="year">ปี</option>
+                          <option value="month">เดือน</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Date and Exclude Total */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                        วันที่เป้าหมาย (คำนวณให้อัตโนมัติ)
+                      </label>
+                      <input
+                        type="date"
+                        value={walletDueDate}
+                        onChange={(e) => setWalletDueDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-hidden focus:ring-2 focus:ring-pink-500/20 focus:border-pink-500 text-xs font-semibold cursor-pointer"
+                      />
+                    </div>
+                    
+                    {/* Hide Balance Toggle */}
+                    <div className="flex flex-col justify-end">
+                      <label className="flex items-center gap-2 cursor-pointer select-none pb-1">
+                        <input
+                          type="checkbox"
+                          checked={excludeFromTotal}
+                          onChange={(e) => setExcludeFromTotal(e.target.checked)}
+                          className="w-4 h-4 rounded border-white/20 text-pink-600 focus:ring-pink-500 bg-white/5 cursor-pointer animate-pulse"
+                        />
+                        <div className="leading-tight">
+                          <span className="text-[10px] font-bold text-pink-300 block">🔒 ซ่อนยอดเงินนี้</span>
+                          <span className="text-[8px] text-slate-400 block">ไม่รวมในเงินรวมกระเป๋า</span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Real-time split preview if target amount is input */}
+                  {walletTargetAmount && parseFloat(walletTargetAmount) > 0 && (
+                    <div className="bg-white/5 p-2.5 rounded-xl text-[10px] text-pink-200 border border-white/5 space-y-0.5 mt-1 leading-normal">
+                      <span className="font-extrabold block text-pink-300">📊 แผนคำนวณเป้าหมายออมเงิน:</span>
+                      <div>• เป้าหมายทั้งหมด: <span className="font-semibold text-white">฿{parseFloat(walletTargetAmount).toLocaleString()}</span> ในระยะเวลา <span className="font-semibold text-white">{goalPeriodValue} {goalPeriodUnit === 'year' ? 'ปี' : 'เดือน'}</span></div>
+                      <div>
+                        • ออมเฉลี่ย: <span className="font-bold text-emerald-400">฿{(goalPeriodUnit === 'year' ? (parseFloat(walletTargetAmount) / (parseInt(goalPeriodValue, 10) * 12)) : (parseFloat(walletTargetAmount) / parseInt(goalPeriodValue, 10))).toLocaleString("th-TH", {maximumFractionDigits: 1})} ต่อเดือน</span>
+                        {goalPeriodUnit === 'year' && (
+                          <span> หรือ <span className="font-bold text-emerald-400">฿{(parseFloat(walletTargetAmount) / parseInt(goalPeriodValue, 10)).toLocaleString("th-TH", {maximumFractionDigits: 1})} ต่อปี</span></span>
+                        )}
+                      </div>
+                      <span className="text-[8px] text-slate-400 italic block mt-1 leading-normal">*ระบบจะแบ่งยอดด้วย "ยอดที่เหลือ หาร ระยะเวลาที่เหลือ" จริงแบบเรียลไทม์เพื่อให้คุณเห็นจำนวนเงินเป้าหมายออมที่ปรับเปลี่ยนตามจริงด้วย!</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Icon selector */}
               <div>

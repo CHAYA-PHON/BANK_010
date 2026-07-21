@@ -27,6 +27,18 @@ export interface Wallet {
   createdAt: string;
   sortOrder?: number;
   isDefault?: boolean;
+  targetAmount?: number; // Target savings amount for savings jar (กระปุกออมสิน)
+  dueDate?: string; // Due date for reaching the savings jar goal (YYYY-MM-DD)
+  excludeFromTotal?: boolean; // ซ่อนยอดเงินนี้ ไม่รวมกับ ยอดเงินรวมทุกกระเป๋า
+  goalPeriodValue?: number; // ระยะเวลาเป้าหมาย (เช่น 1, 10)
+  goalPeriodUnit?: "month" | "year"; // หน่วยของระยะเวลาเป้าหมาย ("month" หรือ "year")
+}
+
+export interface MonthlyGoal {
+  id: string; // "goal-YYYY-MM"
+  month: string; // YYYY-MM
+  amount: number; // monthly target savings amount in Baht
+  createdAt: string;
 }
 
 export interface Debt {

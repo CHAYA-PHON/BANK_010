@@ -3,25 +3,29 @@ export function getEffectiveBackendBaseUrl(): string {
   let savedBase = localStorage.getItem("app_api_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "";
   
   if (typeof window !== "undefined" && window.location) {
-    const hostname = window.location.hostname;
-    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.includes("192.168.");
-    const isCloudRun = hostname.endsWith(".run.app");
-    const isVercel = hostname.endsWith(".vercel.app") || hostname.includes("vercel");
+    try {
+      const hostname = window.location.hostname || "";
+      const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname.includes("192.168.");
+      const isCloudRun = hostname.endsWith(".run.app");
+      const isVercel = hostname.endsWith(".vercel.app") || hostname.includes("vercel");
 
-    // If we're not on localhost, but savedBase is localhost, ignore it
-    if (!isLocalhost && savedBase && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1"))) {
-      savedBase = "";
-    }
+      // If we're not on localhost, but savedBase is localhost, ignore it
+      if (!isLocalhost && savedBase && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1"))) {
+        savedBase = "";
+      }
 
-    // If savedBase is a vercel.app or matches our current hostname, ignore it (as we want to use relative paths)
-    if (savedBase && (savedBase.includes(".vercel.app") || (!isLocalhost && !isCloudRun && savedBase.includes(hostname)))) {
-      savedBase = "";
-    }
+      // If savedBase is a vercel.app or matches our current hostname, ignore it (as we want to use relative paths)
+      if (savedBase && (savedBase.includes(".vercel.app") || (!isLocalhost && !isCloudRun && savedBase.includes(hostname)))) {
+        savedBase = "";
+      }
 
-    // If we have no valid backend base URL and we are hosted externally (like Vercel), default to Cloud Run,
-    // unless we are hosted on Vercel itself, in which case we use the relative paths to the local Vercel backend.
-    if (!savedBase && !isLocalhost && !isCloudRun && !isVercel) {
-      return "https://ais-pre-vzwnta4t5vklyptliik43g-446396597239.asia-east1.run.app";
+      // If we have no valid backend base URL and we are hosted externally (like Vercel), default to Cloud Run,
+      // unless we are hosted on Vercel itself, in which case we use the relative paths to the local Vercel backend.
+      if (!savedBase && !isLocalhost && !isCloudRun && !isVercel) {
+        return "https://ais-pre-vzwnta4t5vklyptliik43g-446396597239.asia-east1.run.app";
+      }
+    } catch (e) {
+      console.warn("Security or access exception when reading window.location:", e);
     }
   }
 
