@@ -71,6 +71,52 @@
         "amount": "number",
         "createdAt": "string"
       }
+    },
+    {
+      "name": "vehicles",
+      "description": "Vehicle maintenance records and reminders",
+      "fields": {
+        "id": "string",
+        "name": "string",
+        "plateNumber": "string",
+        "lastOdometer": "number",
+        "lastServiceDate": "string",
+        "nextServiceOdometer": "number",
+        "nextServiceDate": "string",
+        "note": "string",
+        "createdAt": "string"
+      }
+    },
+    {
+      "name": "ac_services",
+      "description": "Air conditioner service and cleaning records",
+      "fields": {
+        "id": "string",
+        "locationName": "string",
+        "lastCleanDate": "string",
+        "nextCleanDate": "string",
+        "technicianContact": "string",
+        "cost": "number",
+        "note": "string",
+        "createdAt": "string"
+      }
+    },
+    {
+      "name": "utility_bills",
+      "description": "Monthly utility bill tracking and payment status",
+      "fields": {
+        "id": "string",
+        "type": "string",
+        "title": "string",
+        "accountNumber": "string",
+        "dueDate": "string",
+        "estimatedAmount": "number",
+        "actualAmount": "number",
+        "status": "string",
+        "paidDate": "string",
+        "note": "string",
+        "createdAt": "string"
+      }
     }
   ]
 }

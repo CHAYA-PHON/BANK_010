@@ -4,19 +4,7 @@ service cloud.firestore {
     match /users/{username} {
       allow read, write: if true;
       
-      match /transactions/{transactionId} {
-        allow read, write: if true;
-      }
-      match /wallets/{walletId} {
-        allow read, write: if true;
-      }
-      match /debts/{debtId} {
-        allow read, write: if true;
-      }
-      match /debt_payments/{paymentId} {
-        allow read, write: if true;
-      }
-      match /monthly_goals/{goalId} {
+      match /{document=**} {
         allow read, write: if true;
       }
     }
@@ -33,6 +21,15 @@ service cloud.firestore {
       allow read, write: if true;
     }
     match /monthly_goals/{goalId} {
+      allow read, write: if true;
+    }
+    match /vehicles/{vehicleId} {
+      allow read, write: if true;
+    }
+    match /ac_services/{acServiceId} {
+      allow read, write: if true;
+    }
+    match /utility_bills/{billId} {
       allow read, write: if true;
     }
   }

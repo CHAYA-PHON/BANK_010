@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Transaction, Wallet, Debt, DebtPayment, MonthlyGoal } from "./types";
+import { Transaction, Wallet, Debt, DebtPayment, MonthlyGoal, VehicleService, AcService, UtilityBill } from "./types";
 import SlipUploader from "./components/SlipUploader";
 import TransactionForm from "./components/TransactionForm";
 import DashboardStats from "./components/DashboardStats";
@@ -11,10 +11,11 @@ import LoginScreen from "./components/LoginScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import LineSummarySender from "./components/LineSummarySender";
 import MonthlyReport from "./components/MonthlyReport";
+import ServiceAndUtilityManager from "./components/ServiceAndUtilityManager";
 import { 
   Sparkles, Coins, HelpCircle, ArrowUpRight, Plus, ScanLine, 
   History, PieChart, Landmark, ArrowRightLeft, Settings, LogOut, CheckCircle, Wallet as WalletIcon, ShieldAlert,
-  Keyboard, Monitor, X, FileSpreadsheet, Cloud, Shield
+  Keyboard, Monitor, X, FileSpreadsheet, Cloud, Shield, Wrench, Zap
 } from "lucide-react";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
@@ -126,9 +127,12 @@ export default function App() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [monthlyGoals, setMonthlyGoals] = useState<MonthlyGoal[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleService[]>([]);
+  const [acServices, setAcServices] = useState<AcService[]>([]);
+  const [utilityBills, setUtilityBills] = useState<UtilityBill[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("manual");
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report">("dashboard");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report" | "services">("dashboard");
   
   // Dynamically calculate balances of each wallet
   const walletBalances = useMemo(() => {
@@ -304,6 +308,69 @@ export default function App() {
     if (currentUser) {
       const userDocId = currentUser.toLowerCase().trim();
       localStorage.setItem(`money_tracker_debt_payments_${userDocId}`, JSON.stringify(newPayments));
+    }
+  };
+
+  const saveVehicles = async (newVehicles: VehicleService[]) => {
+    const deletedVehicles = vehicles.filter(v => !newVehicles.some(nv => nv.id === v.id));
+    setVehicles(newVehicles);
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_vehicles_${userDocId}`, JSON.stringify(newVehicles));
+      try {
+        for (const v of newVehicles) {
+          await setDoc(doc(db, "users", userDocId, "vehicles", v.id), cleanObjectForFirestore(v));
+        }
+        for (const dv of deletedVehicles) {
+          await deleteDoc(doc(db, "users", userDocId, "vehicles", dv.id));
+        }
+      } catch (err) {
+        console.error("Error saving vehicles to Firestore:", err);
+      }
+    } else {
+      localStorage.setItem("money_tracker_vehicles", JSON.stringify(newVehicles));
+    }
+  };
+
+  const saveAcServices = async (newAcServices: AcService[]) => {
+    const deletedAc = acServices.filter(a => !newAcServices.some(na => na.id === a.id));
+    setAcServices(newAcServices);
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_ac_services_${userDocId}`, JSON.stringify(newAcServices));
+      try {
+        for (const a of newAcServices) {
+          await setDoc(doc(db, "users", userDocId, "ac_services", a.id), cleanObjectForFirestore(a));
+        }
+        for (const da of deletedAc) {
+          await deleteDoc(doc(db, "users", userDocId, "ac_services", da.id));
+        }
+      } catch (err) {
+        console.error("Error saving AC services to Firestore:", err);
+      }
+    } else {
+      localStorage.setItem("money_tracker_ac_services", JSON.stringify(newAcServices));
+    }
+  };
+
+  const saveUtilityBills = async (newBills: UtilityBill[]) => {
+    const deletedBills = utilityBills.filter(b => !newBills.some(nb => nb.id === b.id));
+    setUtilityBills(newBills);
+    if (currentUser) {
+      const userDocId = currentUser.toLowerCase().trim();
+      localStorage.setItem(`money_tracker_utility_bills_${userDocId}`, JSON.stringify(newBills));
+      try {
+        for (const b of newBills) {
+          await setDoc(doc(db, "users", userDocId, "utility_bills", b.id), cleanObjectForFirestore(b));
+        }
+        for (const dbill of deletedBills) {
+          await deleteDoc(doc(db, "users", userDocId, "utility_bills", dbill.id));
+        }
+      } catch (err) {
+        console.error("Error saving utility bills to Firestore:", err);
+      }
+    } else {
+      localStorage.setItem("money_tracker_utility_bills", JSON.stringify(newBills));
     }
   };
 
@@ -549,6 +616,57 @@ export default function App() {
           } catch (e) {
             setMonthlyGoals([]);
           }
+        }
+      }
+
+      // 6. Load Vehicles
+      try {
+        const vehColRef = collection(db, "users", userDocId, "vehicles");
+        const vehSnapshot = await getDocs(vehColRef);
+        const vehList: VehicleService[] = [];
+        vehSnapshot.forEach((doc) => {
+          vehList.push(doc.data() as VehicleService);
+        });
+        setVehicles(vehList);
+        localStorage.setItem(`money_tracker_vehicles_${userDocId}`, JSON.stringify(vehList));
+      } catch (err) {
+        const saved = localStorage.getItem(`money_tracker_vehicles_${userDocId}`);
+        if (saved) {
+          try { setVehicles(JSON.parse(saved)); } catch (e) { setVehicles([]); }
+        }
+      }
+
+      // 7. Load AC Services
+      try {
+        const acColRef = collection(db, "users", userDocId, "ac_services");
+        const acSnapshot = await getDocs(acColRef);
+        const acList: AcService[] = [];
+        acSnapshot.forEach((doc) => {
+          acList.push(doc.data() as AcService);
+        });
+        setAcServices(acList);
+        localStorage.setItem(`money_tracker_ac_services_${userDocId}`, JSON.stringify(acList));
+      } catch (err) {
+        const saved = localStorage.getItem(`money_tracker_ac_services_${userDocId}`);
+        if (saved) {
+          try { setAcServices(JSON.parse(saved)); } catch (e) { setAcServices([]); }
+        }
+      }
+
+      // 8. Load Utility Bills
+      try {
+        const billColRef = collection(db, "users", userDocId, "utility_bills");
+        const billSnapshot = await getDocs(billColRef);
+        const billList: UtilityBill[] = [];
+        billSnapshot.forEach((doc) => {
+          billList.push(doc.data() as UtilityBill);
+        });
+        setUtilityBills(billList);
+        localStorage.setItem(`money_tracker_utility_bills_${userDocId}`, JSON.stringify(billList));
+      } catch (err) {
+        const saved = localStorage.getItem(`money_tracker_utility_bills_${userDocId}`);
+        if (saved) {
+          try { setUtilityBills(JSON.parse(saved)); } catch (e) { setUtilityBills([]); }
         }
       }
 
@@ -1339,6 +1457,17 @@ export default function App() {
               <span>รายงาน</span>
             </button>
             <button
+              onClick={() => setCurrentPage("services")}
+              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                currentPage === "services"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5 text-amber-400" />
+              <span>น้ำไฟ & บำรุงรักษา</span>
+            </button>
+            <button
               onClick={() => setCurrentPage("wallets")}
               className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 currentPage === "wallets"
@@ -1419,15 +1548,15 @@ export default function App() {
 
       {/* Mobile Sticky Bottom Navigation Bar (App-like Navigation) */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#090d16]/95 backdrop-blur-lg border-t border-white/10 shadow-[0_-8px_30px_rgb(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2.5">
-        <div className="grid grid-cols-6 h-12 max-w-md mx-auto px-1">
+        <div className="grid grid-cols-7 h-12 max-w-md mx-auto px-0.5">
           <button
             onClick={() => setCurrentPage("dashboard")}
             className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
               currentPage === "dashboard" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <PieChart className={`w-5 h-5 ${currentPage === "dashboard" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">แดชบอร์ด</span>
+            <PieChart className={`w-4 h-4 ${currentPage === "dashboard" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">แดชบอร์ด</span>
           </button>
           <button
             onClick={() => {
@@ -1438,8 +1567,17 @@ export default function App() {
               currentPage === "records" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <Plus className={`w-5 h-5 ${currentPage === "records" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">บันทึกเอง</span>
+            <Plus className={`w-4 h-4 ${currentPage === "records" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">บันทึก</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage("services")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "services" ? "text-amber-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Wrench className={`w-4 h-4 ${currentPage === "services" ? "scale-110 text-amber-400 filter drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">น้ำไฟ/รถ</span>
           </button>
           <button
             onClick={() => setCurrentPage("report")}
@@ -1447,8 +1585,8 @@ export default function App() {
               currentPage === "report" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <FileSpreadsheet className={`w-5 h-5 ${currentPage === "report" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">รายงาน</span>
+            <FileSpreadsheet className={`w-4 h-4 ${currentPage === "report" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">รายงาน</span>
           </button>
           <button
             onClick={() => setCurrentPage("wallets")}
@@ -1456,8 +1594,8 @@ export default function App() {
               currentPage === "wallets" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <WalletIcon className={`w-5 h-5 ${currentPage === "wallets" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">กระเป๋า</span>
+            <WalletIcon className={`w-4 h-4 ${currentPage === "wallets" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">กระเป๋า</span>
           </button>
           <button
             onClick={() => setCurrentPage("debts")}
@@ -1465,8 +1603,8 @@ export default function App() {
               currentPage === "debts" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <Landmark className={`w-5 h-5 ${currentPage === "debts" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">หนี้สิน</span>
+            <Landmark className={`w-4 h-4 ${currentPage === "debts" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">หนี้สิน</span>
           </button>
           <button
             onClick={() => setCurrentPage("settings")}
@@ -1474,8 +1612,8 @@ export default function App() {
               currentPage === "settings" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <Settings className={`w-5 h-5 ${currentPage === "settings" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[10px] scale-95 leading-none">ตั้งค่า</span>
+            <Settings className={`w-4 h-4 ${currentPage === "settings" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">ตั้งค่า</span>
           </button>
         </div>
       </nav>
@@ -1689,6 +1827,22 @@ export default function App() {
               onMonthChange={setSelectedMonth}
               availableMonths={availableMonths}
               currentUser={currentUser}
+            />
+          </div>
+        )}
+
+        {/* VIEW 7: Utility Bills & Maintenance Manager */}
+        {currentPage === "services" && (
+          <div className="animate-fade-in">
+            <ServiceAndUtilityManager
+              wallets={wallets}
+              vehicles={vehicles}
+              acServices={acServices}
+              utilityBills={utilityBills}
+              onSaveVehicles={saveVehicles}
+              onSaveAcServices={saveAcServices}
+              onSaveUtilityBills={saveUtilityBills}
+              onAddTransaction={handleAddTransaction}
             />
           </div>
         )}

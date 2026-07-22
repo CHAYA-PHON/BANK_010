@@ -151,3 +151,71 @@ export const DEFAULT_CATEGORY_INFO: CategoryInfo = {
   borderColor: "border-slate-200",
   icon: "Grid",
 };
+
+export interface VehicleLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  mileage: number; // km at oil change
+  cost?: number;
+  shopName?: string;
+  note?: string;
+}
+
+export interface VehicleService {
+  id: string;
+  vehicleName: string; // e.g., "รถยนต์ Mazda 2", "รถมอเตอร์ไซค์ Click 125i"
+  plateNumber?: string;
+  currentMileage: number; // เลขมิเตอร์ปัจจุบัน (km)
+  intervalKm: number; // กำหนดระยะ e.g. 3000 km
+  intervalMonths: number; // กำหนดเดือน e.g. 4 เดือน
+  lastServiceDate: string; // วันที่ถ่ายน้ำมันเครื่องล่าสุด (YYYY-MM-DD)
+  lastServiceMileage: number; // เลขมิเตอร์ตอนถ่ายล่าสุด (km)
+  lastServiceCost?: number;
+  note?: string;
+  history: VehicleLog[];
+  createdAt: string;
+}
+
+export interface AcLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  cost?: number;
+  technician?: string;
+  note?: string;
+}
+
+export interface AcService {
+  id: string;
+  name: string; // e.g., "แอร์ห้องนอน", "แอร์ห้องนั่งเล่น"
+  location?: string;
+  brand?: string;
+  intervalMonths: number; // กำหนดเดือน e.g. 6 เดือน
+  lastCleanDate: string; // วันที่ล้างแอร์ล่าสุด (YYYY-MM-DD)
+  lastCleanCost?: number;
+  technician?: string;
+  note?: string;
+  history: AcLog[];
+  createdAt: string;
+}
+
+export interface UtilityBill {
+  id: string;
+  type: "electricity" | "water";
+  billingMonth: string; // YYYY-MM (e.g. "2026-07")
+  billDate: string; // YYYY-MM-DD
+  startMeter: number; // เลขมิเตอร์ครั้งก่อน (e.g. 10710)
+  endMeter: number; // เลขมิเตอร์ครั้งนี้ (e.g. 11253)
+  unitsUsed: number; // จำนวนมิเตอร์ที่ใช้ไป (endMeter - startMeter)
+  baseCost: number; // ค่าไฟ / ค่าน้ำ
+  ftCost: number; // ค่า FT
+  serviceFee: number; // ค่าบริการ
+  vatPercent: number; // ภาษีมูลค่าเพิ่ม (%) เช่น 7
+  vatAmount: number; // บาท
+  totalAmount: number; // รวมเงิน
+  ratePerUnit: number; // อัตราค่าน้ำ/ค่าไฟต่อหน่วย
+  note?: string;
+  walletId?: string; // กระเป๋าเงินที่ใช้จ่าย (ถ้าเลือก)
+  paid?: boolean;
+  createdAt: string;
+}
+
