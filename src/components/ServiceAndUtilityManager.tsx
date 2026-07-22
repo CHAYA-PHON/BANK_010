@@ -687,32 +687,46 @@ export default function ServiceAndUtilityManager({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+              <span className={`p-2 rounded-xl border ${
+                theme === "light"
+                  ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                  : "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
+              }`}>
                 <Wrench className="w-5 h-5" />
               </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${
+                theme === "light" ? "text-slate-900" : "text-white"
+              }`}>
                 สาธารณูปโภค & บำรุงรักษา
               </h2>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            <p className={`text-xs sm:text-sm mt-1 ${
+              theme === "light" ? "text-slate-600 font-medium" : "text-slate-400"
+            }`}>
               บันทึกค่าน้ำ-ค่าไฟ อัตราต่อหน่วย ระบบเตือนถ่ายน้ำมันเครื่องรถ และกำหนดรอบล้างแอร์
             </p>
           </div>
 
           {/* Tab Selection */}
-          <div className="flex items-center gap-1.5 bg-black/40 p-1.5 rounded-xl border border-white/10 overflow-x-auto">
+          <div className={`flex items-center gap-1.5 p-1.5 rounded-xl border overflow-x-auto ${
+            theme === "light" ? "bg-slate-200/70 border-slate-300" : "bg-black/40 border-white/10"
+          }`}>
             <button
               onClick={() => setActiveTab("utilities")}
               className={`py-2 px-3.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "utilities"
                   ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg border border-white/20"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                  : theme === "light"
+                    ? "text-slate-700 hover:text-slate-900 hover:bg-slate-300/60"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Zap className="w-4 h-4 text-amber-400" />
+              <Zap className={`w-4 h-4 ${theme === "light" ? "text-amber-600" : "text-amber-400"}`} />
               <span>ค่าน้ำ / ค่าไฟ</span>
               {utilityBills.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-white/20 text-white font-mono">
+                <span className={`ml-1 px-1.5 py-0.5 text-[10px] rounded-full font-mono ${
+                  theme === "light" ? "bg-slate-800 text-white" : "bg-white/20 text-white"
+                }`}>
                   {utilityBills.length}
                 </span>
               )}
@@ -723,13 +737,17 @@ export default function ServiceAndUtilityManager({
               className={`py-2 px-3.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "vehicles"
                   ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg border border-white/20"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                  : theme === "light"
+                    ? "text-slate-700 hover:text-slate-900 hover:bg-slate-300/60"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Car className="w-4 h-4 text-purple-400" />
+              <Car className={`w-4 h-4 ${theme === "light" ? "text-purple-700" : "text-purple-400"}`} />
               <span>ถ่ายน้ำมันเครื่องรถ</span>
               {vehicles.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-white/20 text-white font-mono">
+                <span className={`ml-1 px-1.5 py-0.5 text-[10px] rounded-full font-mono ${
+                  theme === "light" ? "bg-slate-800 text-white" : "bg-white/20 text-white"
+                }`}>
                   {vehicles.length}
                 </span>
               )}
@@ -740,13 +758,17 @@ export default function ServiceAndUtilityManager({
               className={`py-2 px-3.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === "ac"
                   ? "bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg border border-white/20"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                  : theme === "light"
+                    ? "text-slate-700 hover:text-slate-900 hover:bg-slate-300/60"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Snowflake className="w-4 h-4 text-cyan-400" />
+              <Snowflake className={`w-4 h-4 ${theme === "light" ? "text-teal-700" : "text-cyan-400"}`} />
               <span>รอบล้างแอร์</span>
               {acServices.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-[10px] rounded-full bg-white/20 text-white font-mono">
+                <span className={`ml-1 px-1.5 py-0.5 text-[10px] rounded-full font-mono ${
+                  theme === "light" ? "bg-slate-800 text-white" : "bg-white/20 text-white"
+                }`}>
                   {acServices.length}
                 </span>
               )}
@@ -761,13 +783,21 @@ export default function ServiceAndUtilityManager({
       {activeTab === "utilities" && (
         <div className="space-y-6">
           {/* Action Header & Quick Stats */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-white/10">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border ${
+            theme === "light"
+              ? "bg-white border-slate-200/90 shadow-2xs"
+              : "bg-slate-900/60 border-white/10"
+          }`}>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-indigo-400" />
+              <h3 className={`text-base font-bold flex items-center gap-2 ${
+                theme === "light" ? "text-slate-900" : "text-white"
+              }`}>
+                <BarChart3 className={`w-5 h-5 ${theme === "light" ? "text-indigo-600" : "text-indigo-400"}`} />
                 บันทึกบิลค่าน้ำและค่าไฟฟ้า
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className={`text-xs mt-0.5 ${
+                theme === "light" ? "text-slate-600 font-medium" : "text-slate-400"
+              }`}>
                 คำนวณยูนิต อัตราต่อหน่วย ค่า FT ค่าบริการ ภาษี 7% พร้อมดึงเลขมิเตอร์เดือนก่อนมาให้อัตโนมัติ
               </p>
             </div>
@@ -775,34 +805,52 @@ export default function ServiceAndUtilityManager({
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => handleOpenBillModal("electricity")}
-                className="py-2 px-4 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                className={`py-2 px-4 rounded-xl border font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                  theme === "light"
+                    ? "bg-amber-100 hover:bg-amber-200 text-amber-950 border-amber-300"
+                    : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30"
+                }`}
               >
-                <Zap className="w-4 h-4 fill-amber-400/30 text-amber-400" />
+                <Zap className={`w-4 h-4 ${theme === "light" ? "text-amber-700 fill-amber-300" : "text-amber-400 fill-amber-400/30"}`} />
                 <span>+ บันทึกบิลค่าไฟ</span>
               </button>
               <button
                 onClick={() => handleOpenBillModal("water")}
-                className="py-2 px-4 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                className={`py-2 px-4 rounded-xl border font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                  theme === "light"
+                    ? "bg-cyan-100 hover:bg-cyan-200 text-cyan-950 border-cyan-300"
+                    : "bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/30"
+                }`}
               >
-                <Droplet className="w-4 h-4 fill-cyan-400/30 text-cyan-400" />
+                <Droplet className={`w-4 h-4 ${theme === "light" ? "text-cyan-700 fill-cyan-300" : "text-cyan-400 fill-cyan-400/30"}`} />
                 <span>+ บันทึกบิลค่าน้ำ</span>
               </button>
             </div>
           </div>
 
           {/* Yearly Trend Chart & Summary */}
-          <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 backdrop-blur-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-white/10">
+          <div className={`rounded-2xl p-5 border ${
+            theme === "light"
+              ? "bg-white border-slate-200/90 shadow-2xs"
+              : "bg-slate-900/80 border-white/10 backdrop-blur-xl"
+          }`}>
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b ${
+              theme === "light" ? "border-slate-200" : "border-white/10"
+            }`}>
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-indigo-400" />
-                <h4 className="font-bold text-white text-base">ภาพรวมการใช้น้ำ-ไฟ รายปี</h4>
+                <TrendingUp className={`w-5 h-5 ${theme === "light" ? "text-indigo-600" : "text-indigo-400"}`} />
+                <h4 className={`font-bold text-base ${theme === "light" ? "text-slate-900" : "text-white"}`}>ภาพรวมการใช้น้ำ-ไฟ รายปี</h4>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-medium">เลือกปี:</span>
+                <span className={`text-xs font-semibold ${theme === "light" ? "text-slate-600" : "text-slate-400"}`}>เลือกปี:</span>
                 <select
                   value={selectedUtilityYear}
                   onChange={(e) => setSelectedUtilityYear(parseInt(e.target.value))}
-                  className="bg-slate-800 border border-white/20 text-white text-xs rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-indigo-500"
+                  className={`text-xs rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none border ${
+                    theme === "light"
+                      ? "bg-slate-100 border-slate-300 text-slate-900"
+                      : "bg-slate-800 border-white/20 text-white focus:border-indigo-500"
+                  }`}
                 >
                   {[2024, 2025, 2026, 2027].map(y => (
                     <option key={y} value={y}>พ.ศ. {y + 543} ({y})</option>
@@ -818,13 +866,13 @@ export default function ServiceAndUtilityManager({
                   ? "bg-indigo-50/90 border-indigo-200 text-slate-800 shadow-2xs"
                   : "bg-gradient-to-br from-indigo-950/60 to-slate-900/80 border-indigo-500/20 text-white"
               }`}>
-                <span className={`text-xs block font-medium ${theme === "light" ? "text-indigo-900/80" : "text-slate-400"}`}>
+                <span className={`text-xs block font-semibold ${theme === "light" ? "text-indigo-950" : "text-slate-400"}`}>
                   รวมค่าน้ำ-ไฟ ทั้งปี ({selectedUtilityYear + 543})
                 </span>
                 <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-slate-900" : "text-white"}`}>
                   ฿{monthlyMatrix.totalYear.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-indigo-700" : "text-indigo-300/80"}`}>
+                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-indigo-800" : "text-indigo-300/80"}`}>
                   เฉลี่ยประมาณ ฿{monthlyMatrix.avgMonthly.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} / เดือน
                 </span>
               </div>
@@ -835,14 +883,14 @@ export default function ServiceAndUtilityManager({
                   : "bg-gradient-to-br from-amber-950/50 to-slate-900/80 border-amber-500/20 text-amber-200"
               }`}>
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs font-bold flex items-center gap-1 ${theme === "light" ? "text-amber-900" : "text-amber-300"}`}>
-                    <Zap className={`w-3.5 h-3.5 ${theme === "light" ? "text-amber-600" : "text-amber-400"}`} /> ค่าไฟรวมทั้งปี
+                  <span className={`text-xs font-bold flex items-center gap-1 ${theme === "light" ? "text-amber-950" : "text-amber-300"}`}>
+                    <Zap className={`w-3.5 h-3.5 ${theme === "light" ? "text-amber-700" : "text-amber-400"}`} /> ค่าไฟรวมทั้งปี
                   </span>
                 </div>
-                <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-amber-800" : "text-amber-200"}`}>
+                <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-amber-900" : "text-amber-200"}`}>
                   ฿{monthlyMatrix.totalElecYear.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-amber-900/80" : "text-amber-300/70"}`}>
+                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-amber-800" : "text-amber-300/70"}`}>
                   {yearlyBills.filter(b => b.type === "electricity").reduce((sum, b) => sum + b.unitsUsed, 0).toLocaleString()} หน่วย
                 </span>
               </div>
@@ -853,14 +901,14 @@ export default function ServiceAndUtilityManager({
                   : "bg-gradient-to-br from-cyan-950/50 to-slate-900/80 border-cyan-500/20 text-cyan-200"
               }`}>
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs font-bold flex items-center gap-1 ${theme === "light" ? "text-cyan-900" : "text-cyan-300"}`}>
-                    <Droplet className={`w-3.5 h-3.5 ${theme === "light" ? "text-cyan-600" : "text-cyan-400"}`} /> ค่าน้ำรวมทั้งปี
+                  <span className={`text-xs font-bold flex items-center gap-1 ${theme === "light" ? "text-cyan-950" : "text-cyan-300"}`}>
+                    <Droplet className={`w-3.5 h-3.5 ${theme === "light" ? "text-cyan-700" : "text-cyan-400"}`} /> ค่าน้ำรวมทั้งปี
                   </span>
                 </div>
-                <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-cyan-800" : "text-cyan-200"}`}>
+                <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-cyan-900" : "text-cyan-200"}`}>
                   ฿{monthlyMatrix.totalWaterYear.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-cyan-900/80" : "text-cyan-300/70"}`}>
+                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-cyan-800" : "text-cyan-300/70"}`}>
                   {yearlyBills.filter(b => b.type === "water").reduce((sum, b) => sum + b.unitsUsed, 0).toLocaleString()} หน่วย
                 </span>
               </div>
@@ -868,8 +916,14 @@ export default function ServiceAndUtilityManager({
 
             {/* Monthly Bar Chart */}
             <div className="space-y-2">
-              <span className="text-xs text-slate-400 font-semibold block mb-2">กราฟเปรียบเทียบแต่ละเดือน (ม.ค. - ธ.ค.)</span>
-              <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5 items-end h-40 bg-black/30 p-3 rounded-xl border border-white/5">
+              <span className={`text-xs font-bold block mb-2 ${theme === "light" ? "text-slate-700" : "text-slate-400"}`}>
+                กราฟเปรียบเทียบแต่ละเดือน (ม.ค. - ธ.ค.)
+              </span>
+              <div className={`grid grid-cols-6 sm:grid-cols-12 gap-1.5 items-end h-40 p-3 rounded-xl border ${
+                theme === "light"
+                  ? "bg-slate-50 border-slate-200"
+                  : "bg-black/30 border-white/5"
+              }`}>
                 {monthlyMatrix.months.map((m) => {
                   const heightPercent = monthlyMatrix.maxMonthlyTotal > 0
                     ? Math.max(4, Math.round((m.totalAmount / monthlyMatrix.maxMonthlyTotal) * 100))
@@ -885,7 +939,9 @@ export default function ServiceAndUtilityManager({
                         {m.totalAmount === 0 && <span className="text-slate-400">ไม่มีบันทึกข้อมูล</span>}
                       </div>
 
-                      <div className="w-full max-w-[28px] bg-slate-800 rounded-t-md overflow-hidden flex flex-col justify-end transition-all duration-300 group-hover:scale-105" style={{ height: `${heightPercent}%` }}>
+                      <div className={`w-full max-w-[28px] rounded-t-md overflow-hidden flex flex-col justify-end transition-all duration-300 group-hover:scale-105 ${
+                        theme === "light" ? "bg-slate-200" : "bg-slate-800"
+                      }`} style={{ height: `${heightPercent}%` }}>
                         {m.elecAmount > 0 && (
                           <div 
                             className="w-full bg-gradient-to-t from-amber-600 to-amber-400" 
@@ -899,12 +955,16 @@ export default function ServiceAndUtilityManager({
                           />
                         )}
                       </div>
-                      <span className="text-[10px] text-slate-400 mt-1.5 font-medium">{m.monthName}</span>
+                      <span className={`text-[10px] mt-1.5 font-bold ${
+                        theme === "light" ? "text-slate-700" : "text-slate-400"
+                      }`}>{m.monthName}</span>
                     </div>
                   );
                 })}
               </div>
-              <div className="flex items-center justify-center gap-4 text-[11px] text-slate-400 pt-2">
+              <div className={`flex items-center justify-center gap-4 text-[11px] pt-2 font-medium ${
+                theme === "light" ? "text-slate-700" : "text-slate-400"
+              }`}>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" /> ค่าไฟ (⚡)
                 </span>
@@ -916,17 +976,33 @@ export default function ServiceAndUtilityManager({
           </div>
 
           {/* Bill History List */}
-          <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-5 backdrop-blur-xl">
-            <h4 className="font-bold text-white text-base mb-4 flex items-center justify-between">
+          <div className={`rounded-2xl p-5 border ${
+            theme === "light"
+              ? "bg-white border-slate-200/90 shadow-2xs"
+              : "bg-slate-900/80 border-white/10 backdrop-blur-xl"
+          }`}>
+            <h4 className={`font-extrabold text-base mb-4 flex items-center justify-between ${
+              theme === "light" ? "text-slate-900" : "text-white"
+            }`}>
               <span>ประวัติบิลค่าน้ำและค่าไฟที่บันทึกไว้</span>
-              <span className="text-xs text-slate-400 font-normal">ทั้งหมด {sortedUtilityBills.length} บิล</span>
+              <span className={`text-xs font-semibold ${
+                theme === "light" ? "text-slate-600" : "text-slate-400 font-normal"
+              }`}>
+                ทั้งหมด {sortedUtilityBills.length} บิล
+              </span>
             </h4>
 
             {sortedUtilityBills.length === 0 ? (
-              <div className="text-center py-10 border border-dashed border-white/10 rounded-xl bg-black/20">
-                <Zap className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-                <p className="text-sm font-semibold text-slate-400">ยังไม่มีประวัติการบันทึกบิลค่าน้ำ/ค่าไฟ</p>
-                <p className="text-xs text-slate-500 mt-1">คลิกปุ่ม "+ บันทึกบิลค่าไฟ" หรือ "+ บันทึกบิลค่าน้ำ" เพื่อเริ่มต้น</p>
+              <div className={`text-center py-10 border border-dashed rounded-xl ${
+                theme === "light" ? "bg-slate-50/80 border-slate-300" : "bg-black/20 border-white/10"
+              }`}>
+                <Zap className={`w-10 h-10 mx-auto mb-2 ${theme === "light" ? "text-slate-400" : "text-slate-600"}`} />
+                <p className={`text-sm font-bold ${theme === "light" ? "text-slate-700" : "text-slate-400"}`}>
+                  ยังไม่มีประวัติการบันทึกบิลค่าน้ำ/ค่าไฟ
+                </p>
+                <p className={`text-xs mt-1 ${theme === "light" ? "text-slate-500" : "text-slate-500"}`}>
+                  คลิกปุ่ม "+ บันทึกบิลค่าไฟ" หรือ "+ บันทึกบิลค่าน้ำ" เพื่อเริ่มต้น
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -938,40 +1014,62 @@ export default function ServiceAndUtilityManager({
                     <div 
                       key={bill.id} 
                       className={`p-4 rounded-xl border transition-all ${
-                        isElec 
-                          ? "bg-gradient-to-r from-amber-950/20 via-slate-900 to-slate-900 border-amber-500/20 hover:border-amber-500/40" 
-                          : "bg-gradient-to-r from-cyan-950/20 via-slate-900 to-slate-900 border-cyan-500/20 hover:border-cyan-500/40"
+                        theme === "light"
+                          ? isElec
+                            ? "bg-amber-50/80 border-amber-200 hover:border-amber-400/80 shadow-2xs"
+                            : "bg-cyan-50/80 border-cyan-200 hover:border-cyan-400/80 shadow-2xs"
+                          : isElec 
+                            ? "bg-gradient-to-r from-amber-950/20 via-slate-900 to-slate-900 border-amber-500/20 hover:border-amber-500/40" 
+                            : "bg-gradient-to-r from-cyan-950/20 via-slate-900 to-slate-900 border-cyan-500/20 hover:border-cyan-500/40"
                       }`}
                     >
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                         {/* Title & Date */}
                         <div className="flex items-start gap-3">
                           <span className={`p-2.5 rounded-xl border shrink-0 ${
-                            isElec ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                            theme === "light"
+                              ? isElec
+                                ? "bg-amber-100 text-amber-900 border-amber-300 shadow-2xs"
+                                : "bg-cyan-100 text-cyan-900 border-cyan-300 shadow-2xs"
+                              : isElec
+                                ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                : "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
                           }`}>
-                            {isElec ? <Zap className="w-5 h-5" /> : <Droplet className="w-5 h-5" />}
+                            {isElec ? (
+                              <Zap className={`w-5 h-5 ${theme === "light" ? "text-amber-700" : "text-amber-400"}`} />
+                            ) : (
+                              <Droplet className={`w-5 h-5 ${theme === "light" ? "text-cyan-700" : "text-cyan-400"}`} />
+                            )}
                           </span>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-extrabold text-base text-white">
+                              <span className={`font-extrabold text-base ${
+                                theme === "light" ? "text-slate-900" : "text-white"
+                              }`}>
                                 {isElec ? "ค่าไฟฟ้า" : "ค่าน้ำประปา"} ประจำเดือน {formatMonthTh(bill.billingMonth)}
                               </span>
                               {comp && (
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                                  comp.diffAmount > 0 
-                                    ? "bg-rose-500/20 text-rose-300 border-rose-500/30" 
-                                    : comp.diffAmount < 0 
-                                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" 
-                                    : "bg-slate-800 text-slate-300 border-slate-700"
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                                  theme === "light"
+                                    ? comp.diffAmount > 0
+                                      ? "bg-rose-100 text-rose-800 border-rose-300"
+                                      : comp.diffAmount < 0
+                                      ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                      : "bg-slate-200 text-slate-800 border-slate-300"
+                                    : comp.diffAmount > 0 
+                                      ? "bg-rose-500/20 text-rose-300 border-rose-500/30" 
+                                      : comp.diffAmount < 0 
+                                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" 
+                                      : "bg-slate-800 text-slate-300 border-slate-700"
                                 }`}>
                                   {comp.diffAmount > 0 ? (
                                     <>
-                                      <ArrowUpRight className="w-3 h-3 text-rose-400" />
+                                      <ArrowUpRight className={`w-3 h-3 ${theme === "light" ? "text-rose-700" : "text-rose-400"}`} />
                                       <span>+{comp.diffAmount.toFixed(1)} ฿ (+{comp.diffPercent.toFixed(1)}%) จากเดือนก่อน</span>
                                     </>
                                   ) : comp.diffAmount < 0 ? (
                                     <>
-                                      <ArrowDownRight className="w-3 h-3 text-emerald-400" />
+                                      <ArrowDownRight className={`w-3 h-3 ${theme === "light" ? "text-emerald-700" : "text-emerald-400"}`} />
                                       <span>{comp.diffAmount.toFixed(1)} ฿ ({comp.diffPercent.toFixed(1)}%) จากเดือนก่อน</span>
                                     </>
                                   ) : (
@@ -980,21 +1078,29 @@ export default function ServiceAndUtilityManager({
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 text-xs text-slate-400 mt-1 flex-wrap font-mono">
-                              <span>มิเตอร์: <strong className="text-white">{bill.startMeter.toLocaleString()}</strong> ➔ <strong className="text-white">{bill.endMeter.toLocaleString()}</strong></span>
-                              <span className="text-slate-600">|</span>
-                              <span>ใช้งาน: <strong className="text-sky-300">{bill.unitsUsed.toLocaleString()} หน่วย</strong></span>
-                              <span className="text-slate-600">|</span>
-                              <span>อัตรา: <strong className="text-emerald-300">{bill.ratePerUnit.toFixed(2)} ฿/หน่วย</strong></span>
+                            <div className={`flex items-center gap-3 text-xs mt-1 flex-wrap font-mono ${
+                              theme === "light" ? "text-slate-600" : "text-slate-400"
+                            }`}>
+                              <span>มิเตอร์: <strong className={theme === "light" ? "text-slate-900 font-bold" : "text-white"}>{bill.startMeter.toLocaleString()}</strong> ➔ <strong className={theme === "light" ? "text-slate-900 font-bold" : "text-white"}>{bill.endMeter.toLocaleString()}</strong></span>
+                              <span className={theme === "light" ? "text-slate-300" : "text-slate-600"}>|</span>
+                              <span>ใช้งาน: <strong className={theme === "light" ? "text-sky-900 font-extrabold" : "text-sky-300"}>{bill.unitsUsed.toLocaleString()} หน่วย</strong></span>
+                              <span className={theme === "light" ? "text-slate-300" : "text-slate-600"}>|</span>
+                              <span>อัตรา: <strong className={theme === "light" ? "text-emerald-900 font-extrabold" : "text-emerald-300"}>{bill.ratePerUnit.toFixed(2)} ฿/หน่วย</strong></span>
                             </div>
                           </div>
                         </div>
 
                         {/* Amount & Actions */}
-                        <div className="flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+                        <div className={`flex items-center justify-between md:justify-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 ${
+                          theme === "light" ? "border-slate-200" : "border-white/5"
+                        }`}>
                           <div className="text-right">
-                            <span className="text-xs text-slate-400 block font-medium">รวมทั้งสิ้น</span>
-                            <span className="text-xl font-black text-white font-mono">
+                            <span className={`text-xs block font-semibold ${
+                              theme === "light" ? "text-slate-600" : "text-slate-400"
+                            }`}>รวมทั้งสิ้น</span>
+                            <span className={`text-xl font-black font-mono ${
+                              theme === "light" ? "text-slate-900" : "text-white"
+                            }`}>
                               ฿{bill.totalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
@@ -1002,14 +1108,22 @@ export default function ServiceAndUtilityManager({
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => handleOpenBillModal(bill.type, bill)}
-                              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all cursor-pointer"
+                              className={`p-2 rounded-lg transition-all cursor-pointer ${
+                                theme === "light"
+                                  ? "bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 shadow-2xs"
+                                  : "bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white"
+                              }`}
                               title="แก้ไขบิล"
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteBill(bill.id)}
-                              className="p-2 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                              className={`p-2 rounded-lg transition-all cursor-pointer ${
+                                theme === "light"
+                                  ? "bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 shadow-2xs"
+                                  : "bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                              }`}
                               title="ลบบิล"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1019,22 +1133,32 @@ export default function ServiceAndUtilityManager({
                       </div>
 
                       {/* Detailed Cost Breakdown Pills */}
-                      <div className="mt-3 pt-2.5 border-t border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-300 font-mono">
-                        <div className="bg-black/30 p-1.5 px-2.5 rounded-lg border border-white/5">
-                          <span className="text-slate-400 block text-[10px]">ค่าไฟ/ค่าน้ำฐาน:</span>
-                          <span className="font-bold text-white">฿{bill.baseCost.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                      <div className={`mt-3 pt-2.5 border-t grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono ${
+                        theme === "light" ? "border-slate-200/80 text-slate-800" : "border-white/5 text-slate-300"
+                      }`}>
+                        <div className={`p-1.5 px-2.5 rounded-lg border ${
+                          theme === "light" ? "bg-white/90 border-slate-200 text-slate-800 shadow-2xs" : "bg-black/30 border-white/5"
+                        }`}>
+                          <span className={`block text-[10px] ${theme === "light" ? "text-slate-600 font-semibold" : "text-slate-400"}`}>ค่าไฟ/ค่าน้ำฐาน:</span>
+                          <span className={`font-extrabold ${theme === "light" ? "text-slate-900" : "text-white"}`}>฿{bill.baseCost.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="bg-black/30 p-1.5 px-2.5 rounded-lg border border-white/5">
-                          <span className="text-slate-400 block text-[10px]">ค่า FT:</span>
-                          <span className="font-bold text-amber-300">฿{bill.ftCost.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                        <div className={`p-1.5 px-2.5 rounded-lg border ${
+                          theme === "light" ? "bg-white/90 border-slate-200 text-slate-800 shadow-2xs" : "bg-black/30 border-white/5"
+                        }`}>
+                          <span className={`block text-[10px] ${theme === "light" ? "text-slate-600 font-semibold" : "text-slate-400"}`}>ค่า FT:</span>
+                          <span className={`font-extrabold ${theme === "light" ? "text-amber-900" : "text-amber-300"}`}>฿{bill.ftCost.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="bg-black/30 p-1.5 px-2.5 rounded-lg border border-white/5">
-                          <span className="text-slate-400 block text-[10px]">ค่าบริการ:</span>
-                          <span className="font-bold text-sky-300">฿{bill.serviceFee.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                        <div className={`p-1.5 px-2.5 rounded-lg border ${
+                          theme === "light" ? "bg-white/90 border-slate-200 text-slate-800 shadow-2xs" : "bg-black/30 border-white/5"
+                        }`}>
+                          <span className={`block text-[10px] ${theme === "light" ? "text-slate-600 font-semibold" : "text-slate-400"}`}>ค่าบริการ:</span>
+                          <span className={`font-extrabold ${theme === "light" ? "text-sky-900" : "text-sky-300"}`}>฿{bill.serviceFee.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="bg-black/30 p-1.5 px-2.5 rounded-lg border border-white/5">
-                          <span className="text-slate-400 block text-[10px]">VAT ({bill.vatPercent}%):</span>
-                          <span className="font-bold text-purple-300">฿{bill.vatAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
+                        <div className={`p-1.5 px-2.5 rounded-lg border ${
+                          theme === "light" ? "bg-white/90 border-slate-200 text-slate-800 shadow-2xs" : "bg-black/30 border-white/5"
+                        }`}>
+                          <span className={`block text-[10px] ${theme === "light" ? "text-slate-600 font-semibold" : "text-slate-400"}`}>VAT ({bill.vatPercent}%):</span>
+                          <span className={`font-extrabold ${theme === "light" ? "text-purple-900" : "text-purple-300"}`}>฿{bill.vatAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</span>
                         </div>
                       </div>
                     </div>
@@ -1051,13 +1175,21 @@ export default function ServiceAndUtilityManager({
          ========================================== */}
       {activeTab === "vehicles" && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-white/10">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border ${
+            theme === "light"
+              ? "bg-white border-slate-200/90 shadow-2xs"
+              : "bg-slate-900/60 border-white/10"
+          }`}>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Car className="w-5 h-5 text-purple-400" />
+              <h3 className={`text-base font-bold flex items-center gap-2 ${
+                theme === "light" ? "text-slate-900" : "text-white"
+              }`}>
+                <Car className={`w-5 h-5 ${theme === "light" ? "text-purple-700" : "text-purple-400"}`} />
                 ระบบบันทึกเลขมิเตอร์รถ & ถ่ายน้ำมันเครื่อง
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className={`text-xs mt-0.5 ${
+                theme === "light" ? "text-slate-600 font-medium" : "text-slate-400"
+              }`}>
                 กำหนดรอบเปลี่ยนถ่ายน้ำมันเครื่อง เช่น ทุก 3,000 km หรือ 4 เดือน พร้อมระบบแจ้งเตือนและประวัติ
               </p>
             </div>
@@ -1073,10 +1205,12 @@ export default function ServiceAndUtilityManager({
 
           {/* Vehicle Cards Grid */}
           {vehicles.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-white/10 rounded-2xl bg-slate-900/40">
-              <Car className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-              <p className="text-base font-bold text-slate-300">ยังไม่มีข้อมูลยานพาหนะ</p>
-              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+            <div className={`text-center py-12 border border-dashed rounded-2xl ${
+              theme === "light" ? "bg-slate-50 border-slate-300" : "bg-slate-900/40 border-white/10"
+            }`}>
+              <Car className={`w-12 h-12 mx-auto mb-3 ${theme === "light" ? "text-slate-400" : "text-slate-600"}`} />
+              <p className={`text-base font-bold ${theme === "light" ? "text-slate-800" : "text-slate-300"}`}>ยังไม่มีข้อมูลยานพาหนะ</p>
+              <p className={`text-xs mt-1 max-w-md mx-auto ${theme === "light" ? "text-slate-500" : "text-slate-500"}`}>
                 กดปุ่ม "+ เพิ่มข้อมูลรถ" เพื่อตั้งค่ารอบถ่ายน้ำมันเครื่องสำหรับรถยนต์หรือรถมอเตอร์ไซค์ของคุณ
               </p>
             </div>
@@ -1098,24 +1232,36 @@ export default function ServiceAndUtilityManager({
                 return (
                   <div 
                     key={v.id} 
-                    className={`bg-slate-900/90 border rounded-2xl p-5 backdrop-blur-xl relative overflow-hidden transition-all shadow-xl ${
-                      isOverdue 
-                        ? "border-rose-500/50 shadow-rose-950/20" 
-                        : isSoon 
-                        ? "border-amber-500/50 shadow-amber-950/20" 
-                        : "border-white/10"
+                    className={`border rounded-2xl p-5 relative overflow-hidden transition-all shadow-md ${
+                      theme === "light"
+                        ? isOverdue
+                          ? "bg-rose-50/70 border-rose-300"
+                          : isSoon
+                          ? "bg-amber-50/70 border-amber-300"
+                          : "bg-white border-slate-200/90 shadow-2xs"
+                        : isOverdue 
+                          ? "bg-slate-900/90 border-rose-500/50 shadow-rose-950/20" 
+                          : isSoon 
+                          ? "bg-slate-900/90 border-amber-500/50 shadow-amber-950/20" 
+                          : "bg-slate-900/90 border-white/10"
                     }`}
                   >
                     {/* Top Status Header */}
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex items-center gap-3">
-                        <span className="p-3 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          <Car className="w-6 h-6" />
+                        <span className={`p-3 rounded-2xl border ${
+                          theme === "light"
+                            ? "bg-purple-100 text-purple-900 border-purple-200"
+                            : "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                        }`}>
+                          <Car className={`w-6 h-6 ${theme === "light" ? "text-purple-700" : "text-purple-300"}`} />
                         </span>
                         <div>
-                          <h4 className="font-black text-lg text-white">{v.vehicleName}</h4>
+                          <h4 className={`font-black text-lg ${theme === "light" ? "text-slate-900" : "text-white"}`}>{v.vehicleName}</h4>
                           {v.plateNumber && (
-                            <span className="text-xs text-purple-300/80 font-mono font-medium block">
+                            <span className={`text-xs font-mono font-bold block ${
+                              theme === "light" ? "text-purple-900" : "text-purple-300/80"
+                            }`}>
                               ทะเบียน: {v.plateNumber}
                             </span>
                           )}
@@ -1124,35 +1270,45 @@ export default function ServiceAndUtilityManager({
 
                       {/* Status Badge */}
                       {isOverdue ? (
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-500/20 text-rose-800 dark:text-rose-300 border border-rose-500/40 animate-pulse flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                           <span>ถึงเวลาถ่ายน้ำมันเครื่อง!</span>
                         </span>
                       ) : isSoon ? (
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                           <span>ใกล้ถึงรอบกำหนด</span>
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-900 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                           <span>ระยะปกติ</span>
                         </span>
                       )}
                     </div>
 
                     {/* Mileage Box & Quick Update */}
-                    <div className="bg-black/40 rounded-xl p-3 border border-white/10 mb-4">
+                    <div className={`rounded-xl p-3 border mb-4 ${
+                      theme === "light" ? "bg-slate-50 border-slate-200" : "bg-black/40 border-white/10"
+                    }`}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-[11px] text-slate-400 block font-medium">เลขมิเตอร์ปัจจุบัน</span>
-                          <span className="text-2xl font-black text-white font-mono tracking-tight">
-                            {v.currentMileage.toLocaleString()} <span className="text-xs font-sans text-slate-400">km</span>
+                          <span className={`text-[11px] block font-semibold ${
+                            theme === "light" ? "text-slate-600" : "text-slate-400"
+                          }`}>เลขมิเตอร์ปัจจุบัน</span>
+                          <span className={`text-2xl font-black font-mono tracking-tight ${
+                            theme === "light" ? "text-slate-900" : "text-white"
+                          }`}>
+                            {v.currentMileage.toLocaleString()} <span className={`text-xs font-sans ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>km</span>
                           </span>
                         </div>
                         <button
                           onClick={() => handleOpenMileageUpdate(v)}
-                          className="py-1.5 px-3 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 font-bold text-xs transition-all flex items-center gap-1 cursor-pointer"
+                          className={`py-1.5 px-3 rounded-lg font-bold text-xs transition-all flex items-center gap-1 cursor-pointer border ${
+                            theme === "light"
+                              ? "bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border-indigo-300"
+                              : "bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border-indigo-500/30"
+                          }`}
                         >
                           <Gauge className="w-3.5 h-3.5" />
                           <span>อัปเดตเลขมิเตอร์</span>
@@ -1161,14 +1317,18 @@ export default function ServiceAndUtilityManager({
 
                       {/* Progress Bar */}
                       <div className="mt-3">
-                        <div className="flex justify-between text-[11px] text-slate-400 mb-1 font-mono">
+                        <div className={`flex justify-between text-[11px] mb-1 font-mono ${
+                          theme === "light" ? "text-slate-600 font-semibold" : "text-slate-400"
+                        }`}>
                           <span>ใช้ไปแล้ว {usedKm.toLocaleString()} / {v.intervalKm.toLocaleString()} km</span>
                           <span>{progressPercent}%</span>
                         </div>
-                        <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden border border-white/5">
+                        <div className={`w-full h-2 rounded-full overflow-hidden border ${
+                          theme === "light" ? "bg-slate-200 border-slate-300" : "bg-slate-800 border-white/5"
+                        }`}>
                           <div 
                             className={`h-full rounded-full transition-all duration-500 ${
-                              isOverdue ? "bg-rose-500" : isSoon ? "bg-amber-500" : "bg-gradient-to-r from-purple-500 to-indigo-500"
+                              isOverdue ? "bg-rose-500" : isSoon ? "bg-amber-500" : "bg-gradient-to-r from-purple-600 to-indigo-600"
                             }`}
                             style={{ width: `${progressPercent}%` }}
                           />
@@ -1178,64 +1338,98 @@ export default function ServiceAndUtilityManager({
 
                     {/* Rules & Targets Details */}
                     <div className="grid grid-cols-2 gap-2 text-xs mb-4">
-                      <div className="bg-slate-800/60 p-2.5 rounded-xl border border-white/5">
-                        <span className="text-slate-400 block text-[10px]">เป้าหมายถ่ายน้ำมันเครื่องครั้งถัดไป:</span>
-                        <span className="font-bold text-purple-300 font-mono text-sm block mt-0.5">
+                      <div className={`p-2.5 rounded-xl border ${
+                        theme === "light" ? "bg-slate-50 border-slate-200" : "bg-slate-800/60 border-white/5"
+                      }`}>
+                        <span className={`block text-[10px] font-semibold ${
+                          theme === "light" ? "text-slate-600" : "text-slate-400"
+                        }`}>เป้าหมายถ่ายน้ำมันเครื่องครั้งถัดไป:</span>
+                        <span className={`font-extrabold font-mono text-sm block mt-0.5 ${
+                          theme === "light" ? "text-purple-900" : "text-purple-300"
+                        }`}>
                           {targetMileage.toLocaleString()} km
                         </span>
-                        <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                        <span className={`text-[11px] font-mono block mt-0.5 ${
+                          theme === "light" ? "text-slate-600 font-semibold" : "text-slate-400"
+                        }`}>
                           {remainingKm <= 0 ? (
-                            <strong className="text-rose-400">เกินกำหนดไป {Math.abs(remainingKm).toLocaleString()} km</strong>
+                            <strong className="text-rose-600 dark:text-rose-400">เกินกำหนดไป {Math.abs(remainingKm).toLocaleString()} km</strong>
                           ) : (
-                            <span>เหลืออีก <strong className="text-white">{remainingKm.toLocaleString()} km</strong></span>
+                            <span>เหลืออีก <strong className={theme === "light" ? "text-slate-900" : "text-white"}>{remainingKm.toLocaleString()} km</strong></span>
                           )}
                         </span>
                       </div>
 
-                      <div className="bg-slate-800/60 p-2.5 rounded-xl border border-white/5">
-                        <span className="text-slate-400 block text-[10px]">กำหนดวันที่ถ่ายถัดไป:</span>
-                        <span className="font-bold text-indigo-300 font-mono text-xs block mt-0.5">
+                      <div className={`p-2.5 rounded-xl border ${
+                        theme === "light" ? "bg-slate-50 border-slate-200" : "bg-slate-800/60 border-white/5"
+                      }`}>
+                        <span className={`block text-[10px] font-semibold ${
+                          theme === "light" ? "text-slate-600" : "text-slate-400"
+                        }`}>กำหนดวันที่ถ่ายถัดไป:</span>
+                        <span className={`font-extrabold font-mono text-xs block mt-0.5 ${
+                          theme === "light" ? "text-indigo-900" : "text-indigo-300"
+                        }`}>
                           {formatDateTh(targetDateStr)}
                         </span>
-                        <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                        <span className={`text-[11px] font-mono block mt-0.5 ${
+                          theme === "light" ? "text-slate-600 font-semibold" : "text-slate-400"
+                        }`}>
                           {remainingDays <= 0 ? (
-                            <strong className="text-rose-400">เลยกำหนดไป {Math.abs(remainingDays)} วัน</strong>
+                            <strong className="text-rose-600 dark:text-rose-400">เลยกำหนดไป {Math.abs(remainingDays)} วัน</strong>
                           ) : (
-                            <span>เหลืออีก <strong className="text-white">{remainingDays} วัน</strong></span>
+                            <span>เหลืออีก <strong className={theme === "light" ? "text-slate-900" : "text-white"}>{remainingDays} วัน</strong></span>
                           )}
                         </span>
                       </div>
                     </div>
 
                     {/* Service Info Summary */}
-                    <div className="text-[11px] text-slate-400 bg-black/20 p-2.5 rounded-xl border border-white/5 mb-4 flex justify-between items-center">
+                    <div className={`text-[11px] p-2.5 rounded-xl border mb-4 flex justify-between items-center ${
+                      theme === "light" ? "bg-slate-100/80 border-slate-200 text-slate-700" : "text-slate-400 bg-black/20 border-white/5"
+                    }`}>
                       <div>
-                        <span>ถ่ายล่าสุด: <strong className="text-white">{formatDateTh(v.lastServiceDate)}</strong> ({v.lastServiceMileage.toLocaleString()} km)</span>
-                        {v.lastServiceCost ? <span className="ml-2 font-mono text-emerald-300">฿{v.lastServiceCost.toLocaleString()}</span> : null}
+                        <span>ถ่ายล่าสุด: <strong className={theme === "light" ? "text-slate-900" : "text-white"}>{formatDateTh(v.lastServiceDate)}</strong> ({v.lastServiceMileage.toLocaleString()} km)</span>
+                        {v.lastServiceCost ? <span className={`ml-2 font-mono font-bold ${theme === "light" ? "text-emerald-800" : "text-emerald-300"}`}>฿{v.lastServiceCost.toLocaleString()}</span> : null}
                       </div>
-                      <span className="text-purple-300/80 font-mono text-[10px]">รอบ: ทุก {v.intervalKm.toLocaleString()} km / {v.intervalMonths} เดือน</span>
+                      <span className={`font-mono text-[10px] font-bold ${
+                        theme === "light" ? "text-purple-900" : "text-purple-300/80"
+                      }`}>รอบ: ทุก {v.intervalKm.toLocaleString()} km / {v.intervalMonths} เดือน</span>
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/10">
+                    <div className={`flex items-center justify-between gap-2 pt-2 border-t ${
+                      theme === "light" ? "border-slate-200" : "border-white/10"
+                    }`}>
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setViewHistoryVehicle(v)}
-                          className="py-1.5 px-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                            theme === "light"
+                              ? "bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-2xs"
+                              : "bg-white/5 hover:bg-white/10 text-slate-300"
+                          }`}
                         >
-                          <History className="w-3.5 h-3.5 text-indigo-400" />
+                          <History className={`w-3.5 h-3.5 ${theme === "light" ? "text-indigo-600" : "text-indigo-400"}`} />
                           <span>ประวัติ</span>
                         </button>
                         <button
                           onClick={() => handleOpenVehicleModal(v)}
-                          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all cursor-pointer"
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer border ${
+                            theme === "light"
+                              ? "bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-2xs"
+                              : "bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+                          }`}
                           title="แก้ไขข้อมูลรถ"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteVehicle(v.id)}
-                          className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer border ${
+                            theme === "light"
+                              ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 shadow-2xs"
+                              : "bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400"
+                          }`}
                           title="ลบรถ"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

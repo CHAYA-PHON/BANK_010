@@ -621,14 +621,14 @@ export default function WalletManager({
                                     }
                                   }}
                                   disabled={selectedIdx === 0}
-                                  className={`p-1.5 rounded-lg transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none ${
+                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none ${
                                     theme === "light"
-                                      ? "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900"
-                                      : "bg-black/20 hover:bg-black/40 text-white/80 hover:text-white"
+                                      ? "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-200/80"
+                                      : "bg-black/20 hover:bg-black/40 text-white/80 hover:text-white border-white/10"
                                   }`}
                                   title="เลื่อนขึ้น"
                                 >
-                                  <ArrowUp className="w-3.5 h-3.5" />
+                                  <ArrowUp className="w-3.5 h-3.5 text-slate-700 dark:text-white" />
                                 </button>
                                 <button
                                   type="button"
@@ -643,14 +643,14 @@ export default function WalletManager({
                                     }
                                   }}
                                   disabled={selectedIdx === wallets.length - 1}
-                                  className={`p-1.5 rounded-lg transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none ${
+                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none ${
                                     theme === "light"
-                                      ? "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900"
-                                      : "bg-black/20 hover:bg-black/40 text-white/80 hover:text-white"
+                                      ? "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-200/80"
+                                      : "bg-black/20 hover:bg-black/40 text-white/80 hover:text-white border-white/10"
                                   }`}
                                   title="เลื่อนลง"
                                 >
-                                  <ArrowDown className="w-3.5 h-3.5" />
+                                  <ArrowDown className="w-3.5 h-3.5 text-slate-700 dark:text-white" />
                                 </button>
                               </>
                             )}
@@ -669,16 +669,16 @@ export default function WalletManager({
                                   isDefault: true
                                 });
                               }}
-                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                                 selectedWallet.isDefault 
-                                  ? "bg-amber-500 text-slate-900 font-bold" 
+                                  ? "bg-amber-500 text-slate-900 font-bold border-amber-400" 
                                   : theme === "light"
-                                    ? "bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200"
-                                    : "bg-black/20 text-white/60 hover:text-white hover:bg-black/40"
+                                    ? "bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200 border-slate-200/80"
+                                    : "bg-black/20 text-white/60 hover:text-white hover:bg-black/40 border-white/10"
                               }`}
                               title={selectedWallet.isDefault ? "กระเป๋าตังค่าเริ่มต้น" : "ตั้งเป็นกระเป๋าเงินค่าเริ่มต้น"}
                             >
-                              <Star className={`w-3.5 h-3.5 ${selectedWallet.isDefault ? "fill-slate-900 text-slate-900" : ""}`} />
+                              <Star className={`w-3.5 h-3.5 ${selectedWallet.isDefault ? "fill-slate-900 text-slate-900" : "text-slate-700 dark:text-white"}`} />
                             </button>
 
                             <button
@@ -687,14 +687,14 @@ export default function WalletManager({
                                 e.stopPropagation();
                                 openEditWalletModal(selectedWallet);
                               }}
-                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                                 theme === "light"
-                                  ? "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900"
-                                  : "bg-black/20 hover:bg-black/40 text-white/80 hover:text-white"
+                                  ? "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border-slate-200/80"
+                                  : "bg-black/20 hover:bg-black/40 text-white/80 hover:text-white border-white/10"
                               }`}
                               title="แก้ไขกระเป๋าตัง"
                             >
-                              <Edit className="w-3.5 h-3.5" />
+                              <Edit className="w-3.5 h-3.5 text-slate-700 dark:text-white" />
                             </button>
                             <button
                               type="button"
@@ -704,14 +704,14 @@ export default function WalletManager({
                                   onDeleteWallet(selectedWallet.id);
                                 }
                               }}
-                              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                                 theme === "light"
-                                  ? "bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700"
-                                  : "bg-black/20 hover:bg-rose-600/60 text-white/80 hover:text-white"
+                                  ? "bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 border-slate-200/80"
+                                  : "bg-black/20 hover:bg-rose-600/60 text-white/80 hover:text-white border-white/10"
                               }`}
                               title="ลบกระเป๋าตัง"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5 text-slate-700 dark:text-white" />
                             </button>
                           </div>
                         </div>
@@ -732,7 +732,7 @@ export default function WalletManager({
                           ) : (
                             <div className={`font-mono text-xs tracking-wider py-1.5 px-3 rounded-xl border w-fit shrink-0 ${
                               theme === "light"
-                                ? "bg-slate-50 border-slate-200 text-slate-400"
+                                ? "bg-slate-50 border-slate-200 text-slate-500"
                                 : "bg-black/10 border-white/5 text-white/50"
                             }`}>
                               ไม่มีเลขบัญชี
@@ -808,14 +808,14 @@ export default function WalletManager({
                             }`}>
                               <div className="flex justify-between items-center text-xs mb-1.5">
                                 <span className={`font-extrabold flex items-center gap-1 ${
-                                  theme === "light" ? "text-blue-600" : "text-sky-200"
+                                  theme === "light" ? "text-slate-700" : "text-sky-200"
                                 }`}>
                                   📊 สัดส่วนคงเหลือ:
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <span className={`font-black px-1.5 py-0.5 rounded-md text-[10px] border ${
                                     theme === "light"
-                                      ? "bg-blue-100 text-blue-700 border-blue-200"
+                                      ? "bg-slate-200/80 text-slate-800 border-slate-300"
                                       : "bg-sky-500/20 text-sky-300 border-sky-400/20"
                                   }`}>
                                     {(selectedWallet.initialBalance > 0 ? (selectedBalance / selectedWallet.initialBalance) * 100 : (selectedBalance > 0 ? 100 : 0)).toFixed(1)}%
@@ -837,7 +837,7 @@ export default function WalletManager({
                                     }}
                                     className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md border transition-all cursor-pointer flex items-center gap-0.5 ${
                                       theme === "light"
-                                        ? "bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm"
+                                        ? "bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-xs"
                                         : "bg-white/10 hover:bg-white/20 text-white border-white/25"
                                     }`}
                                   >
@@ -862,8 +862,8 @@ export default function WalletManager({
                       <div className={`mt-5 border-t pt-4 ${
                         theme === "light" ? "border-slate-200" : "border-white/10"
                       }`}>
-                        <span className={`text-xs block font-medium ${
-                          theme === "light" ? "text-slate-500" : "text-white/70"
+                        <span className={`text-xs block font-semibold ${
+                          theme === "light" ? "text-slate-600" : "text-white/70"
                         }`}>ยอดเงินปัจจุบัน</span>
                         <div className="flex items-baseline justify-between">
                           <span className={`text-3xl font-black tracking-tight ${
@@ -874,7 +874,7 @@ export default function WalletManager({
                             ฿{selectedBalance.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                           <span className={`text-[10px] font-semibold italic ${
-                            theme === "light" ? "text-slate-500" : "text-white/60"
+                            theme === "light" ? "text-slate-600" : "text-white/60"
                           }`}>
                             เริ่มที่: ฿{selectedWallet.initialBalance.toLocaleString("th-TH")}
                           </span>
@@ -1670,11 +1670,12 @@ export default function WalletManager({
                       key={col.value}
                       type="button"
                       onClick={() => setWalletColor(col.value)}
-                      className={`h-8 rounded-xl border text-[10px] font-bold text-white flex items-center justify-center transition-all ${col.value} ${
+                      className={`h-8 rounded-xl border text-[10px] font-extrabold text-white flex items-center justify-center transition-all shadow-xs ${col.value} ${
                         walletColor === col.value ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#1e293b]" : ""
                       }`}
+                      style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}
                     >
-                      {col.name.split(" ")[0]}
+                      {col.name}
                     </button>
                   ))}
                 </div>
