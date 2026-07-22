@@ -1263,28 +1263,29 @@ export default function DashboardStats({
                     ));
                   })()}
 
-                  {/* Daily Stacked Columns for Income and Expense */}
+                  {/* Daily Side-by-Side Columns for Income and Expense */}
                   {dailyData.map((dData) => {
                     const x = 45 + (dData.day - 1) * 24;
                     const cx = x + 12; // Center of the slot
-                    const barWidth = 10;
-                    const barX = cx - barWidth / 2;
+                    const barWidth = 7;
+                    const greenX = cx - 7.5; // Left bar for Income
+                    const redX = cx + 0.5;   // Right bar for Expense
 
                     const greenHeight = (dData.income / maxStackValue) * 130;
                     const redHeight = (dData.expense / maxStackValue) * 130;
 
                     const yGreen = 140 - greenHeight;
-                    const yRed = 140 - greenHeight - redHeight;
+                    const yRed = 140 - redHeight;
 
                     const isHovered = hoveredDay && hoveredDay.day === dData.day;
 
                     return (
                       <g key={`bars-${dData.day}`} className="transition-all duration-200">
-                        {/* Green Block ("รับ") */}
+                        {/* Green Block ("รับ" - Income) */}
                         {greenHeight > 0 && (
                           <g>
                             <rect
-                              x={barX}
+                              x={greenX}
                               y={yGreen}
                               width={barWidth}
                               height={greenHeight}
@@ -1297,10 +1298,10 @@ export default function DashboardStats({
                             />
                             {greenHeight > 10 && (
                               <text
-                                x={cx}
-                                y={yGreen + greenHeight / 2 + 2.5}
+                                x={greenX + barWidth / 2}
+                                y={yGreen + greenHeight / 2 + 2}
                                 fill="#047857"
-                                fontSize="6.5"
+                                fontSize="5.5"
                                 fontWeight="black"
                                 textAnchor="middle"
                               >
@@ -1310,11 +1311,11 @@ export default function DashboardStats({
                           </g>
                         )}
 
-                        {/* Red Block ("จ่าย") */}
+                        {/* Red Block ("จ่าย" - Expense) */}
                         {redHeight > 0 && (
                           <g>
                             <rect
-                              x={barX}
+                              x={redX}
                               y={yRed}
                               width={barWidth}
                               height={redHeight}
@@ -1327,10 +1328,10 @@ export default function DashboardStats({
                             />
                             {redHeight > 10 && (
                               <text
-                                x={cx}
-                                y={yRed + redHeight / 2 + 2.5}
+                                x={redX + barWidth / 2}
+                                y={yRed + redHeight / 2 + 2}
                                 fill="#7f1d1d"
-                                fontSize="6.5"
+                                fontSize="5.5"
                                 fontWeight="black"
                                 textAnchor="middle"
                               >
