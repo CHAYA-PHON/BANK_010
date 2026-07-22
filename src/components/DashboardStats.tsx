@@ -514,12 +514,13 @@ export default function DashboardStats({
                 <div className="flex h-1 rounded-full overflow-hidden bg-white/5">
                   {incomeCategories.map((item, idx) => {
                     const colors = [
-                      "bg-emerald-400",
-                      "bg-teal-400",
-                      "bg-indigo-400",
-                      "bg-cyan-400",
-                      "bg-amber-400",
-                      "bg-pink-400"
+                      "bg-emerald-500",
+                      "bg-blue-500",
+                      "bg-amber-500",
+                      "bg-purple-500",
+                      "bg-pink-500",
+                      "bg-cyan-500",
+                      "bg-orange-500"
                     ];
                     return (
                       <div
@@ -534,18 +535,19 @@ export default function DashboardStats({
                 <div className="flex flex-wrap gap-1 max-h-[44px] overflow-y-auto scrollbar-none pt-0.5">
                   {incomeCategories.map((item, idx) => {
                     const dots = [
-                      "bg-emerald-400",
-                      "bg-teal-400",
-                      "bg-indigo-400",
-                      "bg-cyan-400",
-                      "bg-amber-400",
-                      "bg-pink-400"
+                      "bg-emerald-500",
+                      "bg-blue-500",
+                      "bg-amber-500",
+                      "bg-purple-500",
+                      "bg-pink-500",
+                      "bg-cyan-500",
+                      "bg-orange-500"
                     ];
                     return (
-                      <span key={item.category} className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-white/5 border border-white/5 text-[8px] text-slate-300 whitespace-nowrap">
-                        <span className={`w-1 h-1 rounded-full ${dots[idx % dots.length]} shrink-0`} />
-                        <span className="truncate max-w-[45px] font-medium">{item.category}</span>
-                        <span className="font-bold text-white">
+                      <span key={item.category} className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5 text-[8px] text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                        <span className={`w-1.5 h-1.5 rounded-full ${dots[idx % dots.length]} shrink-0`} />
+                        <span className="truncate max-w-[55px] font-semibold">{item.category}</span>
+                        <span className="font-extrabold text-slate-900 dark:text-white">
                           {item.percentage.toFixed(0)}%
                         </span>
                       </span>

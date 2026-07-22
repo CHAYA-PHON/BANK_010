@@ -18,6 +18,7 @@ interface ServiceAndUtilityManagerProps {
   onSaveAcServices: (acServices: AcService[]) => void;
   onSaveUtilityBills: (utilityBills: UtilityBill[]) => void;
   onAddTransaction?: (tx: Omit<Transaction, "id" | "createdAt">) => void;
+  theme?: string;
 }
 
 export default function ServiceAndUtilityManager({
@@ -28,7 +29,8 @@ export default function ServiceAndUtilityManager({
   onSaveVehicles,
   onSaveAcServices,
   onSaveUtilityBills,
-  onAddTransaction
+  onAddTransaction,
+  theme = "dark"
 }: ServiceAndUtilityManagerProps) {
   const [activeTab, setActiveTab] = useState<"utilities" | "vehicles" | "ac">("utilities");
 
@@ -811,40 +813,54 @@ export default function ServiceAndUtilityManager({
 
             {/* Top Cards for the selected year */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-              <div className="bg-gradient-to-br from-indigo-950/60 to-slate-900/80 p-4 rounded-xl border border-indigo-500/20">
-                <span className="text-xs text-slate-400 block font-medium">รวมค่าน้ำ-ไฟ ทั้งปี ({selectedUtilityYear + 543})</span>
-                <span className="text-2xl font-black text-white mt-1 block font-mono">
+              <div className={`p-4 rounded-xl border transition-all ${
+                theme === "light"
+                  ? "bg-indigo-50/90 border-indigo-200 text-slate-800 shadow-2xs"
+                  : "bg-gradient-to-br from-indigo-950/60 to-slate-900/80 border-indigo-500/20 text-white"
+              }`}>
+                <span className={`text-xs block font-medium ${theme === "light" ? "text-indigo-900/80" : "text-slate-400"}`}>
+                  รวมค่าน้ำ-ไฟ ทั้งปี ({selectedUtilityYear + 543})
+                </span>
+                <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-slate-900" : "text-white"}`}>
                   ฿{monthlyMatrix.totalYear.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="text-[11px] text-indigo-300/80 mt-1 block">
+                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-indigo-700" : "text-indigo-300/80"}`}>
                   เฉลี่ยประมาณ ฿{monthlyMatrix.avgMonthly.toLocaleString("th-TH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} / เดือน
                 </span>
               </div>
 
-              <div className="bg-gradient-to-br from-amber-950/50 to-slate-900/80 p-4 rounded-xl border border-amber-500/20">
+              <div className={`p-4 rounded-xl border transition-all ${
+                theme === "light"
+                  ? "bg-amber-50/90 border-amber-200 text-amber-950 shadow-2xs"
+                  : "bg-gradient-to-br from-amber-950/50 to-slate-900/80 border-amber-500/20 text-amber-200"
+              }`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-amber-300 font-medium flex items-center gap-1">
-                    <Zap className="w-3.5 h-3.5 text-amber-400" /> ค่าไฟรวมทั้งปี
+                  <span className={`text-xs font-bold flex items-center gap-1 ${theme === "light" ? "text-amber-900" : "text-amber-300"}`}>
+                    <Zap className={`w-3.5 h-3.5 ${theme === "light" ? "text-amber-600" : "text-amber-400"}`} /> ค่าไฟรวมทั้งปี
                   </span>
                 </div>
-                <span className="text-xl font-black text-amber-200 mt-1 block font-mono">
+                <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-amber-800" : "text-amber-200"}`}>
                   ฿{monthlyMatrix.totalElecYear.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="text-[11px] text-amber-300/70 mt-1 block">
+                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-amber-900/80" : "text-amber-300/70"}`}>
                   {yearlyBills.filter(b => b.type === "electricity").reduce((sum, b) => sum + b.unitsUsed, 0).toLocaleString()} หน่วย
                 </span>
               </div>
 
-              <div className="bg-gradient-to-br from-cyan-950/50 to-slate-900/80 p-4 rounded-xl border border-cyan-500/20">
+              <div className={`p-4 rounded-xl border transition-all ${
+                theme === "light"
+                  ? "bg-cyan-50/90 border-cyan-200 text-cyan-950 shadow-2xs"
+                  : "bg-gradient-to-br from-cyan-950/50 to-slate-900/80 border-cyan-500/20 text-cyan-200"
+              }`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-cyan-300 font-medium flex items-center gap-1">
-                    <Droplet className="w-3.5 h-3.5 text-cyan-400" /> ค่าน้ำรวมทั้งปี
+                  <span className={`text-xs font-bold flex items-center gap-1 ${theme === "light" ? "text-cyan-900" : "text-cyan-300"}`}>
+                    <Droplet className={`w-3.5 h-3.5 ${theme === "light" ? "text-cyan-600" : "text-cyan-400"}`} /> ค่าน้ำรวมทั้งปี
                   </span>
                 </div>
-                <span className="text-xl font-black text-cyan-200 mt-1 block font-mono">
+                <span className={`text-2xl font-black mt-1 block font-mono ${theme === "light" ? "text-cyan-800" : "text-cyan-200"}`}>
                   ฿{monthlyMatrix.totalWaterYear.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="text-[11px] text-cyan-300/70 mt-1 block">
+                <span className={`text-[11px] mt-1 block font-bold ${theme === "light" ? "text-cyan-900/80" : "text-cyan-300/70"}`}>
                   {yearlyBills.filter(b => b.type === "water").reduce((sum, b) => sum + b.unitsUsed, 0).toLocaleString()} หน่วย
                 </span>
               </div>

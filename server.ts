@@ -506,7 +506,7 @@ function tryConvertTextToFlexMessage(text: string): any | null {
 
     // Parse Date
     let dateVal = "";
-    const dateMatch = text.match(/ประจำวันที่\s*:\s*([^\n]+)/i) || text.match(/ประจำเดือน\s*:\s*([^\n]+)/i);
+    const dateMatch = text.match(/(?:ประจำวันที่|วันที่สรุป|ประจำเดือน)[^\n:]*:[ \t]*([^\n]+)/i);
     if (dateMatch) {
       dateVal = dateMatch[1].trim();
     } else {
@@ -515,28 +515,27 @@ function tryConvertTextToFlexMessage(text: string): any | null {
 
     // Parse Income
     let incomeVal = "0.00";
-    const incomeMatch = text.match(/รายรับ(?:รวม|ทั้งหมด)\s*:\s*฿?\s*([\d,.]+)/i);
+    const incomeMatch = text.match(/(?:รายรับรวม|รายรับ)[^\n:]*:[ \t]*฿?[ \t]*([\d,.]+)/i);
     if (incomeMatch) {
       incomeVal = incomeMatch[1].trim();
     }
 
     // Parse Expense
     let expenseVal = "0.00";
-    const expenseMatch = text.match(/รายจ่าย(?:รวม|ทั้งหมด)\s*:\s*฿?\s*([\d,.]+)/i);
+    const expenseMatch = text.match(/(?:รายจ่ายรวม|รายจ่าย)[^\n:]*:[ \t]*฿?[ \t]*([\d,.]+)/i);
     if (expenseMatch) {
       expenseVal = expenseMatch[1].trim();
     }
 
     // Parse Net
     let netVal = "0.00";
-    const netMatch = text.match(/ยอดคงเหลือ(?:สุทธิ)?\s*:\s*฿?\s*(-?[\d,.]+)/i);
+    const netMatch = text.match(/(?:ยอดเงินคงเหลือ|ยอดคงเหลือ)[^\n:]*:[ \t]*฿?[ \t]*(-?[\d,.]+)/i);
     if (netMatch) {
       netVal = netMatch[1].trim();
     }
 
     // Parse Categories
     const categories: { name: string; amount: string }[] = [];
-    // Reset regular expression index for global searches
     const catRegex = /•\s*([^:\n]+)\s*:\s*฿?\s*([\d,.]+)/g;
     let catMatch;
     while ((catMatch = catRegex.exec(text)) !== null) {
@@ -544,6 +543,14 @@ function tryConvertTextToFlexMessage(text: string): any | null {
         name: catMatch[1].trim(),
         amount: catMatch[2].trim()
       });
+    }
+
+    // Fallback Expense calculation if expenseVal parsed as 0.00 but categories exist
+    if ((!expenseVal || expenseVal === "0.00") && categories.length > 0) {
+      const sumCat = categories.reduce((s, c) => s + (parseFloat(c.amount.replace(/,/g, "")) || 0), 0);
+      if (sumCat > 0) {
+        expenseVal = sumCat.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
     }
 
     // Parse AI Analysis

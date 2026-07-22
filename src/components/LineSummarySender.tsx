@@ -198,14 +198,14 @@ export default function LineSummarySender({ transactions, wallets, currentUser, 
     }
 
     let text = `[FinanceAI สรุปประจำวัน]
-🗓 ประจำวันที่: ${dateStr}
+📅 วันที่สรุป: ${dateStr}
 
-📊 สรุปยอดเงินในบัญชี :
+📊 สรุปยอดเงินในบัญชี:
 📦 ยอดยกมาวันนี้: ฿${broughtForward.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-🟢 รายรับรวมวันนี้: ฿${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-🔴 รายจ่ายรวมวันนี้: ฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+🟢 รายรับรวม: ฿${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+🔴 รายจ่ายรวม: ฿${totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 ${changeLine}
-🏦 ยอดเงินคงเหลือรวมสะสม: ฿${remainingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+⚖️ ยอดคงเหลือ: ฿${remainingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 `;
 
     if (totalDebtAmount > 0) {

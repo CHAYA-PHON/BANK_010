@@ -1847,6 +1847,7 @@ export default function App() {
               onSaveAcServices={saveAcServices}
               onSaveUtilityBills={saveUtilityBills}
               onAddTransaction={handleAddTransaction}
+              theme={theme}
             />
           </div>
         )}
