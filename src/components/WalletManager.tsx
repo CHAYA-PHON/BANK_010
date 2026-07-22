@@ -230,6 +230,15 @@ export default function WalletManager({
 }: WalletManagerProps) {
   // Selected wallet for showing cash flow (inflow/outflow)
   const [selectedWalletFlowId, setSelectedWalletFlowId] = useState<string | null>(null);
+  const [isFlowDetailsVisible, setIsFlowDetailsVisible] = useState(false);
+
+  // Automatically select the default (main) wallet on initial load or reset
+  useEffect(() => {
+    if (!selectedWalletFlowId && wallets.length > 0) {
+      const defaultWallet = wallets.find((w) => w.isDefault) || wallets[0];
+      setSelectedWalletFlowId(defaultWallet.id);
+    }
+  }, [wallets, selectedWalletFlowId]);
 
   // Modal states
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
@@ -506,11 +515,12 @@ export default function WalletManager({
               สร้างกระเป๋าตังใบแรก
             </button>
           </div>
-        ) : selectedWalletFlowId ? (
+        ) : (
           (() => {
-            const selectedWallet = wallets.find(w => w.id === selectedWalletFlowId);
-            const selectedIdx = wallets.findIndex(w => w.id === selectedWalletFlowId);
-            const selectedBalance = selectedWallet ? (walletBalances[selectedWallet.id] ?? 0) : 0;
+            const activeWalletId = selectedWalletFlowId || (wallets.find(w => w.isDefault)?.id || wallets[0].id);
+            const selectedWallet = wallets.find(w => w.id === activeWalletId) || wallets[0];
+            const selectedIdx = wallets.findIndex(w => w.id === selectedWallet.id);
+            const selectedBalance = walletBalances[selectedWallet.id] ?? 0;
 
             return (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -520,20 +530,12 @@ export default function WalletManager({
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                       <span>🔍 กำลังแสดงกระเป๋าขนาดใหญ่</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedWalletFlowId(null)}
-                      className="text-xs text-indigo-400 hover:text-indigo-300 font-bold bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded-xl transition-all flex items-center gap-1 cursor-pointer border border-indigo-500/20"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      ย่อกลับทั้งหมด
-                    </button>
                   </div>
 
                   {selectedWallet ? (
                     <>
                       <div
-                        className={`relative ${selectedWallet.color} border p-6 rounded-3xl text-white shadow-xl flex flex-col justify-between min-h-[200px] group transition-all duration-300 border-white/25`}
+                        className={`wallet-detailed-card relative ${selectedWallet.color} border p-6 rounded-3xl text-white shadow-xl flex flex-col justify-between min-h-[200px] group transition-all duration-300 border-white/25`}
                       >
                       {/* Top line info */}
                       <div>
@@ -542,7 +544,7 @@ export default function WalletManager({
                             <span className="text-3xl filter drop-shadow-md select-none">{selectedWallet.icon}</span>
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <h4 className="font-extrabold text-lg tracking-wide truncate max-w-[150px]">
+                                <h4 className="font-extrabold text-lg tracking-wide truncate max-w-[150px] text-white">
                                   {selectedWallet.name}
                                 </h4>
                                 {selectedWallet.isDefault && (
@@ -649,18 +651,108 @@ export default function WalletManager({
                           </div>
                         </div>
 
-                        {selectedWallet.accountNumber && (
-                          <div className="mt-3 font-mono text-xs text-white/85 tracking-wider bg-black/25 py-1 px-2.5 rounded-lg border border-white/10 w-fit">
-                            เลขบัญชี: {selectedWallet.accountNumber}
-                          </div>
-                        )}
+                        {/* Account Number & Savings Goal / Remaining Proportion Block inside Card */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-3 w-full">
+                          {selectedWallet.accountNumber ? (
+                            <div className="font-mono text-xs text-white/90 tracking-wider bg-black/30 py-1.5 px-3 rounded-xl border border-white/10 w-fit shrink-0">
+                              เลขบัญชี: {selectedWallet.accountNumber}
+                            </div>
+                          ) : (
+                            <div className="font-mono text-xs text-white/50 tracking-wider bg-black/10 py-1.5 px-3 rounded-xl border border-white/5 w-fit shrink-0">
+                              ไม่มีเลขบัญชี
+                            </div>
+                          )}
+
+                          {selectedWallet.type === "saving" && selectedWallet.targetAmount && selectedWallet.targetAmount > 0 ? (
+                            <div className="flex-1 min-w-[220px] p-3 rounded-2xl border transition-all duration-300 bg-white/10 border-white/15 text-white backdrop-blur-sm">
+                              <div className="flex justify-between items-center text-xs mb-1.5">
+                                <div className="flex flex-col">
+                                  <span className="font-extrabold flex items-center gap-1 text-pink-200 text-[10px]">
+                                    🎯 เป้าหมายออมเงิน:
+                                  </span>
+                                  <span className="font-black text-xs text-white">
+                                    ฿{selectedWallet.targetAmount.toLocaleString("th-TH")}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-black px-1.5 py-0.5 rounded-md text-[10px] border text-pink-300 bg-pink-500/20 border-pink-400/20">
+                                    {((selectedBalance / selectedWallet.targetAmount) * 100).toFixed(1)}%
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextVal = !isFlowDetailsVisible;
+                                      setIsFlowDetailsVisible(nextVal);
+                                      setSelectedWalletFlowId(selectedWallet.id);
+                                      if (nextVal) {
+                                        setTimeout(() => {
+                                          const element = document.getElementById("wallet-flow-details");
+                                          if (element) {
+                                            element.scrollIntoView({ behavior: "smooth", block: "start" });
+                                          }
+                                        }, 100);
+                                      }
+                                    }}
+                                    className="text-[9px] font-extrabold px-2 py-0.5 rounded-md border transition-all cursor-pointer flex items-center gap-0.5 bg-white/10 hover:bg-white/20 text-white border-white/25"
+                                  >
+                                    {isFlowDetailsVisible ? "ซ่อนรายละเอียด" : "ดูรายละเอียด"}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="w-full h-2.5 rounded-full overflow-hidden border bg-black/20 border-white/5">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-pink-400 via-rose-500 to-pink-400 transition-all duration-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]"
+                                  style={{ width: `${Math.max(0, Math.min(100, (selectedBalance / selectedWallet.targetAmount) * 100))}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex-1 min-w-[220px] p-3 rounded-2xl border transition-all duration-300 bg-white/10 border-white/15 text-white backdrop-blur-sm">
+                              <div className="flex justify-between items-center text-xs mb-1.5">
+                                <span className="font-extrabold flex items-center gap-1 text-sky-200">
+                                  📊 สัดส่วนคงเหลือ:
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-black px-1.5 py-0.5 rounded-md text-[10px] border text-sky-300 bg-sky-500/20 border-sky-400/20">
+                                    {(totalBalance > 0 ? (selectedBalance / totalBalance) * 100 : 0).toFixed(1)}%
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextVal = !isFlowDetailsVisible;
+                                      setIsFlowDetailsVisible(nextVal);
+                                      setSelectedWalletFlowId(selectedWallet.id);
+                                      if (nextVal) {
+                                        setTimeout(() => {
+                                          const element = document.getElementById("wallet-flow-details");
+                                          if (element) {
+                                            element.scrollIntoView({ behavior: "smooth", block: "start" });
+                                          }
+                                        }, 100);
+                                      }
+                                    }}
+                                    className="text-[9px] font-extrabold px-2 py-0.5 rounded-md border transition-all cursor-pointer flex items-center gap-0.5 bg-white/10 hover:bg-white/20 text-white border-white/25"
+                                  >
+                                    {isFlowDetailsVisible ? "ซ่อนรายละเอียด" : "ดูรายละเอียด"}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="w-full h-2.5 rounded-full overflow-hidden border bg-black/20 border-white/5">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-sky-400 via-indigo-500 to-sky-400 transition-all duration-500 shadow-[0_0_8px_rgba(56,189,248,0.3)]"
+                                  style={{ width: `${Math.max(0, Math.min(100, totalBalance > 0 ? (selectedBalance / totalBalance) * 100 : 0))}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Bottom line: Balance display */}
                       <div className="mt-5 border-t border-white/10 pt-4">
                         <span className="text-xs text-white/70 block font-medium">ยอดเงินปัจจุบัน</span>
                         <div className="flex items-baseline justify-between">
-                          <span className="text-3xl font-black tracking-tight">
+                          <span className="text-3xl font-black tracking-tight text-white">
                             ฿{selectedBalance.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                           <span className="text-[10px] text-white/60 font-semibold italic">
@@ -669,138 +761,6 @@ export default function WalletManager({
                         </div>
                       </div>
                     </div>
-
-                    {/* Savings Goal detailed panel rendered as a separate card beneath the credit card */}
-                    {selectedWallet.type === "saving" && (
-                      <div className={`p-5 rounded-3xl border shadow-lg space-y-4 animate-fade-in ${
-                        theme === "light"
-                          ? "bg-white border-slate-200/80 text-slate-800"
-                          : "bg-white/5 border-white/10 text-white"
-                      }`}>
-                        {selectedWallet.type === "saving" && selectedWallet.targetAmount && selectedWallet.targetAmount > 0 ? (
-                          (() => {
-                            const progressPercent = (selectedBalance / selectedWallet.targetAmount) * 100;
-                            const cal = getRemainingGoalCalculations(selectedWallet, selectedBalance);
-                            
-                            return (
-                              <div className="mt-4 pt-3 border-t border-white/10 space-y-4">
-                                {/* Exclude Total Status Badge */}
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10px] uppercase font-bold text-slate-400">สถานะกระปุกออมสิน</span>
-                                  {selectedWallet.excludeFromTotal ? (
-                                    <span className="text-[10px] bg-amber-500/10 text-amber-300 font-extrabold px-2.5 py-1 rounded-full border border-amber-500/20 flex items-center gap-1">
-                                      🔒 ซ่อนยอด (แยกจากยอดรวม)
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] bg-emerald-500/10 text-emerald-300 font-extrabold px-2.5 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                                      🔓 รวมยอดกับกระเป๋าอื่นๆ
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Progress Bar */}
-                                <div className="space-y-1.5">
-                                  <div className="flex justify-between items-center text-xs text-white/90">
-                                    <span className="font-bold text-pink-200 flex items-center gap-1">
-                                      🎯 เป้าหมายออมเงิน: ฿{selectedWallet.targetAmount.toLocaleString("th-TH")}
-                                    </span>
-                                    <span className="font-black text-pink-300 bg-pink-500/20 px-2 py-0.5 rounded-md text-[10px] border border-pink-400/20">
-                                      {progressPercent.toFixed(1)}%
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-white/10 h-2.5 rounded-full overflow-hidden border border-white/5">
-                                    <div
-                                      className="h-full rounded-full bg-gradient-to-r from-pink-400 via-rose-500 to-pink-400 transition-all duration-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]"
-                                      style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
-                                    />
-                                  </div>
-                                </div>
-
-                                {/* Goals & Period info */}
-                                {cal && (
-                                  <div className="bg-black/30 border border-white/5 rounded-2xl p-3.5 space-y-3">
-                                    <div className="grid grid-cols-2 gap-3 text-[11px] leading-relaxed">
-                                      <div>
-                                        <span className="text-slate-400 block font-semibold">💰 ยอดที่เหลือต้องออมเพิ่ม:</span>
-                                        <span className="font-black text-white text-xs">
-                                          ฿{cal.remainingAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
-                                        </span>
-                                      </div>
-                                      <div>
-                                        <span className="text-slate-400 block font-semibold">📅 วันสิ้นสุด & ระยะเวลาคงเหลือ:</span>
-                                        {cal.isOverdue ? (
-                                          <span className="font-bold text-rose-400 text-[10px]">
-                                            ⚠️ เลยกำหนด ({selectedWallet.dueDate})
-                                          </span>
-                                        ) : (
-                                          <span className="font-bold text-white text-[10px]">
-                                            {cal.remainingMonths >= 12 
-                                              ? `${cal.remainingYears.toFixed(1)} ปี (${cal.remainingMonths.toFixed(0)} เดือน)` 
-                                              : `${cal.remainingMonths.toFixed(1)} เดือน`
-                                            }
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Smart Calculation display: ยอดที่เหลือ หาร ระยะเวลาที่เหลือ */}
-                                    <div className="pt-2.5 border-t border-white/5">
-                                      <span className="text-[10px] font-extrabold text-pink-300 block uppercase tracking-wider mb-1.5">
-                                        📈 แผนการออมเฉลี่ยเพื่อให้ถึงเป้าหมาย:
-                                      </span>
-                                      
-                                      {cal.isOverdue ? (
-                                        <div className="text-[10px] text-rose-300 leading-normal bg-rose-500/10 p-2 rounded-xl border border-rose-500/20">
-                                          เกินกำหนดระยะเวลาเป้าหมายแล้ว กรุณาขยายเวลาสิ้นสุดของเป้าหมายในเมนูแก้ไข เพื่อให้ระบบคำนวณออมเฉลี่ยต่อเดือนที่เหลือให้ใหม่
-                                        </div>
-                                      ) : cal.remainingAmount <= 0 ? (
-                                        <div className="text-[10px] text-emerald-300 font-extrabold leading-normal bg-emerald-500/10 p-2 rounded-xl border border-emerald-500/20 flex items-center gap-1">
-                                          🏆 ยินดีด้วย! คุณสะสมเงินออมครบตามเป้าหมายของกระปุกนี้แล้ว
-                                        </div>
-                                      ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                          <div className="bg-white/5 p-2 rounded-xl border border-white/5">
-                                            <span className="text-[8px] text-slate-400 block">ออมเฉลี่ยจากยอดคงเหลือ:</span>
-                                            <span className="text-xs font-black text-emerald-400">
-                                              ฿{cal.requiredPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })}
-                                            </span>
-                                            <span className="text-[8px] text-slate-400"> / เดือน</span>
-                                            
-                                            {selectedWallet.goalPeriodUnit === "year" && (
-                                              <div className="text-[9px] font-semibold text-slate-300 mt-0.5">
-                                                หรือ ฿{cal.requiredPerYear.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / ปี
-                                              </div>
-                                            )}
-                                          </div>
-
-                                          <div className="bg-white/5 p-2 rounded-xl border border-white/5 opacity-70">
-                                            <span className="text-[8px] text-slate-400 block">แผนออมเฉลี่ยเริ่มแรก:</span>
-                                            <span className="text-xs font-bold text-slate-300">
-                                              ฿{cal.initialPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })}
-                                            </span>
-                                            <span className="text-[8px] text-slate-400"> / เดือน</span>
-
-                                            {selectedWallet.goalPeriodUnit === "year" && (
-                                              <div className="text-[9px] text-slate-400 mt-0.5">
-                                                หรือ ฿{cal.initialPerYear.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / ปี
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()
-                        ) : selectedWallet.type === "saving" ? (
-                          <div className="mt-2 text-xs text-pink-300/90 italic font-medium flex items-center gap-1.5 bg-pink-500/10 px-2.5 py-1 rounded-xl w-fit border border-pink-500/10">
-                            🐷 ยังไม่ตั้งเป้าหมายเงินออม (คลิกแก้ไขเพื่อเปิด)
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
                     </>
                   ) : (
                     <div className="text-slate-400 text-xs py-10 bg-white/5 border border-white/10 rounded-2xl text-center">ไม่พบข้อมูลกระเป๋าเงิน</div>
@@ -810,20 +770,22 @@ export default function WalletManager({
                 {/* RIGHT: Compact Wallets List ("เป๋าเล็ก ๆ") */}
                 <div className="lg:col-span-7 space-y-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                    💳 รายการกระเป๋าทั้งหมดในรูปแบบย่อ (คลิกเพื่อเลือก)
+                    รายการกระเป๋าทั้งหมดในรูปแบบย่อ (คลิกเพื่อเลือก)
                   </span>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2.5">
+                  <div className="grid grid-flow-col grid-rows-2 overflow-x-auto lg:overflow-x-visible lg:grid-flow-row lg:grid-rows-none lg:grid-cols-2 gap-2.5 pb-2 lg:pb-0 scrollbar-thin">
                     {wallets.map((wallet) => {
                       const compactBalance = walletBalances[wallet.id] ?? 0;
-                      const isSelected = wallet.id === selectedWalletFlowId;
+                      const isSelected = wallet.id === activeWalletId;
                       const walletTheme = getWalletThemeCompact(wallet.color, theme === "light");
 
                       return (
                         <div
                           key={wallet.id}
-                          onClick={() => setSelectedWalletFlowId(wallet.id)}
-                          className={`rounded-2xl p-3 flex flex-col justify-between h-[76px] transition-all duration-200 cursor-pointer ${
+                          onClick={() => {
+                            setSelectedWalletFlowId(wallet.id);
+                          }}
+                          className={`rounded-2xl p-3 flex flex-col justify-between h-[76px] min-w-[150px] sm:min-w-[180px] lg:min-w-0 transition-all duration-200 cursor-pointer ${
                             isSelected 
                               ? walletTheme.activeBorder 
                               : `border border-white/5 ${walletTheme.bg} ${walletTheme.border}`
@@ -832,19 +794,23 @@ export default function WalletManager({
                           <div className="flex items-center justify-between w-full">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="text-lg select-none shrink-0">{wallet.icon}</span>
-                              <span className="font-extrabold text-xs text-white truncate" title={wallet.name}>
+                              <span className={`font-extrabold text-xs truncate ${theme === "light" ? "text-slate-800" : "text-white"}`} title={wallet.name}>
                                 {wallet.name}
                               </span>
                             </div>
                             {wallet.isDefault && (
-                              <span className="text-[8px] bg-amber-500/20 text-amber-300 font-extrabold px-1 rounded-sm border border-amber-400/20 uppercase shrink-0">
+                              <span className="text-[8px] bg-amber-500/20 text-amber-500 font-extrabold px-1 rounded-sm border border-amber-400/20 uppercase shrink-0">
                                 หลัก
                               </span>
                             )}
                           </div>
                           <div className="flex items-baseline justify-between mt-1">
-                            <span className="text-[9px] text-slate-400">ยอดเงิน:</span>
-                            <span className={`text-[13px] font-black tracking-tight ${isSelected ? "text-white" : "text-slate-200"}`}>
+                            <span className={`text-[9px] ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>ยอดเงิน:</span>
+                            <span className={`text-[13px] font-black tracking-tight ${
+                              theme === "light"
+                                ? isSelected ? "text-indigo-600" : "text-slate-800"
+                                : isSelected ? "text-white" : "text-slate-200"
+                            }`}>
                               ฿{compactBalance.toLocaleString("th-TH", { maximumFractionDigits: 1 })}
                             </span>
                           </div>
@@ -856,7 +822,7 @@ export default function WalletManager({
                     {Array.from({ length: Math.max(0, 6 - wallets.length) }).map((_, i) => (
                       <div
                         key={`empty-slot-${i}`}
-                        className="border border-white/5 border-dashed rounded-2xl h-[76px] flex flex-col items-center justify-center bg-white/[0.01]"
+                        className="border border-white/5 border-dashed rounded-2xl h-[76px] min-w-[150px] sm:min-w-[180px] lg:min-w-0 flex flex-col items-center justify-center bg-white/[0.01]"
                       >
                         <span className="text-[9px] text-slate-600 font-medium tracking-wider uppercase">
                           ช่องกระเป๋าว่าง
@@ -871,218 +837,11 @@ export default function WalletManager({
               </div>
             );
           })()
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {wallets.map((wallet, idx) => {
-              const balance = walletBalances[wallet.id] ?? 0;
-              const isSelectedFlow = selectedWalletFlowId === wallet.id;
-              return (
-                <div
-                  key={wallet.id}
-                  onClick={() => setSelectedWalletFlowId(isSelectedFlow ? null : wallet.id)}
-                  className={`relative ${wallet.color} border p-5 rounded-3xl text-white shadow-lg flex flex-col justify-between min-h-[170px] group transition-all duration-300 hover:scale-[1.02] cursor-pointer ${
-                    isSelectedFlow 
-                      ? "ring-4 ring-indigo-500 ring-offset-4 ring-offset-[#090D16] border-white/40 scale-[1.02]" 
-                      : "border-white/10 hover:border-white/20"
-                  }`}
-                >
-                  {/* Top line info */}
-                  <div>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-3xl filter drop-shadow-md select-none">{wallet.icon}</span>
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <h4 className="font-bold text-base tracking-wide truncate max-w-[120px]">
-                              {wallet.name}
-                            </h4>
-                            {wallet.isDefault && (
-                              <span className="text-[9px] bg-amber-500/20 text-amber-300 font-extrabold px-1.5 py-0.5 rounded-md border border-amber-400/30 flex items-center gap-0.5 uppercase shrink-0">
-                                <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" /> หลัก
-                              </span>
-                            )}
-                            {isSelectedFlow && (
-                              <span className="text-[9px] bg-indigo-500/30 text-indigo-300 font-extrabold px-1.5 py-0.5 rounded-md border border-indigo-400/40 flex items-center gap-0.5 uppercase shrink-0 animate-pulse">
-                                <Eye className="w-2.5 h-2.5" /> ดูกระแสเงิน
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] bg-black/20 text-white/90 font-medium px-2 py-0.5 rounded-full border border-white/10 uppercase">
-                            {wallet.type === "cash" ? "💸 เงินสด" : wallet.type === "bank" ? "🏦 ธนาคาร" : wallet.type === "credit" ? "💳 บัตรเครดิต" : wallet.type === "saving" ? "🐷 กระปุกออมสิน" : "💼 อื่นๆ"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="flex gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0 flex-wrap justify-end max-w-[140px]">
-                        {onReorderWallets && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (idx > 0) {
-                                  const newWallets = [...wallets];
-                                  const temp = newWallets[idx];
-                                  newWallets[idx] = newWallets[idx - 1];
-                                  newWallets[idx - 1] = temp;
-                                  onReorderWallets(newWallets);
-                                }
-                              }}
-                              disabled={idx === 0}
-                              className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
-                              title="เลื่อนขึ้น"
-                            >
-                              <ArrowUp className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (idx < wallets.length - 1) {
-                                  const newWallets = [...wallets];
-                                  const temp = newWallets[idx];
-                                  newWallets[idx] = newWallets[idx + 1];
-                                  newWallets[idx + 1] = temp;
-                                  onReorderWallets(newWallets);
-                                }
-                              }}
-                              disabled={idx === wallets.length - 1}
-                              className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
-                              title="เลื่อนลง"
-                            >
-                              <ArrowDown className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onUpdateWallet(wallet.id, {
-                              name: wallet.name,
-                              type: wallet.type,
-                              initialBalance: wallet.initialBalance,
-                              icon: wallet.icon,
-                              color: wallet.color,
-                              accountNumber: wallet.accountNumber,
-                              isDefault: true
-                            });
-                          }}
-                          className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                            wallet.isDefault 
-                              ? "bg-amber-500 text-slate-900 font-bold" 
-                              : "bg-black/20 text-white/60 hover:text-white hover:bg-black/40"
-                          }`}
-                          title={wallet.isDefault ? "กระเป๋าตังค่าเริ่มต้น" : "ตั้งเป็นกระเป๋าเงินค่าเริ่มต้น"}
-                        >
-                          <Star className={`w-3.5 h-3.5 ${wallet.isDefault ? "fill-slate-900 text-slate-900" : ""}`} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditWalletModal(wallet);
-                          }}
-                          className="p-1.5 bg-black/20 hover:bg-black/40 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
-                          title="แก้ไขกระเป๋าตัง"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteClick(wallet.id, wallet.name);
-                          }}
-                          className="p-1.5 bg-black/20 hover:bg-rose-600/60 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
-                          title="ลบกระเป๋าตัง"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {wallet.accountNumber && (
-                      <div className="mt-3 font-mono text-[11px] text-white/70 tracking-wider">
-                        เลขบัญชี: {wallet.accountNumber}
-                      </div>
-                    )}
-
-                    {wallet.excludeFromTotal && (
-                      <div className="mt-2 inline-flex items-center gap-1 text-[8px] bg-slate-500/25 text-slate-300 font-extrabold px-1.5 py-0.5 rounded-md border border-slate-400/10">
-                        🔒 แยกออกจากยอดเงินรวม
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bottom line: Balance display */}
-                  <div className="mt-4 border-t border-white/10 pt-3">
-                    <span className="text-[10px] text-white/70 block font-medium">ยอดเงินปัจจุบัน</span>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-2xl font-black tracking-tight">
-                        ฿{balance.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-[9px] text-white/60 font-semibold italic">
-                        เริ่มที่: ฿{wallet.initialBalance.toLocaleString("th-TH")}
-                      </span>
-                    </div>
-
-                    {wallet.type === "saving" && wallet.targetAmount && wallet.targetAmount > 0 ? (
-                      (() => {
-                        const progressPercent = (balance / wallet.targetAmount) * 100;
-                        const cal = getRemainingGoalCalculations(wallet, balance);
-                        
-                        return (
-                          <div className="mt-2.5 pt-2 border-t border-white/5 space-y-2">
-                            <div className="flex justify-between items-center text-[10px] text-white/90">
-                              <span className="font-semibold text-pink-200">🎯 เป้าหมาย: ฿{wallet.targetAmount.toLocaleString("th-TH")}</span>
-                              <span className="font-bold text-pink-300 bg-pink-500/20 px-1.5 py-0.5 rounded-md">
-                                {progressPercent.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-gradient-to-r from-pink-300 via-rose-400 to-pink-300 transition-all duration-500"
-                                style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
-                              />
-                            </div>
-                            
-                            {cal && !cal.isOverdue && cal.remainingAmount > 0 && (
-                              <div className="bg-white/5 px-2 py-1.5 rounded-lg text-[9px] text-slate-300 flex items-center justify-between border border-white/5 leading-tight">
-                                <span>🚀 ต้องออมอีก:</span>
-                                <span className="font-bold text-emerald-400">
-                                  ฿{cal.requiredPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / เดือน
-                                </span>
-                              </div>
-                            )}
-
-                            {wallet.dueDate && (
-                              <div className="text-[9px] text-pink-200/80 flex justify-between items-center pt-0.5">
-                                <span>📅 กำหนดออมภายใน:</span>
-                                <span className="font-mono font-semibold">{wallet.dueDate}</span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()
-                    ) : wallet.type === "saving" ? (
-                      <div className="mt-1.5 text-[9px] text-pink-300/80 italic font-medium flex items-center gap-1 bg-pink-500/10 px-2 py-0.5 rounded-lg w-fit">
-                        🐷 ยังไม่ตั้งเป้าหมายเงินออม (คลิกแก้ไขเพื่อเปิด)
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         )}
       </div>
 
       {/* Wallet Cash Flow Section */}
-      {selectedWalletFlowId && (() => {
+      {selectedWalletFlowId && isFlowDetailsVisible && (() => {
         const selectedWallet = wallets.find(w => w.id === selectedWalletFlowId);
         if (!selectedWallet) return null;
 
@@ -1120,69 +879,255 @@ export default function WalletManager({
         });
 
         return (
-          <div id="wallet-flow-details" className="bg-white/5 border border-white/10 rounded-3xl p-6 mb-6 transition-all duration-300 animate-fadeIn relative overflow-hidden">
+          <div id="wallet-flow-details" className={`border rounded-3xl p-6 mb-6 transition-all duration-300 animate-fadeIn relative overflow-hidden ${
+            theme === "light"
+              ? "bg-white border-slate-200/80 text-slate-800"
+              : "bg-white/5 border-white/10 text-white"
+          }`}>
             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
             
             {/* Header */}
-            <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
+            <div className={`flex items-center justify-between mb-6 border-b pb-4 ${
+              theme === "light" ? "border-slate-100" : "border-white/10"
+            }`}>
               <div className="flex items-center gap-3">
-                <span className="text-3xl p-2 bg-white/10 rounded-2xl border border-white/10 select-none shadow-sm">{selectedWallet.icon}</span>
+                <span className={`text-3xl p-2 rounded-2xl border select-none shadow-sm ${
+                  theme === "light" ? "bg-slate-50 border-slate-200" : "bg-white/10 border-white/10"
+                }`}>{selectedWallet.icon}</span>
                 <div>
-                  <h3 className="text-white font-black text-lg tracking-wide flex items-center gap-2">
+                  <h3 className={`font-black text-lg tracking-wide flex items-center gap-2 ${
+                    theme === "light" ? "text-slate-900" : "text-white"
+                  }`}>
                     <span>การเคลื่อนไหวเงินในกระเป๋า</span>
-                    <span className="px-2.5 py-0.5 text-xs font-bold rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 animate-pulse">
+                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg animate-pulse ${
+                      theme === "light"
+                        ? "bg-indigo-50 border border-indigo-100 text-indigo-600"
+                        : "bg-indigo-500/20 border border-indigo-500/30 text-indigo-300"
+                    }`}>
                       {selectedWallet.name}
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-400">รายการเคลื่อนไหวทางการเงิน เงินเข้า / เงินออก ทั้งหมด</p>
+                  <p className={`text-xs ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>รายการเคลื่อนไหวทางการเงิน เงินเข้า / เงินออก ทั้งหมด</p>
                 </div>
               </div>
               <button 
-                onClick={() => setSelectedWalletFlowId(null)}
-                className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-all cursor-pointer border border-white/5"
+                onClick={() => {
+                  setIsFlowDetailsVisible(false);
+                }}
+                className={`p-2 rounded-full transition-all cursor-pointer border ${
+                  theme === "light"
+                    ? "hover:bg-slate-100 text-slate-400 hover:text-slate-700 border-slate-200"
+                    : "hover:bg-white/10 text-slate-400 hover:text-white border-white/5"
+                }`}
                 title="ปิดหน้านี้"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Savings Goal Status / Details */}
+            {selectedWallet.type === "saving" && (
+              <div className={`p-5 rounded-2xl border mb-6 space-y-4 shadow-xs ${
+                theme === "light"
+                  ? "bg-slate-50 border-slate-200 text-slate-800"
+                  : "bg-white/5 border-white/10 text-white"
+              }`}>
+                {selectedWallet.targetAmount && selectedWallet.targetAmount > 0 ? (
+                  (() => {
+                    const progressPercent = (balance / selectedWallet.targetAmount) * 100;
+                    const cal = getRemainingGoalCalculations(selectedWallet, balance);
+                    
+                    return (
+                      <div className="space-y-4">
+                        {/* Exclude Total Status Badge */}
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] uppercase font-bold ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>สถานะกระปุกออมสิน</span>
+                          {selectedWallet.excludeFromTotal ? (
+                            <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border flex items-center gap-1 ${
+                              theme === "light"
+                                ? "bg-amber-100 text-amber-800 border-amber-200"
+                                : "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                            }`}>
+                              🔒 ซ่อนยอด (แยกจากยอดรวม)
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border flex items-center gap-1 ${
+                              theme === "light"
+                                ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                                : "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+                            }`}>
+                              🔓 รวมยอดกับกระเป๋าอื่นๆ
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Goals & Period info */}
+                        {cal && (
+                          <div className={`rounded-2xl p-3.5 space-y-3 border ${
+                            theme === "light"
+                              ? "bg-white border-slate-200 text-slate-800"
+                              : "bg-black/30 border-white/5 text-white"
+                          }`}>
+                            <div className="grid grid-cols-2 gap-3 text-[11px] leading-relaxed">
+                              <div>
+                                <span className={`block font-semibold ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>💰 ยอดที่เหลือต้องออมเพิ่ม:</span>
+                                <span className={`font-black text-xs ${theme === "light" ? "text-slate-900" : "text-white"}`}>
+                                  ฿{cal.remainingAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <div>
+                                <span className={`block font-semibold ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>📅 วันสิ้นสุด & ระยะเวลาคงเหลือ:</span>
+                                {cal.isOverdue ? (
+                                  <span className={`font-bold text-[10px] ${theme === "light" ? "text-rose-600" : "text-rose-400"}`}>
+                                    ⚠️ เลยกำหนด ({selectedWallet.dueDate})
+                                  </span>
+                                ) : (
+                                  <span className={`font-bold text-[10px] ${theme === "light" ? "text-slate-900" : "text-white"}`}>
+                                    {cal.remainingMonths >= 12 
+                                      ? `${cal.remainingYears.toFixed(1)} ปี (${cal.remainingMonths.toFixed(0)} เดือน)` 
+                                      : `${cal.remainingMonths.toFixed(1)} เดือน`
+                                    }
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Smart Calculation display */}
+                            <div className={`pt-2.5 border-t ${theme === "light" ? "border-slate-200" : "border-white/5"}`}>
+                              <span className={`text-[10px] font-extrabold block uppercase tracking-wider mb-1.5 ${
+                                theme === "light" ? "text-pink-600" : "text-pink-300"
+                              }`}>
+                                📈 แผนการออมเฉลี่ยเพื่อให้ถึงเป้าหมาย:
+                              </span>
+                              
+                              {cal.isOverdue ? (
+                                <div className={`text-[10px] leading-normal p-2 rounded-xl border ${
+                                  theme === "light"
+                                    ? "bg-rose-50 border-rose-200 text-rose-700"
+                                    : "bg-rose-500/10 border-rose-500/20 text-rose-300"
+                                }`}>
+                                  เกินกำหนดระยะเวลาเป้าหมายแล้ว กรุณาขยายเวลาสิ้นสุดของเป้าหมายในเมนูแก้ไข เพื่อให้ระบบคำนวณออมเฉลี่ยต่อเดือนที่เหลือให้ใหม่
+                                </div>
+                              ) : cal.remainingAmount <= 0 ? (
+                                <div className={`text-[10px] font-extrabold leading-normal p-2 rounded-xl border flex items-center gap-1 ${
+                                  theme === "light"
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                    : "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+                                }`}>
+                                  🏆 ยินดีด้วย! คุณสะสมเงินออมครบตามเป้าหมายของกระปุกนี้แล้ว
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div className={`p-2 rounded-xl border ${
+                                    theme === "light"
+                                      ? "bg-slate-50 border-slate-200/80 text-slate-800"
+                                      : "bg-white/5 border-white/5 text-white"
+                                  }`}>
+                                    <span className={`text-[8px] block ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>ออมเฉลี่ยจากยอดคงเหลือ:</span>
+                                    <span className={`text-xs font-black ${theme === "light" ? "text-emerald-600" : "text-emerald-400"}`}>
+                                      ฿{cal.requiredPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })}
+                                    </span>
+                                    <span className={`text-[8px] ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}> / เดือน</span>
+                                    
+                                    {selectedWallet.goalPeriodUnit === "year" && (
+                                      <div className={`text-[9px] font-semibold mt-0.5 ${theme === "light" ? "text-slate-700" : "text-slate-300"}`}>
+                                        หรือ ฿{cal.requiredPerYear.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / ปี
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className={`p-2 rounded-xl border ${
+                                    theme === "light"
+                                      ? "bg-slate-50 border-slate-200/50 text-slate-700 opacity-80"
+                                      : "bg-white/5 border-white/5 text-white opacity-70"
+                                  }`}>
+                                    <span className={`text-[8px] block ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>แผนออมเฉลี่ยเริ่มแรก:</span>
+                                    <span className={`text-xs font-bold ${theme === "light" ? "text-slate-700" : "text-slate-300"}`}>
+                                      ฿{cal.initialPerMonth.toLocaleString("th-TH", { maximumFractionDigits: 0 })}
+                                    </span>
+                                    <span className={`text-[8px] ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}> / เดือน</span>
+
+                                    {selectedWallet.goalPeriodUnit === "year" && (
+                                      <div className={`text-[9px] mt-0.5 ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>
+                                        หรือ ฿{cal.initialPerYear.toLocaleString("th-TH", { maximumFractionDigits: 0 })} / ปี
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className={`text-xs italic font-medium flex items-center gap-1.5 px-2.5 py-1 rounded-xl w-fit border ${
+                    theme === "light"
+                      ? "bg-pink-50 text-pink-700 border-pink-200"
+                      : "bg-pink-500/10 text-pink-300 border-pink-500/10"
+                  }`}>
+                    🐷 ยังไม่ตั้งเป้าหมายเงินออม (คลิกแก้ไขเพื่อเปิด)
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               {/* Total Balance */}
-              <div className="bg-white/5 border border-white/5 p-4 rounded-2xl flex items-center justify-between">
+              <div className={`border p-4 rounded-2xl flex items-center justify-between ${
+                theme === "light"
+                  ? "bg-slate-50 border-slate-200 text-slate-800"
+                  : "bg-white/5 border-white/5 text-white"
+              }`}>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">ยอดเงินปัจจุบัน</span>
-                  <p className="text-xl font-extrabold text-white mt-1">
+                  <span className={`text-[10px] uppercase font-bold tracking-wider ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>ยอดเงินปัจจุบัน</span>
+                  <p className={`text-xl font-extrabold mt-1 ${theme === "light" ? "text-slate-900" : "text-white"}`}>
                     ฿{balance.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="p-3 bg-white/10 text-slate-300 rounded-xl">
+                <div className={`p-3 rounded-xl ${
+                  theme === "light" ? "bg-slate-200 text-slate-700" : "bg-white/10 text-slate-300"
+                }`}>
                   <Coins className="w-5 h-5" />
                 </div>
               </div>
 
               {/* Inflow Stat */}
-              <div className="bg-emerald-500/5 border border-emerald-500/10 p-4 rounded-2xl flex items-center justify-between">
+              <div className={`border p-4 rounded-2xl flex items-center justify-between ${
+                theme === "light"
+                  ? "bg-emerald-50/60 border-emerald-100 text-emerald-800"
+                  : "bg-emerald-500/5 border border-emerald-500/10 text-white"
+              }`}>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">ยอดเงินเข้าสะสม (Inflow)</span>
-                  <p className="text-xl font-extrabold text-emerald-400 mt-1">
+                  <span className={`text-[10px] uppercase font-bold tracking-wider ${theme === "light" ? "text-emerald-600" : "text-emerald-400"}`}>ยอดเงินเข้าสะสม (Inflow)</span>
+                  <p className={`text-xl font-extrabold mt-1 ${theme === "light" ? "text-emerald-700" : "text-emerald-400"}`}>
                     +฿{walletInflowSum.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                <div className={`p-3 rounded-xl ${
+                  theme === "light" ? "bg-emerald-100 text-emerald-600" : "bg-emerald-500/10 text-emerald-400"
+                }`}>
                   <ArrowUpRight className="w-5 h-5" />
                 </div>
               </div>
 
               {/* Outflow Stat */}
-              <div className="bg-rose-500/5 border border-rose-500/10 p-4 rounded-2xl flex items-center justify-between">
+              <div className={`border p-4 rounded-2xl flex items-center justify-between ${
+                theme === "light"
+                  ? "bg-rose-50/60 border-rose-100 text-rose-800"
+                  : "bg-rose-500/5 border border-rose-500/10 text-white"
+              }`}>
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-rose-400">ยอดเงินออกสะสม (Outflow)</span>
-                  <p className="text-xl font-extrabold text-rose-400 mt-1">
+                  <span className={`text-[10px] uppercase font-bold tracking-wider ${theme === "light" ? "text-rose-600" : "text-rose-400"}`}>ยอดเงินออกสะสม (Outflow)</span>
+                  <p className={`text-xl font-extrabold mt-1 ${theme === "light" ? "text-rose-700" : "text-rose-400"}`}>
                     -฿{walletOutflowSum.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="p-3 bg-rose-500/10 text-rose-400 rounded-xl">
+                <div className={`p-3 rounded-xl ${
+                  theme === "light" ? "bg-rose-100 text-rose-600" : "bg-rose-500/10 text-rose-400"
+                }`}>
                   <ArrowDownLeft className="w-5 h-5" />
                 </div>
               </div>
@@ -1191,15 +1136,21 @@ export default function WalletManager({
             {/* Transactions List */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <h4 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
+                  theme === "light" ? "text-slate-500" : "text-slate-400"
+                }`}>
                   <span>📋 ประวัติการทำรายการล่าสุด ({sortedWalletTxs.length})</span>
                 </h4>
               </div>
 
               {sortedWalletTxs.length === 0 ? (
-                <div className="text-center py-10 border border-dashed border-white/10 rounded-2xl bg-white/5">
-                  <p className="text-slate-400 text-sm">ไม่มีประวัติการทำรายการสำหรับกระเป๋านี้</p>
-                  <p className="text-slate-500 text-xs mt-1">รายรับ รายจ่าย หรือ รายการโอนเงินที่ผูกกับกระเป๋านี้จะแสดงที่นี่</p>
+                <div className={`text-center py-10 border border-dashed rounded-2xl ${
+                  theme === "light"
+                    ? "border-slate-200 bg-slate-50"
+                    : "border-white/10 bg-white/5"
+                }`}>
+                  <p className={`text-sm ${theme === "light" ? "text-slate-600" : "text-slate-400"}`}>ไม่มีประวัติการทำรายการสำหรับกระเป๋านี้</p>
+                  <p className={`text-xs mt-1 ${theme === "light" ? "text-slate-400" : "text-slate-500"}`}>รายรับ รายจ่าย หรือ รายการโอนเงินที่ผูกกับกระเป๋านี้จะแสดงที่นี่</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
@@ -1216,7 +1167,11 @@ export default function WalletManager({
                     }
 
                     return (
-                      <div key={tx.id} className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-2xl flex items-center justify-between transition-colors">
+                      <div key={tx.id} className={`border p-3 rounded-2xl flex items-center justify-between transition-colors ${
+                        theme === "light"
+                          ? "bg-slate-50 hover:bg-slate-100/80 border-slate-200/60"
+                          : "bg-white/5 hover:bg-white/10 border-white/5"
+                      }`}>
                         <div className="flex items-center gap-3">
                           {/* Inflow / Outflow Indicator */}
                           <div className={`p-2.5 rounded-xl shrink-0 ${
@@ -1230,15 +1185,23 @@ export default function WalletManager({
                           {/* Text Info */}
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-sm text-white">
+                              <span className={`font-bold text-sm ${
+                                theme === "light" ? "text-slate-800" : "text-white"
+                              }`}>
                                 {tx.merchantName}
                               </span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-300 font-medium border border-white/5">
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${
+                                theme === "light"
+                                  ? "bg-slate-100 text-slate-600 border-slate-200"
+                                  : "bg-white/5 text-slate-300 border-white/5"
+                              }`}>
                                 {tx.category}
                               </span>
                             </div>
                             
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                            <div className={`flex items-center gap-2 text-[11px] mt-0.5 ${
+                              theme === "light" ? "text-slate-500" : "text-slate-400"
+                            }`}>
                               <span>📅 {tx.date}</span>
                               {tx.time && <span>⏰ {tx.time}</span>}
                               {tx.note && <span className="italic text-slate-500">({tx.note})</span>}
@@ -1248,7 +1211,7 @@ export default function WalletManager({
 
                         {/* Amount & Subtext */}
                         <div className="text-right">
-                          <p className={`font-black text-sm ${isWalletInflow ? "text-emerald-400" : "text-rose-400"}`}>
+                          <p className={`font-black text-sm ${isWalletInflow ? "text-emerald-500" : "text-rose-500"}`}>
                             {isWalletInflow ? "+" : "-"}฿{tx.amount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                           {isTransfer && (
@@ -1272,15 +1235,21 @@ export default function WalletManager({
       })()}
 
       {/* Guide Card */}
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-5 flex gap-4">
-        <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl h-fit shrink-0">
+      <div className={`border rounded-3xl p-5 flex gap-4 ${
+        theme === "light"
+          ? "bg-white border-slate-200 text-slate-800"
+          : "bg-white/5 border-white/10 text-white"
+      }`}>
+        <div className={`p-3 rounded-2xl h-fit shrink-0 ${
+          theme === "light" ? "bg-indigo-50 text-indigo-600" : "bg-indigo-500/10 text-indigo-400"
+        }`}>
           <HelpCircle className="w-6 h-6" />
         </div>
         <div>
-          <h4 className="text-white font-bold text-sm mb-1">การทำงานร่วมกันของกระเป๋าตังและยอดรวม</h4>
-          <p className="text-xs text-slate-400 leading-relaxed space-y-1">
-            • ยอดเงินในแต่ละกระเป๋าจะถูกคำนวณอย่างถูกต้อง โดยดึงค่าตั้งต้น <span className="text-indigo-400 font-semibold">(Starting Balance)</span> มารวมเข้ากับ รายรับ และหักออกด้วย รายจ่าย ที่คุณผูกไว้กับกระเป๋าตังนั้น ๆ<br />
-            • <span className="text-indigo-400 font-semibold">การโอนเงินข้ามบัญชี:</span> ระบบจะหักเงินจากกระเป๋าต้นทาง และโอนไปสมทบกระเป๋าปลายทางโดยอัตโนมัติ โดยไม่ถือว่าเป็นรายจ่ายภายนอกเพื่อไม่ให้กระทบยอดสุทธิรวมของแอป
+          <h4 className={`font-bold text-sm mb-1 ${theme === "light" ? "text-slate-900" : "text-white"}`}>การทำงานร่วมกันของกระเป๋าตังและยอดรวม</h4>
+          <p className={`text-xs leading-relaxed space-y-1 ${theme === "light" ? "text-slate-600" : "text-slate-400"}`}>
+            • ยอดเงินในแต่ละกระเป๋าจะถูกคำนวณอย่างถูกต้อง โดยดึงค่าตั้งต้น <span className="text-indigo-500 font-semibold">(Starting Balance)</span> มารวมเข้ากับ รายรับ และหักออกด้วย รายจ่าย ที่คุณผูกไว้กับกระเป๋าตังนั้น ๆ<br />
+            • <span className="text-indigo-500 font-semibold">การโอนเงินข้ามบัญชี:</span> ระบบจะหักเงินจากกระเป๋าต้นทาง และโอนไปสมทบกระเป๋าปลายทางโดยอัตโนมัติ โดยไม่ถือว่าเป็นรายจ่ายภายนอกเพื่อไม่ให้กระทบยอดสุทธิรวมของแอป
           </p>
         </div>
       </div>

@@ -191,6 +191,9 @@ body {
   color: rgba(255, 255, 255, 0.88) !important;
 }
 
+.theme-light .wallet-detailed-card,
+.theme-light .wallet-detailed-card .text-white,
+.theme-light .wallet-detailed-card [class*="text-white/"],
 .theme-light [class*="from-indigo-600"] .text-white,
 .theme-light [class*="from-emerald-600"] .text-white,
 .theme-light [class*="from-rose-600"] .text-white,
@@ -199,6 +202,11 @@ body {
 .theme-light [class*="from-slate-700"] .text-white {
   color: #ffffff !important;
 }
+
+.theme-light .wallet-detailed-card .text-white\/90 { color: rgba(255, 255, 255, 0.9) !important; }
+.theme-light .wallet-detailed-card .text-white\/70 { color: rgba(255, 255, 255, 0.7) !important; }
+.theme-light .wallet-detailed-card .text-white\/60 { color: rgba(255, 255, 255, 0.6) !important; }
+.theme-light .wallet-detailed-card .text-white\/50 { color: rgba(255, 255, 255, 0.5) !important; }
 
 .theme-light [class*="from-indigo-600"] .text-pink-300,
 .theme-light [class*="from-blue-600"] .text-pink-300,

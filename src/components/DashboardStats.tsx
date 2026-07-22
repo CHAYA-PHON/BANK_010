@@ -826,25 +826,33 @@ export default function DashboardStats({
         <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-lg flex flex-col justify-between min-h-[160px] col-span-1 sm:col-span-2 space-y-3">
           <div>
             <div className="flex justify-between items-start">
-              <span className="text-[10px] sm:text-xs font-semibold text-slate-400 block uppercase tracking-wider">
+              <span className={`text-[10px] sm:text-xs font-semibold block uppercase tracking-wider ${
+                theme === "light" ? "text-slate-600" : "text-slate-400"
+              }`}>
                 วิเคราะห์การเก็บออม (Savings Goals)
               </span>
-              <div className="p-1 bg-pink-500/10 border border-pink-500/20 text-pink-400 rounded-lg">
+              <div className={`p-1 rounded-lg border ${
+                theme === "light" 
+                  ? "bg-pink-50 border-pink-100 text-pink-600" 
+                  : "bg-pink-500/10 border-pink-500/20 text-pink-400"
+              }`}>
                 <Target className="w-3.5 h-3.5" />
               </div>
             </div>
             
             {/* Target vs Actual */}
-            <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] border-b border-white/5 pb-2">
+            <div className={`mt-2 grid grid-cols-2 gap-2 text-[10px] border-b pb-2 ${
+              theme === "light" ? "border-slate-100" : "border-white/5"
+            }`}>
               <div>
-                <span className="text-slate-400 block">ยอดเป้าหมายออม:</span>
-                <span className="font-bold text-pink-300">
+                <span className={`${theme === "light" ? "text-slate-500" : "text-slate-400"} block`}>ยอดเป้าหมายออม:</span>
+                <span className={`font-bold ${theme === "light" ? "text-pink-600" : "text-pink-300"}`}>
                   {recommendedSavings > 0 
                     ? `฿${recommendedSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                     : "ยังไม่ระบุเป้าหมาย"
                   }
                 </span>
-                <span className="text-[8px] text-slate-500 block">
+                <span className={`text-[8px] block ${theme === "light" ? "text-slate-400" : "text-slate-500"}`}>
                   {goalMode === "saving_wallets" 
                     ? "🐷 ดึงจากกระปุกออมสิน" 
                     : goalMode === "baht" 
@@ -853,11 +861,15 @@ export default function DashboardStats({
                 </span>
               </div>
               <div>
-                <span className="text-slate-400 block">สะสมได้จริง:</span>
-                <span className={`font-bold ${actualSavingsGoalAmount >= recommendedSavings && recommendedSavings > 0 ? "text-emerald-400" : "text-pink-400"}`}>
+                <span className={`${theme === "light" ? "text-slate-500" : "text-slate-400"} block`}>สะสมได้จริง:</span>
+                <span className={`font-bold ${
+                  actualSavingsGoalAmount >= recommendedSavings && recommendedSavings > 0 
+                    ? (theme === "light" ? "text-emerald-600" : "text-emerald-400") 
+                    : (theme === "light" ? "text-pink-600" : "text-pink-400")
+                }`}>
                   ฿{actualSavingsGoalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
-                <span className="text-[8px] text-slate-500 block">
+                <span className={`text-[8px] block ${theme === "light" ? "text-slate-400" : "text-slate-500"}`}>
                   ({goalMode === "saving_wallets" 
                     ? `${recommendedSavings > 0 ? ((actualSavingsGoalAmount / recommendedSavings) * 100).toFixed(1) : 0}% ของเป้ากระปุก`
                     : `${savingsRate.toFixed(1)}% ของรายรับ`
@@ -869,11 +881,17 @@ export default function DashboardStats({
             {/* Achievement Percent & Bar */}
             <div className="mt-2.5">
               <div className="flex justify-between items-center text-[10px] mb-1">
-                <span className="text-slate-400 flex items-center gap-1">
+                <span className={`${theme === "light" ? "text-slate-500" : "text-slate-400"} flex items-center gap-1`}>
                   <span>ความสำเร็จออมเงิน:</span>
-                  {achievementPercent >= 100 && <Trophy className="w-3 h-3 text-amber-400 animate-bounce" />}
+                  {achievementPercent >= 100 && <Trophy className="w-3 h-3 text-amber-500 animate-bounce" />}
                 </span>
-                <span className={`font-bold ${achievementPercent >= 100 ? "text-emerald-400" : achievementPercent >= 50 ? "text-amber-400" : "text-pink-400"}`}>
+                <span className={`font-bold ${
+                  achievementPercent >= 100 
+                    ? (theme === "light" ? "text-emerald-600" : "text-emerald-400") 
+                    : achievementPercent >= 50 
+                    ? (theme === "light" ? "text-amber-600" : "text-amber-400") 
+                    : (theme === "light" ? "text-pink-600" : "text-pink-400")
+                }`}>
                   {achievementPercent.toFixed(1)}%
                 </span>
               </div>
@@ -894,38 +912,57 @@ export default function DashboardStats({
             {/* Saving Wallets breakdown list when in saving_wallets mode */}
             {goalMode === "saving_wallets" && (
               <div className="mt-3.5 space-y-2">
-                <div className="flex justify-between items-center text-[9px] font-bold text-pink-300">
+                <div className={`flex justify-between items-center text-[9px] font-bold ${
+                  theme === "light" ? "text-pink-600" : "text-pink-300"
+                }`}>
                   <span>🐷 รายการกระปุกออมสินเป้าหมาย:</span>
-                  <span className="text-[8px] text-slate-400">กำหนดออมรายเดือน</span>
+                  <span className={`text-[8px] ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>กำหนดออมรายเดือน</span>
                 </div>
                 {savingWalletsWithTargets.length > 0 ? (
                   <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-0.5 custom-scrollbar">
                     {savingWalletsWithTargets.map(({ wallet, monthlyTarget, monthlySaved }) => {
                       const pct = monthlyTarget > 0 ? (monthlySaved / monthlyTarget) * 100 : 0;
                       return (
-                        <div key={wallet.id} className="bg-black/20 hover:bg-black/30 border border-white/5 rounded-xl p-2 transition-all space-y-1.5">
+                        <div key={wallet.id} className={`border rounded-xl p-2 transition-all space-y-1.5 ${
+                          theme === "light"
+                            ? "bg-slate-50/80 hover:bg-slate-100/90 border-slate-200/70"
+                            : "bg-black/20 hover:bg-black/30 border border-white/5"
+                        }`}>
                           <div className="flex justify-between items-center text-[9px]">
-                            <span className="font-bold text-slate-200 flex items-center gap-1 truncate max-w-[120px]">
+                            <span className={`font-bold flex items-center gap-1 truncate max-w-[120px] ${
+                              theme === "light" ? "text-slate-800" : "text-slate-200"
+                            }`}>
                               <span>🐷 {wallet.name}</span>
                               {wallet.excludeFromTotal && (
-                                <span className="text-[7px] bg-indigo-500/20 text-indigo-300 px-1 py-0.2 rounded border border-indigo-500/10">ซ่อนยอด</span>
+                                <span className={`text-[7px] px-1 py-0.2 rounded border ${
+                                  theme === "light"
+                                    ? "bg-indigo-50 text-indigo-600 border-indigo-100"
+                                    : "bg-indigo-500/20 text-indigo-300 border-indigo-500/10"
+                                }`}>ซ่อนยอด</span>
                               )}
                             </span>
-                            <span className="font-semibold text-slate-300">
-                              ฿{monthlySaved.toLocaleString()} / <span className="text-pink-300 font-bold">฿{monthlyTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            <span className={`font-semibold ${theme === "light" ? "text-slate-600" : "text-slate-300"}`}>
+                              ฿{monthlySaved.toLocaleString()} / <span className={`${theme === "light" ? "text-pink-600 font-extrabold" : "text-pink-300 font-bold"}`}>฿{monthlyTarget.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                             </span>
                           </div>
-                          <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                          <div className={`w-full h-1 rounded-full overflow-hidden ${
+                            theme === "light" ? "bg-slate-200" : "bg-white/5"
+                          }`}>
                             <div
                               className={`h-full rounded-full transition-all duration-300 ${
-                                pct >= 100 ? "bg-emerald-400" : "bg-pink-400"
+                                pct >= 100 
+                                  ? (theme === "light" ? "bg-emerald-600" : "bg-emerald-400") 
+                                  : (theme === "light" ? "bg-pink-600" : "bg-pink-400")
                               }`}
                               style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
                             />
                           </div>
-                          <div className="flex justify-between items-center text-[8px] text-slate-500">
-                            <span>เก็บเพิ่มเดือนนี้:</span>
-                            <span className={pct >= 100 ? "text-emerald-400 font-bold" : "text-slate-400"}>
+                          <div className="flex justify-between items-center text-[8px]">
+                            <span className={theme === "light" ? "text-slate-500" : "text-slate-500"}>เก็บเพิ่มเดือนนี้:</span>
+                            <span className={pct >= 100 
+                              ? (theme === "light" ? "text-emerald-600 font-bold" : "text-emerald-400 font-bold") 
+                              : (theme === "light" ? "text-slate-600" : "text-slate-400")
+                            }>
                               {pct.toFixed(1)}%
                             </span>
                           </div>
@@ -934,7 +971,11 @@ export default function DashboardStats({
                     })}
                   </div>
                 ) : (
-                  <div className="text-center p-3 bg-black/10 rounded-xl border border-white/5 text-[9px] text-slate-400 leading-relaxed">
+                  <div className={`text-center p-3 rounded-xl border text-[9px] leading-relaxed ${
+                    theme === "light"
+                      ? "bg-slate-50 border-slate-200 text-slate-600"
+                      : "bg-black/10 border-white/5 text-slate-400"
+                  }`}>
                     ⚠️ ไม่พบกระปุกออมสินที่มีการตั้งยอดเป้าหมายการออม<br/>
                     <span className="text-[8px] text-slate-500">สร้างหรือระบุยอดเป้าหมายออมได้ที่เมนู "จัดการกระเป๋าเงิน"</span>
                   </div>
@@ -945,16 +986,22 @@ export default function DashboardStats({
 
           {/* Explanation if Negative */}
           {currentMonthNet < 0 && (
-            <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-2.5 text-[8px] sm:text-[9px] text-rose-300 leading-normal">
+            <div className={`rounded-xl p-2.5 text-[8px] sm:text-[9px] leading-normal border ${
+              theme === "light"
+                ? "bg-rose-50 border-rose-100 text-rose-700"
+                : "bg-rose-500/10 border-rose-500/20 text-rose-300"
+            }`}>
               ⚠️ <strong>สถานะออมติดลบ {netFlowRate.toFixed(1)}% เนื่องจาก</strong> เดือนนี้คุณใช้จ่ายมากกว่ารายรับรวม {Math.abs(currentMonthNet).toLocaleString(undefined, { maximumFractionDigits: 0 })} ฿ ส่งผลให้ไม่สามารถออมสะสมเพิ่มขึ้นได้ค่ะ
             </div>
           )}
 
           {/* Config Goal Control panel */}
-          <div className="space-y-2 pt-2 border-t border-white/5">
+          <div className={`space-y-2 pt-2 border-t ${
+            theme === "light" ? "border-slate-100" : "border-white/5"
+          }`}>
             <div className="flex justify-between items-center">
-              <div className="text-[9px] text-slate-400">
-                รูปแบบ: <span className="font-bold text-slate-200">
+              <div className={`text-[9px] ${theme === "light" ? "text-slate-500" : "text-slate-400"}`}>
+                รูปแบบ: <span className={`font-bold ${theme === "light" ? "text-slate-800" : "text-slate-200"}`}>
                   {goalMode === "saving_wallets" 
                     ? "ดึงจากกระปุกออมสิน" 
                     : goalMode === "baht" 
@@ -965,23 +1012,35 @@ export default function DashboardStats({
               <button
                 type="button"
                 onClick={() => setIsEditingGoal(!isEditingGoal)}
-                className="text-[9px] text-pink-400 hover:text-pink-300 font-bold flex items-center gap-0.5 cursor-pointer bg-pink-500/10 hover:bg-pink-500/20 px-2 py-0.5 rounded-md border border-pink-500/20 transition-all"
+                className={`text-[9px] font-bold flex items-center gap-0.5 cursor-pointer px-2 py-0.5 rounded-md border transition-all ${
+                  theme === "light"
+                    ? "text-pink-600 hover:text-pink-700 bg-pink-50 hover:bg-pink-100 border-pink-200"
+                    : "text-pink-400 hover:text-pink-300 bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/20"
+                }`}
               >
                 {isEditingGoal ? "เสร็จสิ้น" : "✏️ ตั้งเป้าออมเพิ่ม"}
               </button>
             </div>
             
             {isEditingGoal && (
-              <div className="space-y-3 pt-1.5 animate-fade-in bg-white/5 p-2.5 rounded-2xl border border-white/5">
+              <div className={`space-y-3 pt-1.5 animate-fade-in p-2.5 rounded-2xl border ${
+                theme === "light"
+                  ? "bg-slate-50 border-slate-200"
+                  : "bg-white/5 border-white/5"
+              }`}>
                 {/* Mode Selector */}
-                <div className="grid grid-cols-3 gap-1 p-0.5 bg-black/20 rounded-lg">
+                <div className={`grid grid-cols-3 gap-1 p-0.5 rounded-lg ${
+                  theme === "light" ? "bg-slate-200" : "bg-black/20"
+                }`}>
                   <button
                     type="button"
                     onClick={() => handleGoalModeToggle("saving_wallets")}
                     className={`py-1 text-[8px] sm:text-[9px] font-bold rounded-md transition-all cursor-pointer ${
                       goalMode === "saving_wallets" 
-                        ? "bg-pink-500/20 text-pink-300 border border-pink-500/20" 
-                        : "text-slate-400 hover:text-slate-200"
+                        ? (theme === "light" 
+                            ? "bg-white text-pink-700 border border-slate-300 shadow-xs" 
+                            : "bg-pink-500/20 text-pink-300 border border-pink-500/20") 
+                        : (theme === "light" ? "text-slate-600 hover:text-slate-800" : "text-slate-400 hover:text-slate-200")
                     }`}
                   >
                     🐷 ดึงจากกระปุก
@@ -991,8 +1050,10 @@ export default function DashboardStats({
                     onClick={() => handleGoalModeToggle("baht")}
                     className={`py-1 text-[8px] sm:text-[9px] font-bold rounded-md transition-all cursor-pointer ${
                       goalMode === "baht" 
-                        ? "bg-pink-500/20 text-pink-300 border border-pink-500/20" 
-                        : "text-slate-400 hover:text-slate-200"
+                        ? (theme === "light" 
+                            ? "bg-white text-pink-700 border border-slate-300 shadow-xs" 
+                            : "bg-pink-500/20 text-pink-300 border border-pink-500/20") 
+                        : (theme === "light" ? "text-slate-600 hover:text-slate-800" : "text-slate-400 hover:text-slate-200")
                     }`}
                   >
                     จำนวนเงิน (฿)
@@ -1002,8 +1063,10 @@ export default function DashboardStats({
                     onClick={() => handleGoalModeToggle("percent")}
                     className={`py-1 text-[8px] sm:text-[9px] font-bold rounded-md transition-all cursor-pointer ${
                       goalMode === "percent" 
-                        ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20" 
-                        : "text-slate-400 hover:text-slate-200"
+                        ? (theme === "light" 
+                            ? "bg-white text-indigo-700 border border-slate-300 shadow-xs" 
+                            : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/20") 
+                        : (theme === "light" ? "text-slate-600 hover:text-slate-800" : "text-slate-400 hover:text-slate-200")
                     }`}
                   >
                     อิงรายรับ (%)
@@ -1012,16 +1075,24 @@ export default function DashboardStats({
 
                 {/* Input Fields based on mode */}
                 {goalMode === "saving_wallets" ? (
-                  <div className="space-y-1.5 text-[9px] sm:text-[10px] text-slate-300 leading-normal">
-                    <span className="font-extrabold text-pink-300 block">🐷 ดึงเป้าหมายจากกระปุกออมสิน:</span>
+                  <div className={`space-y-1.5 text-[9px] sm:text-[10px] leading-normal ${
+                    theme === "light" ? "text-slate-700" : "text-slate-300"
+                  }`}>
+                    <span className={`font-extrabold block ${
+                      theme === "light" ? "text-pink-600" : "text-pink-300"
+                    }`}>🐷 ดึงเป้าหมายจากกระปุกออมสิน:</span>
                     <div>คำนวณเป้าหมายรายเดือนอัตโนมัติจากแผนการออมเงินในแต่ละกระปุกรวมกัน</div>
-                    <div className="text-[8px] text-slate-400 italic mt-1 leading-relaxed">
+                    <div className={`text-[8px] italic mt-1 leading-relaxed ${
+                      theme === "light" ? "text-slate-500" : "text-slate-400"
+                    }`}>
                       *สามารถสร้างกระปุกใหม่ ระบุเป้าหมาย และระยะเวลาออมเงินได้จากแถบเมนู "จัดการกระเป๋าเงิน" แล้วระบบจะดึงข้อมูลมาแสดงที่นี่โดยอัตโนมัติ
                     </div>
                   </div>
                 ) : goalMode === "baht" ? (
                   <div className="space-y-1.5">
-                    <label className="block text-[8px] font-semibold text-slate-400">
+                    <label className={`block text-[8px] font-semibold ${
+                      theme === "light" ? "text-slate-600" : "text-slate-400"
+                    }`}>
                       เป้าหมายการออมเดือน {formatThaiMonth(selectedMonth)}
                     </label>
                     <div className="flex gap-1.5">
@@ -1032,7 +1103,11 @@ export default function DashboardStats({
                           value={customBahtInput}
                           onChange={(e) => setCustomBahtInput(e.target.value)}
                           placeholder="ระบุ เช่น 5000"
-                          className="w-full pl-6 pr-2 py-1.5 bg-black/20 border border-white/10 rounded-lg text-xs font-semibold text-white focus:outline-hidden focus:border-pink-500"
+                          className={`w-full pl-6 pr-2 py-1.5 rounded-lg text-xs font-semibold focus:outline-hidden focus:border-pink-500 border ${
+                            theme === "light"
+                              ? "bg-white border-slate-300 text-slate-900 focus:ring-1 focus:ring-pink-500/20"
+                              : "bg-black/20 border-white/10 text-white"
+                          }`}
                         />
                       </div>
                       <button
@@ -1051,9 +1126,11 @@ export default function DashboardStats({
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    <div className="flex justify-between items-center text-[8px] font-semibold text-slate-400">
+                    <div className={`flex justify-between items-center text-[8px] font-semibold ${
+                      theme === "light" ? "text-slate-600" : "text-slate-400"
+                    }`}>
                       <span>อิงเป้าหมายที่ {savingsGoal}% ของรายรับเดือนนี้</span>
-                      <span className="text-indigo-300 font-bold">
+                      <span className={`font-bold ${theme === "light" ? "text-indigo-600" : "text-indigo-300"}`}>
                         (฿{recommendedSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })})
                       </span>
                     </div>
@@ -1068,7 +1145,9 @@ export default function DashboardStats({
                         setSavingsGoal(val);
                         localStorage.setItem("savingsGoalPercent", String(val));
                       }}
-                      className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-400"
+                      className={`w-full h-1 rounded-lg appearance-none cursor-pointer ${
+                        theme === "light" ? "bg-slate-300 accent-indigo-600" : "bg-white/10 accent-indigo-400"
+                      }`}
                     />
                     <span className="text-[8px] text-slate-500 block text-right">เลื่อนเพื่อปรับเป้าหมาย</span>
                   </div>
