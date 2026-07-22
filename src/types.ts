@@ -161,6 +161,34 @@ export interface VehicleLog {
   note?: string;
 }
 
+export interface FuelLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  mileage: number; // เลขมิเตอร์ ณ วันเติม (km)
+  totalCost: number; // จำนวนเงิน (บาท)
+  liters?: number; // จำนวนลิตร (ถ้ามี)
+  pricePerLiter?: number; // คำนวณราคาต่อลิตร (บาท/ลิตร)
+  fuelPercent?: number; // คำนวณ % เติมเข้าถังเทียบความจุถัง (liters / tankCapacity) * 100
+  kmPerLiter?: number; // อัตราสิ้นเปลืองน้ำมัน (km/ลิตร) คำนวณจากระยะทางที่วิ่งได้ / ลิตรที่เติม
+  gasStation?: string; // e.g. PTT, Bangchak, Shell
+  fuelType?: string; // e.g. แก๊สโซฮอล์ 95, ดีเซล
+  isFullTank?: boolean; // เติมเต็มถัง
+  note?: string;
+  walletId?: string;
+}
+
+export interface MaintenanceLog {
+  id: string;
+  date: string; // YYYY-MM-DD
+  mileage: number; // เลขมิเตอร์ ณ วันซ่อมบำรุง (km)
+  title: string; // เช่น เปลี่ยนยาง 4 เส้น, เปลี่ยนผ้าเบรคหน้า, เปลี่ยนแบตเตอรี่
+  category?: string; // ยาง/ล้อ, ระบบเบรค, แบตเตอรี่, เครื่องยนต์, ช่วงล่าง, ทั่วไป
+  cost: number; // ค่าใช้จ่าย (บาท)
+  shopName?: string; // ร้านค้า / ศูนย์บริการ
+  note?: string;
+  walletId?: string;
+}
+
 export interface VehicleService {
   id: string;
   vehicleName: string; // e.g., "รถยนต์ Mazda 2", "รถมอเตอร์ไซค์ Click 125i"
@@ -171,6 +199,9 @@ export interface VehicleService {
   lastServiceDate: string; // วันที่ถ่ายน้ำมันเครื่องล่าสุด (YYYY-MM-DD)
   lastServiceMileage: number; // เลขมิเตอร์ตอนถ่ายล่าสุด (km)
   lastServiceCost?: number;
+  tankCapacity?: number; // ความจุถังน้ำมัน (ลิตร) e.g. 45
+  fuelHistory?: FuelLog[]; // ประวัติการเติมน้ำมัน
+  maintenanceHistory?: MaintenanceLog[]; // ประวัติค่าซ่อมบำรุง
   note?: string;
   history: VehicleLog[];
   createdAt: string;

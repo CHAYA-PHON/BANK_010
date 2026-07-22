@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from "react";
 import { 
-  UtilityBill, VehicleService, AcService, Wallet, Transaction, VehicleLog, AcLog 
+  UtilityBill, VehicleService, AcService, Wallet, Transaction, VehicleLog, AcLog, FuelLog, MaintenanceLog 
 } from "../types";
 import { 
   Zap, Droplet, Car, Snowflake, Gauge, Calendar, Plus, Trash2, Edit3, 
   CheckCircle2, AlertTriangle, Clock, History, BarChart3, TrendingUp, TrendingDown,
   Wrench, ChevronRight, Calculator, FileText, Check, DollarSign, ArrowUpRight, ArrowDownRight,
-  Sparkles, RefreshCw, Layers
+  Sparkles, RefreshCw, Layers, Fuel
 } from "lucide-react";
 
 interface ServiceAndUtilityManagerProps {
@@ -98,6 +98,7 @@ export default function ServiceAndUtilityManager({
   const [billWalletId, setBillWalletId] = useState<string>("");
   const [autoFetchedMeterInfo, setAutoFetchedMeterInfo] = useState<string | null>(null);
   const [selectedUtilityYear, setSelectedUtilityYear] = useState<number>(new Date().getFullYear());
+  const [historyYearFilter, setHistoryYearFilter] = useState<string>("selected");
 
   // Auto-fill previous meter when modal opens or billType/billMonth changes
   const handleOpenBillModal = (type: "electricity" | "water", billToEdit?: UtilityBill) => {
@@ -284,6 +285,24 @@ export default function ServiceAndUtilityManager({
     return sortedUtilityBills.filter(b => b.billingMonth.startsWith(selectedUtilityYear.toString()));
   }, [sortedUtilityBills, selectedUtilityYear]);
 
+  const availableUtilityYears = useMemo(() => {
+    const yearsSet = new Set<number>();
+    yearsSet.add(selectedUtilityYear);
+    utilityBills.forEach(b => {
+      const y = parseInt(b.billingMonth.split("-")[0]);
+      if (!isNaN(y)) yearsSet.add(y);
+    });
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [utilityBills, selectedUtilityYear]);
+
+  const filteredHistoryBills = useMemo(() => {
+    if (historyYearFilter === "all") {
+      return sortedUtilityBills;
+    }
+    const targetYear = historyYearFilter === "selected" ? selectedUtilityYear.toString() : historyYearFilter;
+    return sortedUtilityBills.filter(b => b.billingMonth.startsWith(targetYear));
+  }, [sortedUtilityBills, historyYearFilter, selectedUtilityYear]);
+
   // Compare previous month helper for a bill
   const getBillPreviousMonthComparison = (bill: UtilityBill) => {
     const [y, m] = bill.billingMonth.split("-").map(Number);
@@ -364,7 +383,40 @@ export default function ServiceAndUtilityManager({
   const [vehicleLastDate, setVehicleLastDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [vehicleLastMileage, setVehicleLastMileage] = useState<string>("");
   const [vehicleLastCost, setVehicleLastCost] = useState<string>("");
+  const [vehicleTankCapacity, setVehicleTankCapacity] = useState<string>("");
   const [vehicleNote, setVehicleNote] = useState<string>("");
+
+  // Record Fuel Log Modal State
+  const [showFuelLogModal, setShowFuelLogModal] = useState<boolean>(false);
+  const [fuelingVehicle, setFuelingVehicle] = useState<VehicleService | null>(null);
+  const [editingFuelLogId, setEditingFuelLogId] = useState<string | null>(null);
+  const [fuelDate, setFuelDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [fuelMileage, setFuelMileage] = useState<string>("");
+  const [fuelCost, setFuelCost] = useState<string>("");
+  const [fuelLiters, setFuelLiters] = useState<string>("");
+  const [fuelTankCapacityInput, setFuelTankCapacityInput] = useState<string>("");
+  const [fuelStation, setFuelStation] = useState<string>("");
+  const [fuelType, setFuelType] = useState<string>("แก๊สโซฮอล์ 95");
+  const [fuelIsFull, setFuelIsFull] = useState<boolean>(true);
+  const [fuelNote, setFuelNote] = useState<string>("");
+  const [fuelWalletId, setFuelWalletId] = useState<string>("");
+
+  // Record Maintenance Log Modal State
+  const [showMaintenanceModal, setShowMaintenanceModal] = useState<boolean>(false);
+  const [maintainingVehicle, setMaintainingVehicle] = useState<VehicleService | null>(null);
+  const [editingMaintLogId, setEditingMaintLogId] = useState<string | null>(null);
+  const [maintDate, setMaintDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [maintMileage, setMaintMileage] = useState<string>("");
+  const [maintTitle, setMaintTitle] = useState<string>("");
+  const [maintCategory, setMaintCategory] = useState<string>("ทั่วไป");
+  const [maintCost, setMaintCost] = useState<string>("");
+  const [maintShop, setMaintShop] = useState<string>("");
+  const [maintNote, setMaintNote] = useState<string>("");
+  const [maintWalletId, setMaintWalletId] = useState<string>("");
+
+  // Vehicle Expense Summary Filters State
+  const [vehicleExpenseSelectedVehicle, setVehicleExpenseSelectedVehicle] = useState<string>("all");
+  const [vehicleExpenseSelectedYear, setVehicleExpenseSelectedYear] = useState<number>(() => new Date().getFullYear());
 
   // Quick Mileage Update Modal
   const [showMileageUpdateModal, setShowMileageUpdateModal] = useState<boolean>(false);
@@ -383,6 +435,36 @@ export default function ServiceAndUtilityManager({
 
   // History Log Viewer Modal
   const [viewHistoryVehicle, setViewHistoryVehicle] = useState<VehicleService | null>(null);
+  const [vehicleHistoryTab, setVehicleHistoryTab] = useState<"fuel" | "oil" | "maint">("fuel");
+
+  // Helper to recalculate km/L for all fuel logs
+  const computeFuelHistoryWithKml = (fuelLogs: FuelLog[]): FuelLog[] => {
+    if (!fuelLogs || fuelLogs.length === 0) return [];
+    const sortedAsc = [...fuelLogs].sort((a, b) => a.mileage - b.mileage || a.date.localeCompare(b.date));
+    
+    const processed = sortedAsc.map((log, index) => {
+      if (index === 0) {
+        return { ...log, kmPerLiter: undefined };
+      }
+      const prevLog = sortedAsc[index - 1];
+      const distanceDriven = log.mileage - prevLog.mileage;
+      if (distanceDriven > 0 && log.liters && log.liters > 0) {
+        const kml = distanceDriven / log.liters;
+        return { ...log, kmPerLiter: parseFloat(kml.toFixed(2)) };
+      }
+      return { ...log, kmPerLiter: undefined };
+    });
+
+    return processed.sort((a, b) => b.date.localeCompare(a.date) || b.mileage - a.mileage);
+  };
+
+  const getVehicleAverageKmPerLiter = (v: VehicleService): number | null => {
+    const history = computeFuelHistoryWithKml(v.fuelHistory || []);
+    const validKml = history.map(h => h.kmPerLiter).filter((k): k is number => typeof k === "number" && k > 0);
+    if (validKml.length === 0) return null;
+    const sum = validKml.reduce((acc, cur) => acc + cur, 0);
+    return parseFloat((sum / validKml.length).toFixed(2));
+  };
 
   const handleOpenVehicleModal = (veh?: VehicleService) => {
     if (veh) {
@@ -395,6 +477,7 @@ export default function ServiceAndUtilityManager({
       setVehicleLastDate(veh.lastServiceDate);
       setVehicleLastMileage(veh.lastServiceMileage.toString());
       setVehicleLastCost((veh.lastServiceCost || "").toString());
+      setVehicleTankCapacity((veh.tankCapacity || "").toString());
       setVehicleNote(veh.note || "");
     } else {
       setEditingVehicleId(null);
@@ -406,6 +489,7 @@ export default function ServiceAndUtilityManager({
       setVehicleLastDate(new Date().toISOString().slice(0, 10));
       setVehicleLastMileage("");
       setVehicleLastCost("");
+      setVehicleTankCapacity("45");
       setVehicleNote("");
     }
     setShowVehicleModal(true);
@@ -418,6 +502,9 @@ export default function ServiceAndUtilityManager({
     const intKm = parseFloat(vehicleIntervalKm) || 3000;
     const intM = parseInt(vehicleIntervalMonths) || 4;
     const cost = parseFloat(vehicleLastCost) || 0;
+    const tankCap = parseFloat(vehicleTankCapacity) || undefined;
+
+    const existingVeh = editingVehicleId ? vehicles.find(v => v.id === editingVehicleId) : null;
 
     const newVehicle: VehicleService = {
       id: editingVehicleId || `veh-${Date.now()}`,
@@ -429,8 +516,10 @@ export default function ServiceAndUtilityManager({
       lastServiceDate: vehicleLastDate,
       lastServiceMileage: lastKm,
       lastServiceCost: cost,
+      tankCapacity: tankCap,
+      fuelHistory: existingVeh?.fuelHistory || [],
       note: vehicleNote,
-      history: editingVehicleId ? (vehicles.find(v => v.id === editingVehicleId)?.history || []) : [
+      history: existingVeh ? (existingVeh.history || []) : [
         {
           id: `log-${Date.now()}`,
           date: vehicleLastDate,
@@ -456,6 +545,219 @@ export default function ServiceAndUtilityManager({
   const handleDeleteVehicle = (id: string) => {
     if (confirm("คุณแน่ใจหรือไม่ว่าต้องการลบรายการรถนี้?")) {
       onSaveVehicles(vehicles.filter(v => v.id !== id));
+    }
+  };
+
+  // Fuel Refill Handlers
+  const handleOpenFuelLogModal = (v: VehicleService, fuelLogToEdit?: FuelLog) => {
+    setFuelingVehicle(v);
+    if (fuelLogToEdit) {
+      setEditingFuelLogId(fuelLogToEdit.id);
+      setFuelDate(fuelLogToEdit.date);
+      setFuelMileage(fuelLogToEdit.mileage.toString());
+      setFuelCost(fuelLogToEdit.totalCost.toString());
+      setFuelLiters((fuelLogToEdit.liters || "").toString());
+      setFuelTankCapacityInput((v.tankCapacity || 45).toString());
+      setFuelStation(fuelLogToEdit.gasStation || "");
+      setFuelType(fuelLogToEdit.fuelType || "แก๊สโซฮอล์ 95");
+      setFuelIsFull(fuelLogToEdit.isFullTank ?? true);
+      setFuelNote(fuelLogToEdit.note || "");
+      setFuelWalletId(fuelLogToEdit.walletId || "");
+    } else {
+      setEditingFuelLogId(null);
+      setFuelDate(new Date().toISOString().slice(0, 10));
+      setFuelMileage(v.currentMileage.toString());
+      setFuelCost("");
+      setFuelLiters("");
+      const isBike = v.vehicleName.toLowerCase().includes("มอเตอร์ไซค์") || v.vehicleName.toLowerCase().includes("click") || v.vehicleName.toLowerCase().includes("wave");
+      setFuelTankCapacityInput((v.tankCapacity || (isBike ? 5.5 : 45)).toString());
+      setFuelStation("");
+      setFuelType("แก๊สโซฮอล์ 95");
+      setFuelIsFull(true);
+      setFuelNote("");
+      setFuelWalletId(wallets.find(w => w.isDefault)?.id || wallets[0]?.id || "");
+    }
+    setShowFuelLogModal(true);
+  };
+
+  const handleSaveFuelLog = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fuelingVehicle) return;
+
+    const costVal = parseFloat(fuelCost) || 0;
+    const litersVal = parseFloat(fuelLiters) || 0;
+    const capVal = parseFloat(fuelTankCapacityInput) || 0;
+    const km = parseFloat(fuelMileage) || fuelingVehicle.currentMileage;
+
+    const pricePerLiter = litersVal > 0 && costVal > 0 ? (costVal / litersVal) : undefined;
+    const fuelPercent = (litersVal > 0 && capVal > 0) ? ((litersVal / capVal) * 100) : undefined;
+
+    const logData: FuelLog = {
+      id: editingFuelLogId || `fuel-${Date.now()}`,
+      date: fuelDate,
+      mileage: km,
+      totalCost: costVal,
+      liters: litersVal > 0 ? litersVal : undefined,
+      pricePerLiter: pricePerLiter,
+      fuelPercent: fuelPercent,
+      gasStation: fuelStation,
+      fuelType: fuelType,
+      isFullTank: fuelIsFull,
+      note: fuelNote,
+      walletId: fuelWalletId
+    };
+
+    let updatedFuelHistory = fuelingVehicle.fuelHistory || [];
+    if (editingFuelLogId) {
+      updatedFuelHistory = updatedFuelHistory.map(f => f.id === editingFuelLogId ? logData : f);
+    } else {
+      updatedFuelHistory = [logData, ...updatedFuelHistory];
+    }
+
+    // Recalculate fuel efficiency km/L
+    updatedFuelHistory = computeFuelHistoryWithKml(updatedFuelHistory);
+
+    const updatedVehicle: VehicleService = {
+      ...fuelingVehicle,
+      tankCapacity: capVal > 0 ? capVal : fuelingVehicle.tankCapacity,
+      currentMileage: Math.max(fuelingVehicle.currentMileage, km),
+      fuelHistory: updatedFuelHistory
+    };
+
+    const updatedList = vehicles.map(v => v.id === fuelingVehicle.id ? updatedVehicle : v);
+    onSaveVehicles(updatedList);
+
+    if (viewHistoryVehicle && viewHistoryVehicle.id === fuelingVehicle.id) {
+      setViewHistoryVehicle(updatedVehicle);
+    }
+
+    if (!editingFuelLogId && fuelWalletId && onAddTransaction && costVal > 0) {
+      onAddTransaction({
+        type: "expense",
+        amount: costVal,
+        category: "การเดินทางและยานพาหนะ",
+        merchantName: `เติมน้ำมัน (${fuelingVehicle.vehicleName})`,
+        date: fuelDate,
+        note: `เลขมิเตอร์: ${km.toLocaleString()} km${litersVal > 0 ? `, ${litersVal} ลิตร (฿${pricePerLiter?.toFixed(2)}/ลิตร)` : ""}${fuelPercent ? `, เติม ~${fuelPercent.toFixed(1)}% ถัง` : ""}${fuelStation ? `, ปั๊ม: ${fuelStation}` : ""}`,
+        walletId: fuelWalletId
+      });
+    }
+
+    setShowFuelLogModal(false);
+  };
+
+  const handleDeleteFuelLog = (vehicleId: string, logId: string) => {
+    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบประวัติการเติมน้ำมันนี้?")) return;
+    const targetVehicle = vehicles.find(v => v.id === vehicleId);
+    if (!targetVehicle) return;
+
+    let updatedHistory = (targetVehicle.fuelHistory || []).filter(f => f.id !== logId);
+    updatedHistory = computeFuelHistoryWithKml(updatedHistory);
+
+    const updatedVehicle = { ...targetVehicle, fuelHistory: updatedHistory };
+    const updatedList = vehicles.map(v => v.id === vehicleId ? updatedVehicle : v);
+    onSaveVehicles(updatedList);
+
+    if (viewHistoryVehicle && viewHistoryVehicle.id === vehicleId) {
+      setViewHistoryVehicle(updatedVehicle);
+    }
+  };
+
+  // Maintenance Handlers
+  const handleOpenMaintenanceModal = (v: VehicleService, logToEdit?: MaintenanceLog) => {
+    setMaintainingVehicle(v);
+    if (logToEdit) {
+      setEditingMaintLogId(logToEdit.id);
+      setMaintDate(logToEdit.date);
+      setMaintMileage(logToEdit.mileage.toString());
+      setMaintTitle(logToEdit.title);
+      setMaintCategory(logToEdit.category || "ทั่วไป");
+      setMaintCost(logToEdit.cost.toString());
+      setMaintShop(logToEdit.shopName || "");
+      setMaintNote(logToEdit.note || "");
+      setMaintWalletId(logToEdit.walletId || "");
+    } else {
+      setEditingMaintLogId(null);
+      setMaintDate(new Date().toISOString().slice(0, 10));
+      setMaintMileage(v.currentMileage.toString());
+      setMaintTitle("");
+      setMaintCategory("ทั่วไป");
+      setMaintCost("");
+      setMaintShop("");
+      setMaintNote("");
+      setMaintWalletId(wallets.find(w => w.isDefault)?.id || wallets[0]?.id || "");
+    }
+    setShowMaintenanceModal(true);
+  };
+
+  const handleSaveMaintenanceLog = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!maintainingVehicle) return;
+
+    const costVal = parseFloat(maintCost) || 0;
+    const km = parseFloat(maintMileage) || maintainingVehicle.currentMileage;
+
+    const newLog: MaintenanceLog = {
+      id: editingMaintLogId || `maint-${Date.now()}`,
+      date: maintDate,
+      mileage: km,
+      title: maintTitle || "ซ่อมบำรุงทั่วไป",
+      category: maintCategory,
+      cost: costVal,
+      shopName: maintShop,
+      note: maintNote,
+      walletId: maintWalletId
+    };
+
+    let updatedMaintHistory = maintainingVehicle.maintenanceHistory || [];
+    if (editingMaintLogId) {
+      updatedMaintHistory = updatedMaintHistory.map(m => m.id === editingMaintLogId ? newLog : m);
+    } else {
+      updatedMaintHistory = [newLog, ...updatedMaintHistory];
+    }
+
+    updatedMaintHistory.sort((a, b) => b.date.localeCompare(a.date));
+
+    const updatedVehicle: VehicleService = {
+      ...maintainingVehicle,
+      currentMileage: Math.max(maintainingVehicle.currentMileage, km),
+      maintenanceHistory: updatedMaintHistory
+    };
+
+    const updatedList = vehicles.map(v => v.id === maintainingVehicle.id ? updatedVehicle : v);
+    onSaveVehicles(updatedList);
+
+    if (viewHistoryVehicle && viewHistoryVehicle.id === maintainingVehicle.id) {
+      setViewHistoryVehicle(updatedVehicle);
+    }
+
+    if (!editingMaintLogId && maintWalletId && onAddTransaction && costVal > 0) {
+      onAddTransaction({
+        type: "expense",
+        amount: costVal,
+        category: "การเดินทางและยานพาหนะ",
+        merchantName: `ค่าซ่อมบำรุง: ${maintTitle} (${maintainingVehicle.vehicleName})`,
+        date: maintDate,
+        note: `หมวดหมู่: ${maintCategory}, เลขมิเตอร์: ${km.toLocaleString()} km${maintShop ? `, ร้าน: ${maintShop}` : ""}`,
+        walletId: maintWalletId
+      });
+    }
+
+    setShowMaintenanceModal(false);
+  };
+
+  const handleDeleteMaintenanceLog = (vehicleId: string, logId: string) => {
+    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบประวัติค่าซ่อมบำรุงนี้?")) return;
+    const targetVehicle = vehicles.find(v => v.id === vehicleId);
+    if (!targetVehicle) return;
+
+    const updatedHistory = (targetVehicle.maintenanceHistory || []).filter(m => m.id !== logId);
+    const updatedVehicle = { ...targetVehicle, maintenanceHistory: updatedHistory };
+    const updatedList = vehicles.map(v => v.id === vehicleId ? updatedVehicle : v);
+    onSaveVehicles(updatedList);
+
+    if (viewHistoryVehicle && viewHistoryVehicle.id === vehicleId) {
+      setViewHistoryVehicle(updatedVehicle);
     }
   };
 
@@ -981,32 +1283,61 @@ export default function ServiceAndUtilityManager({
               ? "bg-white border-slate-200/90 shadow-2xs"
               : "bg-slate-900/80 border-white/10 backdrop-blur-xl"
           }`}>
-            <h4 className={`font-extrabold text-base mb-4 flex items-center justify-between ${
-              theme === "light" ? "text-slate-900" : "text-white"
-            }`}>
-              <span>ประวัติบิลค่าน้ำและค่าไฟที่บันทึกไว้</span>
-              <span className={`text-xs font-semibold ${
-                theme === "light" ? "text-slate-600" : "text-slate-400 font-normal"
-              }`}>
-                ทั้งหมด {sortedUtilityBills.length} บิล
-              </span>
-            </h4>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h4 className={`font-extrabold text-base flex items-center gap-2 ${
+                  theme === "light" ? "text-slate-900" : "text-white"
+                }`}>
+                  <span>ประวัติบิลค่าน้ำและค่าไฟที่บันทึกไว้</span>
+                </h4>
+                <p className={`text-xs mt-0.5 ${
+                  theme === "light" ? "text-slate-600 font-medium" : "text-slate-400"
+                }`}>
+                  {historyYearFilter === "all"
+                    ? `แสดงข้อมูลทุกปี รวม ${filteredHistoryBills.length} รายการ`
+                    : `แสดงประจำปี พ.ศ. ${(historyYearFilter === "selected" ? selectedUtilityYear : parseInt(historyYearFilter)) + 543} (${filteredHistoryBills.length} รายการ)`}
+                </p>
+              </div>
 
-            {sortedUtilityBills.length === 0 ? (
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-semibold whitespace-nowrap ${
+                  theme === "light" ? "text-slate-700" : "text-slate-300"
+                }`}>
+                  เลือกปี:
+                </span>
+                <select
+                  value={historyYearFilter}
+                  onChange={(e) => setHistoryYearFilter(e.target.value)}
+                  className={`text-xs rounded-xl px-3 py-1.5 font-mono font-bold focus:outline-none border transition-all ${
+                    theme === "light"
+                      ? "bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200"
+                      : "bg-slate-800 border-white/20 text-white focus:border-indigo-500"
+                  }`}
+                >
+                  <option value="selected">ปี พ.ศ. {selectedUtilityYear + 543} (ตามปีที่เลือก)</option>
+                  <option value="all">แสดงทุกปี ({sortedUtilityBills.length} บิล)</option>
+                  {availableUtilityYears.map(y => (
+                    <option key={y} value={y.toString()}>ปี พ.ศ. {y + 543} ({y})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {filteredHistoryBills.length === 0 ? (
               <div className={`text-center py-10 border border-dashed rounded-xl ${
                 theme === "light" ? "bg-slate-50/80 border-slate-300" : "bg-black/20 border-white/10"
               }`}>
                 <Zap className={`w-10 h-10 mx-auto mb-2 ${theme === "light" ? "text-slate-400" : "text-slate-600"}`} />
                 <p className={`text-sm font-bold ${theme === "light" ? "text-slate-700" : "text-slate-400"}`}>
-                  ยังไม่มีประวัติการบันทึกบิลค่าน้ำ/ค่าไฟ
+                  ยังไม่มีประวัติการบันทึกบิลค่าน้ำ/ค่าไฟ ในปี พ.ศ. {(historyYearFilter === "selected" ? selectedUtilityYear : parseInt(historyYearFilter)) + 543}
                 </p>
                 <p className={`text-xs mt-1 ${theme === "light" ? "text-slate-500" : "text-slate-500"}`}>
-                  คลิกปุ่ม "+ บันทึกบิลค่าไฟ" หรือ "+ บันทึกบิลค่าน้ำ" เพื่อเริ่มต้น
+                  คลิกปุ่ม "+ บันทึกบิลค่าไฟ" หรือ "+ บันทึกบิลค่าน้ำ" เพื่อเริ่มต้น หรือเลือกปีอื่นจากช่อง "เลือกปี:"
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {sortedUtilityBills.map((bill) => {
+                {filteredHistoryBills.map((bill) => {
                   const isElec = bill.type === "electricity";
                   const comp = getBillPreviousMonthComparison(bill);
 
@@ -1203,6 +1534,288 @@ export default function ServiceAndUtilityManager({
             </button>
           </div>
 
+          {/* Vehicle Monthly & Yearly Expense Summary */}
+          {vehicles.length > 0 && (() => {
+            const currentYr = new Date().getFullYear();
+            const yearsSet = new Set<number>();
+            yearsSet.add(currentYr);
+
+            vehicles.forEach(v => {
+              (v.fuelHistory || []).forEach(f => {
+                const yr = parseInt(f.date.slice(0, 4));
+                if (yr) yearsSet.add(yr);
+              });
+              (v.history || []).forEach(o => {
+                const yr = parseInt(o.date.slice(0, 4));
+                if (yr) yearsSet.add(yr);
+              });
+              (v.maintenanceHistory || []).forEach(m => {
+                const yr = parseInt(m.date.slice(0, 4));
+                if (yr) yearsSet.add(yr);
+              });
+            });
+
+            const availableYears = Array.from(yearsSet).sort((a, b) => b - a);
+
+            const targetVehicles = vehicleExpenseSelectedVehicle === "all"
+              ? vehicles
+              : vehicles.filter(v => v.id === vehicleExpenseSelectedVehicle);
+
+            const selYear = vehicleExpenseSelectedYear;
+
+            const monthlyStats = Array.from({ length: 12 }, (_, monthIdx) => {
+              const monthStr = (monthIdx + 1).toString().padStart(2, "0");
+              const yearMonth = `${selYear}-${monthStr}`;
+
+              let fuelTotal = 0;
+              let oilTotal = 0;
+              let maintTotal = 0;
+              const kmlList: number[] = [];
+
+              targetVehicles.forEach(v => {
+                const recomputedFuel = computeFuelHistoryWithKml(v.fuelHistory || []);
+                recomputedFuel.forEach(f => {
+                  if (f.date.startsWith(yearMonth)) {
+                    fuelTotal += (f.totalCost || 0);
+                    if (f.kmPerLiter) kmlList.push(f.kmPerLiter);
+                  }
+                });
+                (v.history || []).forEach(o => {
+                  if (o.date.startsWith(yearMonth)) {
+                    oilTotal += (o.cost || 0);
+                  }
+                });
+                (v.maintenanceHistory || []).forEach(m => {
+                  if (m.date.startsWith(yearMonth)) {
+                    maintTotal += (m.cost || 0);
+                  }
+                });
+              });
+
+              const monthGrandTotal = fuelTotal + oilTotal + maintTotal;
+              const avgKml = kmlList.length > 0 ? (kmlList.reduce((a, b) => a + b, 0) / kmlList.length) : null;
+
+              return {
+                monthIdx,
+                monthName: ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."][monthIdx],
+                fuelTotal,
+                oilTotal,
+                maintTotal,
+                monthGrandTotal,
+                avgKml
+              };
+            });
+
+            const yearFuelTotal = monthlyStats.reduce((sum, m) => sum + m.fuelTotal, 0);
+            const yearOilTotal = monthlyStats.reduce((sum, m) => sum + m.oilTotal, 0);
+            const yearMaintTotal = monthlyStats.reduce((sum, m) => sum + m.maintTotal, 0);
+            const yearGrandTotal = yearFuelTotal + yearOilTotal + yearMaintTotal;
+
+            const allYearKmls: number[] = [];
+            targetVehicles.forEach(v => {
+              const recomputedFuel = computeFuelHistoryWithKml(v.fuelHistory || []);
+              recomputedFuel.forEach(f => {
+                if (f.date.startsWith(`${selYear}-`) && f.kmPerLiter) {
+                  allYearKmls.push(f.kmPerLiter);
+                }
+              });
+            });
+            const yearAvgKml = allYearKmls.length > 0 ? (allYearKmls.reduce((a, b) => a + b, 0) / allYearKmls.length) : null;
+
+            return (
+              <div className={`p-4 sm:p-5 rounded-2xl border mb-6 ${
+                theme === "light"
+                  ? "bg-gradient-to-br from-indigo-50/90 via-purple-50/40 to-white border-indigo-200/80 shadow-md"
+                  : "bg-gradient-to-br from-indigo-950/30 via-slate-900 to-slate-900 border-indigo-500/20 shadow-xl"
+              }`}>
+                {/* Summary Section Header & Controls */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-indigo-500/10">
+                  <div>
+                    <h3 className={`font-black text-base flex items-center gap-2 ${
+                      theme === "light" ? "text-indigo-950" : "text-white"
+                    }`}>
+                      <BarChart3 className="w-5 h-5 text-indigo-500" />
+                      <span>สรุปค่าใช้จ่ายยานพาหนะ รายเดือน / รายปี</span>
+                    </h3>
+                    <p className={`text-xs mt-0.5 ${theme === "light" ? "text-slate-600" : "text-slate-400"}`}>
+                      ผลรวมค่าน้ำมัน, ค่าถ่ายน้ำมันเครื่อง และค่าซ่อมบำรุงประจำปี พ.ศ. {selYear + 543} ({selYear})
+                    </p>
+                  </div>
+
+                  {/* Dropdown Filters */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={vehicleExpenseSelectedVehicle}
+                      onChange={(e) => setVehicleExpenseSelectedVehicle(e.target.value)}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
+                        theme === "light"
+                          ? "bg-white border-slate-300 text-slate-800 shadow-2xs"
+                          : "bg-slate-800 border-white/10 text-white"
+                      }`}
+                    >
+                      <option value="all">🚗 รถทุกคัน ({vehicles.length} คัน)</option>
+                      {vehicles.map(v => (
+                        <option key={v.id} value={v.id}>{v.vehicleName} {v.plateNumber ? `(${v.plateNumber})` : ""}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={vehicleExpenseSelectedYear}
+                      onChange={(e) => setVehicleExpenseSelectedYear(parseInt(e.target.value))}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer ${
+                        theme === "light"
+                          ? "bg-white border-slate-300 text-slate-800 shadow-2xs"
+                          : "bg-slate-800 border-white/10 text-white"
+                      }`}
+                    >
+                      {availableYears.map(yr => (
+                        <option key={yr} value={yr}>ปี พ.ศ. {yr + 543} ({yr})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* KPI Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mb-4">
+                  <div className={`p-3 rounded-xl border text-center ${
+                    theme === "light" ? "bg-amber-50/90 border-amber-200" : "bg-amber-950/20 border-amber-500/20"
+                  }`}>
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 block">⛽ ค่าน้ำมันปีนี้</span>
+                    <strong className="text-sm sm:text-base font-extrabold font-mono text-amber-900 dark:text-amber-200 block mt-0.5">
+                      ฿{yearFuelTotal.toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className={`p-3 rounded-xl border text-center ${
+                    theme === "light" ? "bg-emerald-50/90 border-emerald-200" : "bg-emerald-950/20 border-emerald-500/20"
+                  }`}>
+                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 block">🛢️ ค่าน้ำมันเครื่อง</span>
+                    <strong className="text-sm sm:text-base font-extrabold font-mono text-emerald-900 dark:text-emerald-200 block mt-0.5">
+                      ฿{yearOilTotal.toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className={`p-3 rounded-xl border text-center ${
+                    theme === "light" ? "bg-purple-50/90 border-purple-200" : "bg-purple-950/20 border-purple-500/20"
+                  }`}>
+                    <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 block">🛠️ ค่าซ่อมบำรุง</span>
+                    <strong className="text-sm sm:text-base font-extrabold font-mono text-purple-900 dark:text-purple-200 block mt-0.5">
+                      ฿{yearMaintTotal.toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className={`p-3 rounded-xl border text-center ${
+                    theme === "light" ? "bg-indigo-100 border-indigo-300" : "bg-indigo-900/40 border-indigo-500/30"
+                  }`}>
+                    <span className="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 block">💰 รวมค่าใช้จ่ายปีนี้</span>
+                    <strong className="text-sm sm:text-base font-black font-mono text-indigo-950 dark:text-indigo-100 block mt-0.5">
+                      ฿{yearGrandTotal.toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className={`p-3 rounded-xl border text-center col-span-2 sm:col-span-1 ${
+                    theme === "light" ? "bg-teal-50/90 border-teal-200" : "bg-teal-950/20 border-teal-500/20"
+                  }`}>
+                    <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 block">⚡ อัตราสิ้นเปลืองเฉลี่ย</span>
+                    <strong className="text-sm sm:text-base font-extrabold font-mono text-teal-900 dark:text-teal-200 block mt-0.5">
+                      {yearAvgKml ? `${yearAvgKml.toFixed(2)} KM/L` : "-"}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Monthly Expense Table */}
+                <div className="overflow-x-auto rounded-xl border border-indigo-500/20">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className={`border-b text-[11px] font-bold ${
+                        theme === "light"
+                          ? "bg-indigo-100/70 border-indigo-200 text-indigo-900"
+                          : "bg-slate-800 border-white/10 text-indigo-300"
+                      }`}>
+                        <th className="py-2.5 px-3">เดือน</th>
+                        <th className="py-2.5 px-3 text-right">⛽ ค่าน้ำมัน</th>
+                        <th className="py-2.5 px-3 text-right">🛢️ น้ำมันเครื่อง</th>
+                        <th className="py-2.5 px-3 text-right">🛠️ ค่าซ่อมบำรุง</th>
+                        <th className="py-2.5 px-3 text-right">💰 รวม (บาท)</th>
+                        <th className="py-2.5 px-3 text-right">⚡ เฉลี่ย (KM/L)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-mono">
+                      {monthlyStats.map((m) => {
+                        const hasData = m.monthGrandTotal > 0 || m.avgKml !== null;
+                        return (
+                          <tr 
+                            key={m.monthIdx}
+                            className={`transition-colors ${
+                              theme === "light"
+                                ? hasData ? "hover:bg-indigo-50/60" : "opacity-60"
+                                : hasData ? "hover:bg-white/5" : "opacity-40"
+                            }`}
+                          >
+                            <td className={`py-2 px-3 font-bold font-sans ${
+                              theme === "light" ? "text-slate-800" : "text-white"
+                            }`}>
+                              {m.monthName}
+                            </td>
+                            <td className={`py-2 px-3 text-right ${
+                              m.fuelTotal > 0 
+                                ? theme === "light" ? "text-amber-800 font-bold" : "text-amber-300 font-bold" 
+                                : theme === "light" ? "text-slate-400" : "text-slate-600"
+                            }`}>
+                              {m.fuelTotal > 0 ? `฿${m.fuelTotal.toLocaleString()}` : "-"}
+                            </td>
+                            <td className={`py-2 px-3 text-right ${
+                              m.oilTotal > 0 
+                                ? theme === "light" ? "text-emerald-800 font-bold" : "text-emerald-300 font-bold" 
+                                : theme === "light" ? "text-slate-400" : "text-slate-600"
+                            }`}>
+                              {m.oilTotal > 0 ? `฿${m.oilTotal.toLocaleString()}` : "-"}
+                            </td>
+                            <td className={`py-2 px-3 text-right ${
+                              m.maintTotal > 0 
+                                ? theme === "light" ? "text-purple-800 font-bold" : "text-purple-300 font-bold" 
+                                : theme === "light" ? "text-slate-400" : "text-slate-600"
+                            }`}>
+                              {m.maintTotal > 0 ? `฿${m.maintTotal.toLocaleString()}` : "-"}
+                            </td>
+                            <td className={`py-2 px-3 text-right font-extrabold ${
+                              m.monthGrandTotal > 0 
+                                ? theme === "light" ? "text-indigo-950" : "text-indigo-200" 
+                                : theme === "light" ? "text-slate-400" : "text-slate-600"
+                            }`}>
+                              {m.monthGrandTotal > 0 ? `฿${m.monthGrandTotal.toLocaleString()}` : "-"}
+                            </td>
+                            <td className={`py-2 px-3 text-right font-bold ${
+                              m.avgKml 
+                                ? theme === "light" ? "text-teal-800" : "text-teal-300" 
+                                : theme === "light" ? "text-slate-400" : "text-slate-600"
+                            }`}>
+                              {m.avgKml ? `${m.avgKml.toFixed(1)}` : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className={`border-t-2 font-bold font-mono text-xs ${
+                        theme === "light" 
+                          ? "bg-indigo-100/90 border-indigo-300 text-indigo-950" 
+                          : "bg-slate-800 border-indigo-500/30 text-white"
+                      }`}>
+                        <td className="py-2.5 px-3 font-sans">รวมทั้งปี ({selYear})</td>
+                        <td className="py-2.5 px-3 text-right text-amber-800 dark:text-amber-300">฿{yearFuelTotal.toLocaleString()}</td>
+                        <td className="py-2.5 px-3 text-right text-emerald-800 dark:text-emerald-300">฿{yearOilTotal.toLocaleString()}</td>
+                        <td className="py-2.5 px-3 text-right text-purple-800 dark:text-purple-300">฿{yearMaintTotal.toLocaleString()}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-indigo-900 dark:text-indigo-200 text-sm">฿{yearGrandTotal.toLocaleString()}</td>
+                        <td className="py-2.5 px-3 text-right text-teal-800 dark:text-teal-300">{yearAvgKml ? `${yearAvgKml.toFixed(2)}` : "-"}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Vehicle Cards Grid */}
           {vehicles.length === 0 ? (
             <div className={`text-center py-12 border border-dashed rounded-2xl ${
@@ -1228,6 +1841,8 @@ export default function ServiceAndUtilityManager({
 
                 const usedKm = Math.max(0, v.currentMileage - v.lastServiceMileage);
                 const progressPercent = Math.min(100, Math.round((usedKm / (v.intervalKm || 1)) * 100));
+
+                const avgKml = getVehicleAverageKmPerLiter(v);
 
                 return (
                   <div 
@@ -1257,7 +1872,14 @@ export default function ServiceAndUtilityManager({
                           <Car className={`w-6 h-6 ${theme === "light" ? "text-purple-700" : "text-purple-300"}`} />
                         </span>
                         <div>
-                          <h4 className={`font-black text-lg ${theme === "light" ? "text-slate-900" : "text-white"}`}>{v.vehicleName}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className={`font-black text-lg ${theme === "light" ? "text-slate-900" : "text-white"}`}>{v.vehicleName}</h4>
+                            {avgKml && (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-800 dark:text-teal-300 border border-teal-500/30" title="อัตราประหยัดน้ำมันเฉลี่ย">
+                                ⚡ {avgKml.toFixed(1)} KM/L
+                              </span>
+                            )}
+                          </div>
                           {v.plateNumber && (
                             <span className={`text-xs font-mono font-bold block ${
                               theme === "light" ? "text-purple-900" : "text-purple-300/80"
@@ -1383,12 +2005,82 @@ export default function ServiceAndUtilityManager({
                       </div>
                     </div>
 
-                    {/* Service Info Summary */}
+                    {/* Fuel Refill Info Summary */}
+                    {v.fuelHistory && v.fuelHistory.length > 0 && (() => {
+                      const latestFuel = v.fuelHistory[0];
+                      return (
+                        <div className={`text-[11px] p-2.5 rounded-xl border mb-3 flex flex-col gap-1.5 ${
+                          theme === "light"
+                            ? "bg-amber-50/80 border-amber-200 text-slate-800"
+                            : "bg-amber-950/20 border-amber-500/30 text-amber-200"
+                        }`}>
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                              <Fuel className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>เติมน้ำมันล่าสุด ({formatDateTh(latestFuel.date)})</span>
+                            </span>
+                            <strong className="font-mono text-xs text-amber-800 dark:text-amber-300 font-extrabold">
+                              ฿{latestFuel.totalCost.toLocaleString()}
+                            </strong>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-x-2 text-[10px] font-mono text-slate-700 dark:text-slate-300">
+                            <span>
+                              {latestFuel.liters ? `${latestFuel.liters} ลิตร` : ""} 
+                              {latestFuel.pricePerLiter ? ` (@ ฿${latestFuel.pricePerLiter.toFixed(2)}/ลิตร)` : ""}
+                              {latestFuel.gasStation ? ` • ปั๊ม ${latestFuel.gasStation}` : ""}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {latestFuel.kmPerLiter ? (
+                                <span className="font-bold text-teal-800 dark:text-teal-300 bg-teal-500/20 px-1.5 py-0.5 rounded">
+                                  ⚡ {latestFuel.kmPerLiter.toFixed(1)} KM/L
+                                </span>
+                              ) : null}
+                              {latestFuel.fuelPercent ? (
+                                <span className="font-bold text-emerald-800 dark:text-emerald-300">
+                                  เติม ~{latestFuel.fuelPercent.toFixed(1)}% จากถัง
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Maintenance Info Summary */}
+                    {v.maintenanceHistory && v.maintenanceHistory.length > 0 && (() => {
+                      const latestMaint = v.maintenanceHistory[0];
+                      return (
+                        <div className={`text-[11px] p-2.5 rounded-xl border mb-3 flex flex-col gap-1.5 ${
+                          theme === "light"
+                            ? "bg-purple-50/80 border-purple-200 text-slate-800"
+                            : "bg-purple-950/20 border-purple-500/30 text-purple-200"
+                        }`}>
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold flex items-center gap-1.5 text-xs text-purple-700 dark:text-purple-300">
+                              <Wrench className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                              <span>ซ่อมบำรุงล่าสุด: {latestMaint.title} ({formatDateTh(latestMaint.date)})</span>
+                            </span>
+                            <strong className="font-mono text-xs text-purple-800 dark:text-purple-300 font-extrabold">
+                              ฿{latestMaint.cost.toLocaleString()}
+                            </strong>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-x-2 text-[10px] font-mono text-slate-700 dark:text-slate-300">
+                            <span>
+                              หมวดหมู่: {latestMaint.category || "ทั่วไป"}
+                              {latestMaint.shopName ? ` • ร้าน: ${latestMaint.shopName}` : ""}
+                              {` • มิเตอร์: ${latestMaint.mileage.toLocaleString()} km`}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Oil Service Info Summary */}
                     <div className={`text-[11px] p-2.5 rounded-xl border mb-4 flex justify-between items-center ${
                       theme === "light" ? "bg-slate-100/80 border-slate-200 text-slate-700" : "text-slate-400 bg-black/20 border-white/5"
                     }`}>
                       <div>
-                        <span>ถ่ายล่าสุด: <strong className={theme === "light" ? "text-slate-900" : "text-white"}>{formatDateTh(v.lastServiceDate)}</strong> ({v.lastServiceMileage.toLocaleString()} km)</span>
+                        <span>ถ่ายน้ำมันเครื่องล่าสุด: <strong className={theme === "light" ? "text-slate-900" : "text-white"}>{formatDateTh(v.lastServiceDate)}</strong> ({v.lastServiceMileage.toLocaleString()} km)</span>
                         {v.lastServiceCost ? <span className={`ml-2 font-mono font-bold ${theme === "light" ? "text-emerald-800" : "text-emerald-300"}`}>฿{v.lastServiceCost.toLocaleString()}</span> : null}
                       </div>
                       <span className={`font-mono text-[10px] font-bold ${
@@ -1397,12 +2089,15 @@ export default function ServiceAndUtilityManager({
                     </div>
 
                     {/* Action buttons */}
-                    <div className={`flex items-center justify-between gap-2 pt-2 border-t ${
+                    <div className={`flex flex-wrap items-center justify-between gap-2 pt-2 border-t ${
                       theme === "light" ? "border-slate-200" : "border-white/10"
                     }`}>
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => setViewHistoryVehicle(v)}
+                          onClick={() => {
+                            setVehicleHistoryTab("fuel");
+                            setViewHistoryVehicle(v);
+                          }}
                           className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
                             theme === "light"
                               ? "bg-white hover:bg-slate-100 text-slate-700 border-slate-300 shadow-2xs"
@@ -1436,13 +2131,29 @@ export default function ServiceAndUtilityManager({
                         </button>
                       </div>
 
-                      <button
-                        onClick={() => handleOpenOilChangeLog(v)}
-                        className="py-2 px-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20"
-                      >
-                        <Wrench className="w-3.5 h-3.5" />
-                        <span>บันทึกการถ่ายน้ำมันเครื่อง</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+                        <button
+                          onClick={() => handleOpenFuelLogModal(v)}
+                          className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-md shadow-amber-600/20"
+                        >
+                          <Fuel className="w-3.5 h-3.5" />
+                          <span>เติมน้ำมัน</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenOilChangeLog(v)}
+                          className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-md shadow-emerald-600/20"
+                        >
+                          <Droplet className="w-3.5 h-3.5" />
+                          <span>ถ่ายน้ำมันเครื่อง</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenMaintenanceModal(v)}
+                          className="py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs transition-all flex items-center gap-1 cursor-pointer shadow-md shadow-purple-600/20"
+                        >
+                          <Wrench className="w-3.5 h-3.5" />
+                          <span>ซ่อมบำรุง</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1972,6 +2683,18 @@ export default function ServiceAndUtilityManager({
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">ความจุถังน้ำมัน (ลิตร)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={vehicleTankCapacity}
+                  onChange={(e) => setVehicleTankCapacity(e.target.value)}
+                  placeholder="เช่น 45 (รถยนต์) หรือ 5.5 (รถมอเตอร์ไซค์)"
+                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
                 <button
                   type="button"
@@ -2366,14 +3089,382 @@ export default function ServiceAndUtilityManager({
         </div>
       )}
 
-      {/* 7. History Viewer Modal for Vehicle */}
+      {/* 7. Fuel Log Modal */}
+      {showFuelLogModal && fuelingVehicle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-white/10 shrink-0">
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                <Fuel className="w-5 h-5 text-amber-400" />
+                <span>{editingFuelLogId ? "แก้ไขประวัติเติมน้ำมัน" : "บันทึกเติมน้ำมัน"} ({fuelingVehicle.vehicleName})</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowFuelLogModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveFuelLog} className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">วันที่เติมน้ำมัน</label>
+                  <input
+                    type="date"
+                    value={fuelDate}
+                    onChange={(e) => setFuelDate(e.target.value)}
+                    required
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">เลขมิเตอร์ ณ วันที่เติม (km)</label>
+                  <input
+                    type="number"
+                    value={fuelMileage}
+                    onChange={(e) => setFuelMileage(e.target.value)}
+                    placeholder="เช่น 45000"
+                    required
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-amber-300 mb-1">จำนวนเงินค่าน้ำมัน (บาท)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={fuelCost}
+                    onChange={(e) => setFuelCost(e.target.value)}
+                    placeholder="เช่น 1000"
+                    required
+                    className="w-full bg-slate-800 border border-amber-500/40 rounded-xl px-3 py-2 text-amber-200 text-xs font-mono font-bold focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">จำนวนลิตร (ถ้ามี)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={fuelLiters}
+                    onChange={(e) => setFuelLiters(e.target.value)}
+                    placeholder="เช่น 26.5"
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">ความจุถังน้ำมัน (ลิตร)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={fuelTankCapacityInput}
+                    onChange={(e) => setFuelTankCapacityInput(e.target.value)}
+                    placeholder="45"
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">ปั๊มน้ำมัน / สถานี</label>
+                  <input
+                    type="text"
+                    value={fuelStation}
+                    onChange={(e) => setFuelStation(e.target.value)}
+                    placeholder="เช่น PTT, Shell, บางจาก"
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Calculated Preview Panel */}
+              {(() => {
+                const costVal = parseFloat(fuelCost) || 0;
+                const litersVal = parseFloat(fuelLiters) || 0;
+                const capVal = parseFloat(fuelTankCapacityInput) || 0;
+                const pricePerLiter = litersVal > 0 && costVal > 0 ? (costVal / litersVal) : 0;
+                const tankPercent = litersVal > 0 && capVal > 0 ? Math.min(100, (litersVal / capVal) * 100) : 0;
+
+                if (costVal <= 0 && litersVal <= 0) return null;
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
+                    <div className="flex justify-between items-center text-slate-300 font-mono">
+                      <span>ราคาเฉลี่ยต่อลิตร:</span>
+                      <strong className="text-amber-300 font-bold text-sm">
+                        {pricePerLiter > 0 ? `฿${pricePerLiter.toFixed(2)} / ลิตร` : "-"}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center text-slate-300 font-mono">
+                      <span>เฉลี่ยเติมคิดเป็น:</span>
+                      <strong className="text-emerald-300 font-bold text-sm">
+                        {tankPercent > 0 ? `~${tankPercent.toFixed(1)}% จากเต็มถัง` : "-"}
+                      </strong>
+                    </div>
+
+                    {/* Tank visual bar */}
+                    {tankPercent > 0 && (
+                      <div className="pt-1">
+                        <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden border border-white/10">
+                          <div 
+                            className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full transition-all"
+                            style={{ width: `${tankPercent}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 block mt-1 text-right font-mono">
+                          ({litersVal} ลิตร จากถัง {capVal} ลิตร)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">ประเภทน้ำมัน</label>
+                  <select
+                    value={fuelType}
+                    onChange={(e) => setFuelType(e.target.value)}
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="แก๊สโซฮอล์ 95">แก๊สโซฮอล์ 95</option>
+                    <option value="แก๊สโซฮอล์ 91">แก๊สโซฮอล์ 91</option>
+                    <option value="E20">E20</option>
+                    <option value="E85">E85</option>
+                    <option value="เบนซิน 95">เบนซิน 95</option>
+                    <option value="ดีเซล">ดีเซล</option>
+                    <option value="ดีเซล B7">ดีเซล B7</option>
+                    <option value="ดีเซลพรีเมียม">ดีเซลพรีเมียม</option>
+                    <option value="ไฟฟ้า EV">ชาร์จไฟฟ้า EV</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center pt-5">
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={fuelIsFull}
+                      onChange={(e) => setFuelIsFull(e.target.checked)}
+                      className="w-4 h-4 rounded text-amber-500 bg-slate-800 border-white/20 focus:ring-amber-500"
+                    />
+                    <span>เติมเต็มถัง (Full Tank)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">หมายเหตุเพิ่มเติม</label>
+                <input
+                  type="text"
+                  value={fuelNote}
+                  onChange={(e) => setFuelNote(e.target.value)}
+                  placeholder="เช่น ล้างกระจกฟรี, ได้คูปองส่วนลด"
+                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Select Wallet Payment */}
+              {wallets.length > 0 && !editingFuelLogId && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">ตัดเงินจากกระเป๋า (เพื่อบันทึกเป็นค่าใช้จ่าย)</label>
+                  <select
+                    value={fuelWalletId}
+                    onChange={(e) => setFuelWalletId(e.target.value)}
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">-- ไม่ต้องบันทึกลงกระเป๋าเงิน --</option>
+                    {wallets.map(w => (
+                      <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowFuelLogModal(false)}
+                  className="py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="py-2 px-5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-amber-600/30"
+                >
+                  {editingFuelLogId ? "แก้ไขประวัติเติมน้ำมัน" : "บันทึกค่าน้ำมัน"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Record Maintenance Log Modal */}
+      {showMaintenanceModal && maintainingVehicle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-white/10 shrink-0">
+              <h3 className="font-extrabold text-base text-white flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-purple-400" />
+                <span>{editingMaintLogId ? "แก้ไขประวัติซ่อมบำรุง" : `บันทึกค่าซ่อมบำรุง (${maintainingVehicle.vehicleName})`}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowMaintenanceModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMaintenanceLog} className="p-4 sm:p-5 overflow-y-auto space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-purple-300 mb-1">รายการซ่อม / อะไหล่ที่เปลี่ยน *</label>
+                <input
+                  type="text"
+                  value={maintTitle}
+                  onChange={(e) => setMaintTitle(e.target.value)}
+                  placeholder="เช่น เปลี่ยนยาง 4 เส้น, เปลี่ยนผ้าเบรก, ซ่อมแอร์"
+                  required
+                  className="w-full bg-slate-800 border border-purple-500/40 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">หมวดหมู่</label>
+                  <select
+                    value={maintCategory}
+                    onChange={(e) => setMaintCategory(e.target.value)}
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-400 cursor-pointer"
+                  >
+                    <option value="ช่วงล่าง & เบรก">ช่วงล่าง & เบรก</option>
+                    <option value="ยาง & ล้อ">ยาง & ล้อ</option>
+                    <option value="เครื่องยนต์ & เกียร์">เครื่องยนต์ & เกียร์</option>
+                    <option value="ระบบไฟ & แบตเตอรี่">ระบบไฟ & แบตเตอรี่</option>
+                    <option value="แอร์ & ระบบความเย็น">แอร์ & ระบบความเย็น</option>
+                    <option value="ตัวถัง & สี">ตัวถัง & สี</option>
+                    <option value="ประกัน & ต่อภาษี">ประกัน & ต่อภาษี</option>
+                    <option value="ทั่วไป">ทั่วไป / อื่นๆ</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-purple-300 mb-1">ค่าใช้จ่ายรวม (บาท) *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={maintCost}
+                    onChange={(e) => setMaintCost(e.target.value)}
+                    placeholder="เช่น 3500"
+                    required
+                    className="w-full bg-slate-800 border border-purple-500/40 rounded-xl px-3 py-2 text-purple-200 text-xs font-mono font-bold focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">วันที่รับบริการ</label>
+                  <input
+                    type="date"
+                    value={maintDate}
+                    onChange={(e) => setMaintDate(e.target.value)}
+                    required
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">เลขมิเตอร์ตอนซ่อม (km)</label>
+                  <input
+                    type="number"
+                    value={maintMileage}
+                    onChange={(e) => setMaintMileage(e.target.value)}
+                    placeholder={maintainingVehicle.currentMileage.toString()}
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">ชื่ออู่ / ศูนย์บริการ</label>
+                <input
+                  type="text"
+                  value={maintShop}
+                  onChange={(e) => setMaintShop(e.target.value)}
+                  placeholder="เช่น ศูนย์ B-Quik, อู่ช่างต้อม"
+                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">รายละเอียด / หมายเหตุ</label>
+                <input
+                  type="text"
+                  value={maintNote}
+                  onChange={(e) => setMaintNote(e.target.value)}
+                  placeholder="เช่น รับประกันอะไหล่ 6 เดือน"
+                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-400"
+                />
+              </div>
+
+              {/* Select Wallet Payment */}
+              {wallets.length > 0 && !editingMaintLogId && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">ตัดเงินจากกระเป๋า (เพื่อบันทึกเป็นค่าใช้จ่าย)</label>
+                  <select
+                    value={maintWalletId}
+                    onChange={(e) => setMaintWalletId(e.target.value)}
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-purple-400 cursor-pointer"
+                  >
+                    <option value="">-- ไม่ต้องบันทึกลงกระเป๋าเงิน --</option>
+                    {wallets.map(w => (
+                      <option key={w.id} value={w.id}>{w.icon} {w.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowMaintenanceModal(false)}
+                  className="py-2 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="py-2 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-purple-600/30"
+                >
+                  {editingMaintLogId ? "บันทึกการแก้ไข" : "บันทึกค่าซ่อมบำรุง"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* History Viewer Modal for Vehicle */}
       {viewHistoryVehicle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
           <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-lg w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto p-4 sm:p-5">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4 shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3 shrink-0">
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <History className="w-5 h-5 text-indigo-400" />
-                <span>ประวัติถ่ายน้ำมันเครื่อง ({viewHistoryVehicle.vehicleName})</span>
+                <span>ประวัติยานพาหนะ ({viewHistoryVehicle.vehicleName})</span>
               </h3>
               <button
                 type="button"
@@ -2384,24 +3475,252 @@ export default function ServiceAndUtilityManager({
               </button>
             </div>
 
-            <div className="space-y-3 overflow-y-auto pr-1">
-              {(!viewHistoryVehicle.history || viewHistoryVehicle.history.length === 0) ? (
-                <p className="text-center text-xs text-slate-400 py-6">ยังไม่มีประวัติการถ่ายน้ำมันเครื่อง</p>
-              ) : (
-                viewHistoryVehicle.history.map((log) => (
-                  <div key={log.id} className="p-3 rounded-xl bg-black/40 border border-white/10 text-xs">
-                    <div className="flex justify-between items-center font-mono">
-                      <span className="font-bold text-white">{formatDateTh(log.date)}</span>
-                      <span className="font-bold text-purple-300">{log.mileage.toLocaleString()} km</span>
-                    </div>
-                    {(log.cost || log.shopName || log.note) && (
-                      <div className="mt-1 pt-1 border-t border-white/5 flex justify-between text-slate-400 text-[11px]">
-                        <span>{log.shopName ? `ร้าน: ${log.shopName}` : log.note}</span>
-                        {log.cost ? <strong className="text-emerald-300 font-mono">฿{log.cost.toLocaleString()}</strong> : null}
-                      </div>
-                    )}
+            {/* Sub Tabs */}
+            <div className="flex gap-1.5 mb-3 bg-slate-800/80 p-1 rounded-xl border border-white/10 shrink-0">
+              <button
+                type="button"
+                onClick={() => setVehicleHistoryTab("fuel")}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  vehicleHistoryTab === "fuel"
+                    ? "bg-amber-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Fuel className="w-3.5 h-3.5" />
+                <span>น้ำมัน ({viewHistoryVehicle.fuelHistory?.length || 0})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setVehicleHistoryTab("oil")}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  vehicleHistoryTab === "oil"
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Droplet className="w-3.5 h-3.5" />
+                <span>น้ำมันเครื่อง ({viewHistoryVehicle.history?.length || 0})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setVehicleHistoryTab("maint")}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                  vehicleHistoryTab === "maint"
+                    ? "bg-purple-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                <span>ซ่อมบำรุง ({viewHistoryVehicle.maintenanceHistory?.length || 0})</span>
+              </button>
+            </div>
+
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+              {vehicleHistoryTab === "fuel" ? (
+                /* Fuel History View */
+                (!viewHistoryVehicle.fuelHistory || viewHistoryVehicle.fuelHistory.length === 0) ? (
+                  <div className="text-center py-8">
+                    <Fuel className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">ยังไม่มีประวัติการเติมน้ำมัน</p>
+                    <button
+                      onClick={() => handleOpenFuelLogModal(viewHistoryVehicle)}
+                      className="mt-3 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all cursor-pointer"
+                    >
+                      + บันทึกเติมน้ำมันครั้งแรก
+                    </button>
                   </div>
-                ))
+                ) : (
+                  <>
+                    {/* Fuel Summary Stats */}
+                    {(() => {
+                      const history = viewHistoryVehicle.fuelHistory || [];
+                      const totalCost = history.reduce((sum, item) => sum + (item.totalCost || 0), 0);
+                      const totalLiters = history.reduce((sum, item) => sum + (item.liters || 0), 0);
+                      const avgPrice = totalLiters > 0 && totalCost > 0 ? (totalCost / totalLiters) : 0;
+                      const validKmls = history.map(item => item.kmPerLiter).filter((k): k is number => typeof k === "number" && k > 0);
+                      const avgKml = validKmls.length > 0 ? (validKmls.reduce((a, b) => a + b, 0) / validKmls.length) : null;
+
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                            <span className="text-[10px] text-amber-300 block">ค่าน้ำมันรวม</span>
+                            <strong className="text-xs font-mono font-bold text-white">฿{totalCost.toLocaleString()}</strong>
+                          </div>
+                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                            <span className="text-[10px] text-amber-300 block">ปริมาณรวม</span>
+                            <strong className="text-xs font-mono font-bold text-white">{totalLiters > 0 ? `${totalLiters.toFixed(1)}L` : "-"}</strong>
+                          </div>
+                          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                            <span className="text-[10px] text-amber-300 block">เฉลี่ย ฿/ลิตร</span>
+                            <strong className="text-xs font-mono font-bold text-white">{avgPrice > 0 ? `฿${avgPrice.toFixed(2)}` : "-"}</strong>
+                          </div>
+                          <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-center">
+                            <span className="text-[10px] text-teal-300 block">เฉลี่ย KM/L</span>
+                            <strong className="text-xs font-mono font-bold text-teal-200">{avgKml ? `${avgKml.toFixed(2)}` : "-"}</strong>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {computeFuelHistoryWithKml(viewHistoryVehicle.fuelHistory).map((log) => (
+                      <div key={log.id} className="p-3 rounded-xl bg-black/40 border border-white/10 text-xs space-y-1.5">
+                        <div className="flex justify-between items-center font-mono">
+                          <span className="font-bold text-white">{formatDateTh(log.date)}</span>
+                          <span className="font-bold text-amber-300 font-mono text-sm">฿{log.totalCost.toLocaleString()}</span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                          <span className="px-2 py-0.5 rounded-md bg-white/5 text-slate-300 font-mono">
+                            มิเตอร์: {log.mileage.toLocaleString()} km
+                          </span>
+                          {log.kmPerLiter ? (
+                            <span className="px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 font-mono font-extrabold border border-teal-500/30">
+                              ⚡ {log.kmPerLiter.toFixed(2)} KM/L
+                            </span>
+                          ) : null}
+                          {log.pricePerLiter ? (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono font-bold">
+                              ฿{log.pricePerLiter.toFixed(2)} / ลิตร
+                            </span>
+                          ) : null}
+                          {log.liters ? (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono font-bold">
+                              {log.liters} ลิตร {log.fuelPercent ? `(~${log.fuelPercent.toFixed(1)}% ถัง)` : ""}
+                            </span>
+                          ) : null}
+                          {log.gasStation ? (
+                            <span className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300">
+                              ปั๊ม: {log.gasStation}
+                            </span>
+                          ) : null}
+                          {log.fuelType ? (
+                            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300">
+                              {log.fuelType}
+                            </span>
+                          ) : null}
+                          {log.isFullTank && (
+                            <span className="px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 font-bold">
+                              เต็มถัง
+                            </span>
+                          )}
+                        </div>
+
+                        {log.note && (
+                          <p className="text-[11px] text-slate-400 pt-1 border-t border-white/5">
+                            หมายเหตุ: {log.note}
+                          </p>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenFuelLogModal(viewHistoryVehicle, log)}
+                            className="text-[10px] text-indigo-300 hover:text-indigo-200 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 cursor-pointer"
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFuelLog(viewHistoryVehicle.id, log.id)}
+                            className="text-[10px] text-rose-400 hover:text-rose-300 px-2 py-0.5 rounded bg-white/5 hover:bg-rose-500/20 cursor-pointer"
+                          >
+                            ลบ
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )
+              ) : vehicleHistoryTab === "oil" ? (
+                /* Oil Change History View */
+                (!viewHistoryVehicle.history || viewHistoryVehicle.history.length === 0) ? (
+                  <p className="text-center text-xs text-slate-400 py-6">ยังไม่มีประวัติการถ่ายน้ำมันเครื่อง</p>
+                ) : (
+                  viewHistoryVehicle.history.map((log) => (
+                    <div key={log.id} className="p-3 rounded-xl bg-black/40 border border-white/10 text-xs">
+                      <div className="flex justify-between items-center font-mono">
+                        <span className="font-bold text-white">{formatDateTh(log.date)}</span>
+                        <span className="font-bold text-purple-300">{log.mileage.toLocaleString()} km</span>
+                      </div>
+                      {(log.cost || log.shopName || log.note) && (
+                        <div className="mt-1 pt-1 border-t border-white/5 flex justify-between text-slate-400 text-[11px]">
+                          <span>{log.shopName ? `ร้าน: ${log.shopName}` : log.note}</span>
+                          {log.cost ? <strong className="text-emerald-300 font-mono">฿{log.cost.toLocaleString()}</strong> : null}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )
+              ) : (
+                /* Maintenance History View */
+                (!viewHistoryVehicle.maintenanceHistory || viewHistoryVehicle.maintenanceHistory.length === 0) ? (
+                  <div className="text-center py-8">
+                    <Wrench className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">ยังไม่มีประวัติการซ่อมบำรุง</p>
+                    <button
+                      onClick={() => handleOpenMaintenanceModal(viewHistoryVehicle)}
+                      className="mt-3 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer"
+                    >
+                      + บันทึกการซ่อมบำรุง
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Maintenance Summary Header */}
+                    {(() => {
+                      const totalMaintCost = (viewHistoryVehicle.maintenanceHistory || []).reduce((sum, item) => sum + (item.cost || 0), 0);
+                      return (
+                        <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 flex justify-between items-center mb-2 text-xs">
+                          <span className="text-purple-300 font-bold">รวมค่าซ่อมบำรุงทั้งหมด:</span>
+                          <strong className="text-sm font-mono font-extrabold text-white">฿{totalMaintCost.toLocaleString()}</strong>
+                        </div>
+                      );
+                    })()}
+
+                    {viewHistoryVehicle.maintenanceHistory.map((maint) => (
+                      <div key={maint.id} className="p-3 rounded-xl bg-black/40 border border-white/10 text-xs space-y-1.5">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-extrabold text-white text-sm block">{maint.title}</span>
+                            <span className="text-[10px] text-purple-300 font-bold bg-purple-500/20 px-1.5 py-0.5 rounded inline-block mt-0.5">
+                              {maint.category || "ทั่วไป"}
+                            </span>
+                          </div>
+                          <strong className="font-mono text-sm font-bold text-purple-300">฿{maint.cost.toLocaleString()}</strong>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-300 font-mono">
+                          <span>📅 {formatDateTh(maint.date)}</span>
+                          <span>• มิเตอร์: {maint.mileage.toLocaleString()} km</span>
+                          {maint.shopName ? <span>• ร้าน: {maint.shopName}</span> : null}
+                        </div>
+
+                        {maint.note && (
+                          <p className="text-[11px] text-slate-400 pt-1 border-t border-white/5">
+                            หมายเหตุ: {maint.note}
+                          </p>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenMaintenanceModal(viewHistoryVehicle, maint)}
+                            className="text-[10px] text-indigo-300 hover:text-indigo-200 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 cursor-pointer"
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMaintenanceLog(viewHistoryVehicle.id, maint.id)}
+                            className="text-[10px] text-rose-400 hover:text-rose-300 px-2 py-0.5 rounded bg-white/5 hover:bg-rose-500/20 cursor-pointer"
+                          >
+                            ลบ
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )
               )}
             </div>
           </div>
