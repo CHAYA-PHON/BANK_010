@@ -655,7 +655,8 @@ export default function WalletManager({
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-3 w-full">
                           {selectedWallet.accountNumber ? (
                             <div className="font-mono text-xs text-white/90 tracking-wider bg-black/30 py-1.5 px-3 rounded-xl border border-white/10 w-fit shrink-0">
-                              เลขบัญชี: {selectedWallet.accountNumber}
+                              <span className="block text-[10px] text-white/60 mb-0.5">เลขบัญชี:</span>
+                              <span className="font-bold block">{selectedWallet.accountNumber}</span>
                             </div>
                           ) : (
                             <div className="font-mono text-xs text-white/50 tracking-wider bg-black/10 py-1.5 px-3 rounded-xl border border-white/5 w-fit shrink-0">
@@ -714,7 +715,7 @@ export default function WalletManager({
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <span className="font-black px-1.5 py-0.5 rounded-md text-[10px] border text-sky-300 bg-sky-500/20 border-sky-400/20">
-                                    {(totalBalance > 0 ? (selectedBalance / totalBalance) * 100 : 0).toFixed(1)}%
+                                    {(selectedWallet.initialBalance > 0 ? (selectedBalance / selectedWallet.initialBalance) * 100 : (selectedBalance > 0 ? 100 : 0)).toFixed(1)}%
                                   </span>
                                   <button
                                     type="button"
@@ -740,7 +741,7 @@ export default function WalletManager({
                               <div className="w-full h-2.5 rounded-full overflow-hidden border bg-black/20 border-white/5">
                                 <div
                                   className="h-full rounded-full bg-gradient-to-r from-sky-400 via-indigo-500 to-sky-400 transition-all duration-500 shadow-[0_0_8px_rgba(56,189,248,0.3)]"
-                                  style={{ width: `${Math.max(0, Math.min(100, totalBalance > 0 ? (selectedBalance / totalBalance) * 100 : 0))}%` }}
+                                  style={{ width: `${Math.max(0, Math.min(100, selectedWallet.initialBalance > 0 ? (selectedBalance / selectedWallet.initialBalance) * 100 : (selectedBalance > 0 ? 100 : 0)))}%` }}
                                 />
                               </div>
                             </div>
