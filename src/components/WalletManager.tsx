@@ -13,6 +13,8 @@ interface WalletManagerProps {
   onUpdateWallet: (id: string, wallet: Omit<Wallet, "id" | "createdAt">) => void;
   onDeleteWallet: (id: string) => void;
   onAddTransaction: (data: Omit<Transaction, "id" | "createdAt">) => void;
+  onEditTransaction?: (tx: Transaction) => void;
+  onDeleteTransaction?: (id: string) => void;
   onReorderWallets?: (wallets: Wallet[]) => void;
   theme?: string;
 }
@@ -225,6 +227,8 @@ export default function WalletManager({
   onUpdateWallet,
   onDeleteWallet,
   onAddTransaction,
+  onEditTransaction,
+  onDeleteTransaction,
   onReorderWallets,
   theme = "dark",
 }: WalletManagerProps) {
@@ -407,11 +411,20 @@ export default function WalletManager({
 
     if (!fromWallet || !toWallet) return;
 
-    // Balance validation to prevent negative balance
+    // Balance validation to allow negative balance with confirmation
     const currentFromBalance = walletBalances[fromWalletId] || 0;
     if (amount > currentFromBalance) {
-      alert(`❌ ระบบป้องกันยอดคงเหลือติดลบทำงาน!\n\nยอดคงเหลือในกระเป๋าต้นทาง "${fromWallet.name}" ไม่เพียงพอสำหรับการโอน\nยอดคงเหลือปัจจุบัน: ${currentFromBalance.toLocaleString()} บาท\nจำนวนที่พยายามโอน: ${amount.toLocaleString()} บาท`);
-      return;
+      const projected = currentFromBalance - amount;
+      const confirmTransfer = confirm(
+        `⚠️ ยอดคงเหลือในกระเป๋าต้นทาง "${fromWallet.name}" ไม่เพียงพอ!\n\n` +
+        `• ยอดคงเหลือปัจจุบัน: ฿${currentFromBalance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n` +
+        `• จำนวนที่ต้องการโอน: ฿${amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n` +
+        `• ยอดคงเหลือจะติดลบเป็น: ฿${projected.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n\n` +
+        `คุณต้องการยืนยันการทำรายการโอนเงินนี้ใช่หรือไม่?`
+      );
+      if (!confirmTransfer) {
+        return;
+      }
     }
 
     // Create a transaction record of type "transfer"
@@ -430,10 +443,28 @@ export default function WalletManager({
     setIsTransferModalOpen(false);
   };
 
-  const handleDeleteClick = (id: string, name: string) => {
-    if (confirm(`คุณต้องการลบกระเป๋าเงิน "${name}" ใช่หรือไม่? (ธุรกรรมที่เคยเกิดขึ้นในกระเป๋านี้จะไม่แสดงผลในกระเป๋า แต่ประวัติจะยังอยู่ในระบบ)`)) {
-      onDeleteWallet(id);
+  const handleQuickFixInitialBalance = (w: Wallet, currentBalance: number) => {
+    const targetActualStr = prompt(
+      `🔧 ปรับยอดเงินคงเหลือจริงในกระเป๋า "${w.name}"\n\n` +
+      `• ยอดคงเหลือปัจจุบัน: ฿${currentBalance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n` +
+      `• ยอดเงินเริ่มต้นเดิม: ฿${w.initialBalance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n\n` +
+      `กรุณากรอก "ยอดเงินคงเหลือจริงที่ต้องการให้เป็น" (เช่น 0 หรือ 500):`,
+      "0"
+    );
+    if (targetActualStr === null) return;
+    const targetActual = parseFloat(targetActualStr);
+    if (isNaN(targetActual)) {
+      alert("กรุณากรอกตัวเลขที่ถูกต้อง");
+      return;
     }
+    const netTransactions = currentBalance - w.initialBalance;
+    const newInitialBalance = targetActual - netTransactions;
+
+    onUpdateWallet(w.id, {
+      ...w,
+      initialBalance: Math.max(0, newInitialBalance)
+    });
+    alert(`✅ ปรับยอดเงินเรียบร้อยแล้ว!\n\nยอดคงเหลือใน "${w.name}" ถูกปรับเป็น ฿${targetActual.toLocaleString("th-TH", { minimumFractionDigits: 2 })}`);
   };
 
   return (
@@ -641,7 +672,9 @@ export default function WalletManager({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteClick(selectedWallet.id, selectedWallet.name);
+                                if (confirm(`คุณต้องการลบกระเป๋าเงิน "${selectedWallet.name}" ใช่หรือไม่? (ธุรกรรมที่เคยเกิดขึ้นในกระเป๋านี้จะไม่แสดงผลในกระเป๋า แต่ประวัติจะยังอยู่ในระบบ)`)) {
+                                  onDeleteWallet(selectedWallet.id);
+                                }
                               }}
                               className="p-1.5 bg-black/20 hover:bg-rose-600/60 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
                               title="ลบกระเป๋าตัง"
@@ -753,13 +786,63 @@ export default function WalletManager({
                       <div className="mt-5 border-t border-white/10 pt-4">
                         <span className="text-xs text-white/70 block font-medium">ยอดเงินปัจจุบัน</span>
                         <div className="flex items-baseline justify-between">
-                          <span className="text-3xl font-black tracking-tight text-white">
+                          <span className={`text-3xl font-black tracking-tight ${selectedBalance < 0 ? "text-rose-400" : "text-white"}`}>
                             ฿{selectedBalance.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                           <span className="text-[10px] text-white/60 font-semibold italic">
                             เริ่มที่: ฿{selectedWallet.initialBalance.toLocaleString("th-TH")}
                           </span>
                         </div>
+
+                        {selectedBalance < 0 && (
+                          <div className="mt-4 p-3.5 bg-rose-500/20 border border-rose-500/40 rounded-2xl text-rose-100 text-xs space-y-2">
+                            <div className="flex items-center gap-2 font-bold text-rose-200">
+                              <HelpCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                              <span>⚠️ ยอดเงินในกระเป๋านี้ติดลบ (-฿{Math.abs(selectedBalance).toLocaleString("th-TH", { minimumFractionDigits: 2 })})</span>
+                            </div>
+                            <p className="text-[11px] text-rose-100/90 leading-relaxed">
+                              เกิดจากเลือกกระเป๋าตัดเงินผิด หรือมียอดหักเกินเงินเริ่มต้น คุณสามารถแก้ไขได้ง่ายๆ:
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => handleQuickFixInitialBalance(selectedWallet, selectedBalance)}
+                                className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-[11px] transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                              >
+                                <Edit className="w-3 h-3" />
+                                <span>ปรับยอดคงเหลือจริง</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFromWalletId(wallets.find(w => w.id !== selectedWallet.id)?.id || "");
+                                  setToWalletId(selectedWallet.id);
+                                  setTransferAmount(Math.abs(selectedBalance).toString());
+                                  setIsTransferModalOpen(true);
+                                }}
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-[11px] transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                              >
+                                <ArrowRightLeft className="w-3 h-3" />
+                                <span>โอนเงินเข้ามาเติม</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedWalletFlowId(selectedWallet.id);
+                                  setIsFlowDetailsVisible(true);
+                                  setTimeout(() => {
+                                    const el = document.getElementById("wallet-flow-details");
+                                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                                  }, 100);
+                                }}
+                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-[11px] transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                              >
+                                <Coins className="w-3 h-3" />
+                                <span>ตรวจ/แก้ไขรายการหักเงิน</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     </>
@@ -1210,19 +1293,50 @@ export default function WalletManager({
                           </div>
                         </div>
 
-                        {/* Amount & Subtext */}
-                        <div className="text-right">
-                          <p className={`font-black text-sm ${isWalletInflow ? "text-emerald-500" : "text-rose-500"}`}>
-                            {isWalletInflow ? "+" : "-"}฿{tx.amount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </p>
-                          {isTransfer && (
-                            <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1 font-medium mt-0.5">
-                              <ArrowRightLeft className="w-3 h-3 text-indigo-400" />
-                              {tx.walletId === selectedWalletFlowId 
-                                ? `โอนไปยัง: ${wallets.find(w => w.id === tx.toWalletId)?.name || "กระเป๋าอื่น"}`
-                                : `โอนมาจาก: ${wallets.find(w => w.id === tx.walletId)?.name || "กระเป๋าอื่น"}`
-                              }
-                            </span>
+                        {/* Amount & Subtext & Edit/Delete controls */}
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className={`font-black text-sm ${isWalletInflow ? "text-emerald-500" : "text-rose-500"}`}>
+                              {isWalletInflow ? "+" : "-"}฿{tx.amount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                            {isTransfer && (
+                              <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1 font-medium mt-0.5">
+                                <ArrowRightLeft className="w-3 h-3 text-indigo-400" />
+                                {tx.walletId === selectedWalletFlowId 
+                                  ? `โอนไปยัง: ${wallets.find(w => w.id === tx.toWalletId)?.name || "กระเป๋าอื่น"}`
+                                  : `โอนมาจาก: ${wallets.find(w => w.id === tx.walletId)?.name || "กระเป๋าอื่น"}`
+                                }
+                              </span>
+                            )}
+                          </div>
+
+                          {(onEditTransaction || onDeleteTransaction) && (
+                            <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+                              {onEditTransaction && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditTransaction(tx)}
+                                  className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                                  title="แก้ไขรายการนี้"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onDeleteTransaction && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`คุณต้องการลบรายการ "${tx.merchantName}" (฿${tx.amount.toLocaleString()}) ใช่หรือไม่? (ยอดเงินในกระเป๋าจะคืนกลับเข้าสู่อัตโนมัติ)`)) {
+                                      onDeleteTransaction(tx.id);
+                                    }
+                                  }}
+                                  className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                                  title="ลบรายการนี้"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>

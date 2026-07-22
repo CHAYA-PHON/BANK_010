@@ -1313,7 +1313,9 @@ export default function App() {
 
   const handleEditTrigger = (tx: Transaction) => {
     setEditingTransaction(tx);
+    setCurrentPage("records");
     setActiveTab("manual");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Backup & Security integrations
@@ -1419,10 +1421,10 @@ export default function App() {
           </div>
 
           {/* Primary Navigation Hub (Desktop & Tablet) - Compact in Header Center */}
-          <nav className="hidden md:flex items-center gap-1 bg-white/5 border border-white/5 p-1 rounded-xl">
+          <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 bg-white/5 border border-white/5 p-1 rounded-xl max-w-[55vw] lg:max-w-none overflow-x-auto no-scrollbar shrink">
             <button
               onClick={() => setCurrentPage("dashboard")}
-              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
                 currentPage === "dashboard"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
@@ -1436,7 +1438,7 @@ export default function App() {
                 setCurrentPage("records");
                 setActiveTab("manual");
               }}
-              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
                 currentPage === "records"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
@@ -1447,7 +1449,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setCurrentPage("report")}
-              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
                 currentPage === "report"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
@@ -1458,18 +1460,18 @@ export default function App() {
             </button>
             <button
               onClick={() => setCurrentPage("services")}
-              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
                 currentPage === "services"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
               <Wrench className="w-3.5 h-3.5 text-amber-400" />
-              <span>น้ำไฟ & บำรุงรักษา</span>
+              <span>น้ำไฟ & บำรุง</span>
             </button>
             <button
               onClick={() => setCurrentPage("wallets")}
-              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
                 currentPage === "wallets"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
@@ -1480,25 +1482,25 @@ export default function App() {
             </button>
             <button
               onClick={() => setCurrentPage("debts")}
-              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
                 currentPage === "debts"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
               <Landmark className="w-3.5 h-3.5" />
-              <span>หนี้สินและกู้ยืม</span>
+              <span>หนี้สิน</span>
             </button>
             <button
               onClick={() => setCurrentPage("settings")}
-              className={`py-1 px-3 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
                 currentPage === "settings"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
               <Settings className="w-3.5 h-3.5" />
-              <span>ตั้งค่าระบบ</span>
+              <span>ตั้งค่า</span>
             </button>
           </nav>
 
@@ -1776,6 +1778,8 @@ export default function App() {
               onUpdateWallet={handleUpdateWallet}
               onDeleteWallet={handleDeleteWallet}
               onAddTransaction={handleAddTransaction}
+              onEditTransaction={handleEditTrigger}
+              onDeleteTransaction={handleDeleteTransaction}
               onReorderWallets={handleReorderWallets}
               theme={theme}
             />

@@ -171,16 +171,46 @@ export default function ServiceAndUtilityManager({
   const calcEndMeter = parseFloat(endMeter) || 0;
   const calcUnitsUsed = Math.max(0, calcEndMeter - calcStartMeter);
 
-  const calcBaseCost = parseFloat(baseCost) || 0;
-  const calcFtCost = parseFloat(ftCost) || 0;
-  const calcServiceFee = parseFloat(serviceFee) || 0;
+  const calcFtCost = parseFloat(ftCost) || 0; // Empty counts as 0
+  const calcServiceFee = parseFloat(serviceFee) || 0; // Empty counts as 0
   const calcVatPercent = parseFloat(vatPercent) || 0;
 
-  const calcSubtotal = calcBaseCost + calcFtCost + calcServiceFee;
-  const calcVatAmount = Math.round((calcSubtotal * (calcVatPercent / 100)) * 100) / 100;
-  const computedTotal = Math.round((calcSubtotal + calcVatAmount) * 100) / 100;
+  const hasManualTotal = manualTotal.trim() !== "";
+  const parsedManualTotal = parseFloat(manualTotal) || 0;
+  const hasBaseCost = baseCost.trim() !== "";
 
-  const finalTotalAmount = manualTotal !== "" ? (parseFloat(manualTotal) || 0) : computedTotal;
+  let calcBaseCost = 0;
+  let calcSubtotal = 0;
+  let calcVatAmount = 0;
+  let computedTotal = 0;
+  let finalTotalAmount = 0;
+  let isReverseCalculated = false;
+
+  if (hasBaseCost) {
+    // Forward calculation when base cost is explicitly typed
+    calcBaseCost = parseFloat(baseCost) || 0;
+    calcSubtotal = calcBaseCost + calcFtCost + calcServiceFee;
+    calcVatAmount = Math.round((calcSubtotal * (calcVatPercent / 100)) * 100) / 100;
+    computedTotal = Math.round((calcSubtotal + calcVatAmount) * 100) / 100;
+    finalTotalAmount = hasManualTotal ? parsedManualTotal : computedTotal;
+  } else if (hasManualTotal && parsedManualTotal > 0) {
+    // Reverse calculation when ONLY manualTotal is provided (baseCost is blank)
+    isReverseCalculated = true;
+    finalTotalAmount = parsedManualTotal;
+    calcSubtotal = calcVatPercent > 0 
+      ? Math.round((finalTotalAmount / (1 + calcVatPercent / 100)) * 100) / 100
+      : finalTotalAmount;
+    calcVatAmount = Math.round((finalTotalAmount - calcSubtotal) * 100) / 100;
+    calcBaseCost = Math.max(0, Math.round((calcSubtotal - calcFtCost - calcServiceFee) * 100) / 100);
+    computedTotal = finalTotalAmount;
+  } else {
+    calcBaseCost = 0;
+    calcSubtotal = calcFtCost + calcServiceFee;
+    calcVatAmount = Math.round((calcSubtotal * (calcVatPercent / 100)) * 100) / 100;
+    computedTotal = Math.round((calcSubtotal + calcVatAmount) * 100) / 100;
+    finalTotalAmount = computedTotal;
+  }
+
   const calcRatePerUnit = calcUnitsUsed > 0 ? (finalTotalAmount / calcUnitsUsed) : 0;
 
   const handleSaveBill = (e: React.FormEvent) => {
@@ -1373,23 +1403,23 @@ export default function ServiceAndUtilityManager({
 
       {/* 1. Utility Bill Modal */}
       {showBillModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-lg w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-white/10 shrink-0">
+              <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
                 {billType === "electricity" ? <Zap className="w-5 h-5 text-amber-400" /> : <Droplet className="w-5 h-5 text-cyan-400" />}
                 <span>{editingBillId ? "แก้ไขบิล" : "บันทึกบิลใหม่"}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setShowBillModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveBill} className="space-y-4">
+            <form onSubmit={handleSaveBill} className="p-4 sm:p-5 overflow-y-auto space-y-4">
               {/* Type Switcher */}
               <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/10">
                 <button
@@ -1486,7 +1516,10 @@ export default function ServiceAndUtilityManager({
 
               {/* Breakdown Fields */}
               <div className="space-y-2.5 pt-2 border-t border-white/10">
-                <span className="text-xs font-bold text-slate-300 block">รายละเอียดค่าใช้จ่ายในบิล</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 block">รายละเอียดค่าใช้จ่ายในบิล</span>
+                  <span className="text-[10px] text-amber-400 font-medium">* กรอกยอดรวมอย่างเดียวได้</span>
+                </div>
                 
                 <div className="grid grid-cols-3 gap-2">
                   <div>
@@ -1496,32 +1529,31 @@ export default function ServiceAndUtilityManager({
                       step="any"
                       value={baseCost}
                       onChange={(e) => setBaseCost(e.target.value)}
-                      placeholder="2175.01"
-                      required
+                      placeholder={isReverseCalculated ? `ย้อนกลับ: ${calcBaseCost.toFixed(2)}` : "2175.01"}
                       className="w-full bg-slate-800 border border-white/10 rounded-xl px-2.5 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">ค่า FT (฿)</label>
+                    <label className="block text-[11px] text-slate-400 mb-1">ค่า FT (฿) <span className="text-[9px] text-slate-500">(เว้น=0)</span></label>
                     <input
                       type="number"
                       step="any"
                       value={ftCost}
                       onChange={(e) => setFtCost(e.target.value)}
-                      placeholder="88.13"
+                      placeholder="0.00"
                       className="w-full bg-slate-800 border border-white/10 rounded-xl px-2.5 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">ค่าบริการ (฿)</label>
+                    <label className="block text-[11px] text-slate-400 mb-1">ค่าบริการ (฿) <span className="text-[9px] text-slate-500">(เว้น=0)</span></label>
                     <input
                       type="number"
                       step="any"
                       value={serviceFee}
                       onChange={(e) => setServiceFee(e.target.value)}
-                      placeholder="24.62"
+                      placeholder="0.00"
                       className="w-full bg-slate-800 border border-white/10 rounded-xl px-2.5 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -1541,17 +1573,33 @@ export default function ServiceAndUtilityManager({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-1">ยอดรวมเงิน (แก้ไขได้)</label>
+                    <label className="block text-[11px] text-slate-400 mb-1 font-extrabold text-amber-300">ยอดรวมเงิน (฿)</label>
                     <input
                       type="number"
                       step="any"
                       value={manualTotal}
                       onChange={(e) => setManualTotal(e.target.value)}
-                      placeholder={`อัตโนมัติ: ${computedTotal}`}
-                      className="w-full bg-slate-800 border border-white/10 rounded-xl px-2.5 py-1.5 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                      placeholder={hasBaseCost ? `คำนวณ: ${computedTotal}` : "เช่น 1070.00"}
+                      className="w-full bg-slate-800 border border-amber-500/40 rounded-xl px-2.5 py-1.5 text-amber-200 text-xs font-mono font-bold focus:outline-none focus:border-amber-400"
                     />
                   </div>
                 </div>
+
+                {/* Banner when reverse calculation is active */}
+                {isReverseCalculated && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center justify-between gap-2 font-sans">
+                    <span className="leading-tight">
+                      ⚡ คำนวณย้อนกลับจากยอดรวม <strong>฿{finalTotalAmount.toFixed(2)}</strong> → ได้ค่าฐานก่อน VAT = <strong>฿{calcBaseCost.toFixed(2)}</strong> (VAT {calcVatPercent}%: ฿{calcVatAmount.toFixed(2)})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBaseCost(calcBaseCost.toFixed(2))}
+                      className="shrink-0 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all border border-amber-500/30"
+                    >
+                      ใส่ค่าในช่องฐาน
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Calculated Summary Box */}
@@ -1613,23 +1661,23 @@ export default function ServiceAndUtilityManager({
 
       {/* 2. Vehicle Add/Edit Modal */}
       {showVehicleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full p-6 shadow-2xl relative my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-white/10 shrink-0">
+              <h3 className="font-extrabold text-base sm:text-lg text-white flex items-center gap-2">
                 <Car className="w-5 h-5 text-purple-400" />
                 <span>{editingVehicleId ? "แก้ไขข้อมูลรถ" : "เพิ่มข้อมูลรถใหม่"}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setShowVehicleModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveVehicle} className="space-y-4">
+            <form onSubmit={handleSaveVehicle} className="p-4 sm:p-5 overflow-y-auto space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">ชื่อเรียกยานพาหนะ</label>
                 <input
@@ -1781,9 +1829,9 @@ export default function ServiceAndUtilityManager({
 
       {/* 4. Oil Change Log Modal */}
       {showOilChangeLogModal && loggingVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full p-6 shadow-2xl relative my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-white/10 shrink-0">
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <Wrench className="w-5 h-5 text-emerald-400" />
                 <span>บันทึกถ่ายน้ำมันเครื่อง ({loggingVehicle.vehicleName})</span>
@@ -1791,13 +1839,13 @@ export default function ServiceAndUtilityManager({
               <button
                 type="button"
                 onClick={() => setShowOilChangeLogModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveOilChangeLog} className="space-y-4">
+            <form onSubmit={handleSaveOilChangeLog} className="p-4 sm:p-5 overflow-y-auto space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">วันที่ถ่ายน้ำมันเครื่อง</label>
@@ -1898,9 +1946,9 @@ export default function ServiceAndUtilityManager({
 
       {/* 5. AC Add/Edit Modal */}
       {showAcModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full p-6 shadow-2xl relative my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-white/10 shrink-0">
               <h3 className="font-extrabold text-lg text-white flex items-center gap-2">
                 <Snowflake className="w-5 h-5 text-cyan-400" />
                 <span>{editingAcId ? "แก้ไขข้อมูลเครื่องปรับอากาศ" : "เพิ่มเครื่องปรับอากาศใหม่"}</span>
@@ -1908,13 +1956,13 @@ export default function ServiceAndUtilityManager({
               <button
                 type="button"
                 onClick={() => setShowAcModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveAc} className="space-y-4">
+            <form onSubmit={handleSaveAc} className="p-4 sm:p-5 overflow-y-auto space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">ชื่อเครื่องปรับอากาศ</label>
                 <input
@@ -2007,9 +2055,9 @@ export default function ServiceAndUtilityManager({
 
       {/* 6. AC Clean Log Modal */}
       {showAcCleanLogModal && loggingAc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full p-6 shadow-2xl relative my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-md w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto">
+            <div className="flex items-center justify-between p-4 sm:p-5 pb-3 border-b border-white/10 shrink-0">
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <Snowflake className="w-5 h-5 text-teal-400" />
                 <span>บันทึกการล้างแอร์ ({loggingAc.name})</span>
@@ -2017,13 +2065,13 @@ export default function ServiceAndUtilityManager({
               <button
                 type="button"
                 onClick={() => setShowAcCleanLogModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveAcCleanLog} className="space-y-4">
+            <form onSubmit={handleSaveAcCleanLog} className="p-4 sm:p-5 overflow-y-auto space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">วันที่ล้างแอร์</label>
@@ -2110,9 +2158,9 @@ export default function ServiceAndUtilityManager({
 
       {/* 7. History Viewer Modal for Vehicle */}
       {viewHistoryVehicle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-lg w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto p-4 sm:p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4 shrink-0">
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <History className="w-5 h-5 text-indigo-400" />
                 <span>ประวัติถ่ายน้ำมันเครื่อง ({viewHistoryVehicle.vehicleName})</span>
@@ -2120,13 +2168,13 @@ export default function ServiceAndUtilityManager({
               <button
                 type="button"
                 onClick={() => setViewHistoryVehicle(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-3 overflow-y-auto pr-1">
               {(!viewHistoryVehicle.history || viewHistoryVehicle.history.length === 0) ? (
                 <p className="text-center text-xs text-slate-400 py-6">ยังไม่มีประวัติการถ่ายน้ำมันเครื่อง</p>
               ) : (
@@ -2152,9 +2200,9 @@ export default function ServiceAndUtilityManager({
 
       {/* 8. History Viewer Modal for AC */}
       {viewHistoryAc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl max-w-lg w-full shadow-2xl relative max-h-[90vh] flex flex-col my-auto p-4 sm:p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4 shrink-0">
               <h3 className="font-extrabold text-base text-white flex items-center gap-2">
                 <History className="w-5 h-5 text-teal-400" />
                 <span>ประวัติการล้างแอร์ ({viewHistoryAc.name})</span>
@@ -2162,13 +2210,13 @@ export default function ServiceAndUtilityManager({
               <button
                 type="button"
                 onClick={() => setViewHistoryAc(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            <div className="space-y-3 overflow-y-auto pr-1">
               {(!viewHistoryAc.history || viewHistoryAc.history.length === 0) ? (
                 <p className="text-center text-xs text-slate-400 py-6">ยังไม่มีประวัติการล้างแอร์</p>
               ) : (

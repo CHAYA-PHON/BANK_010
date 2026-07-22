@@ -178,8 +178,19 @@ export default function TransactionForm({
       }
       
       if (parsedAmount > availableBalance) {
-        alert(`❌ ระบบป้องกันยอดคงเหลือติดลบทำงาน!\n\nยอดคงเหลือในกระเป๋าไม่เพียงพอสําหรับการจ่ายเงินครั้งนี้\nยอดคงเหลือในปัจจุบัน: ${availableBalance.toLocaleString()} บาท\nจำนวนเงินที่พยายามหักออก: ${parsedAmount.toLocaleString()} บาท`);
-        return;
+        const targetWName = wallets.find(w => w.id === walletId)?.name || "กระเป๋าเงิน";
+        const projected = availableBalance - parsedAmount;
+        const confirmSave = confirm(
+          `⚠️ แจ้งเตือนยอดคงเหลือในกระเป๋าตังไม่เพียงพอ!\n\n` +
+          `• กระเป๋าตัง: ${targetWName}\n` +
+          `• ยอดคงเหลือปัจจุบัน: ฿${availableBalance.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n` +
+          `• จำนวนเงินที่ต้องการตัดออก: ฿${parsedAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n` +
+          `• ยอดคงเหลือจะติดลบเป็น: ฿${projected.toLocaleString("th-TH", { minimumFractionDigits: 2 })}\n\n` +
+          `คุณต้องการยืนยันการบันทึกรายการนี้ใช่หรือไม่? (สามารถเปลี่ยนกระเป๋าตังอื่น หรือปรับยอดเงินเริ่มต้นภายหลังได้)`
+        );
+        if (!confirmSave) {
+          return;
+        }
       }
     }
 
