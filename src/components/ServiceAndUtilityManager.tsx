@@ -99,6 +99,7 @@ export default function ServiceAndUtilityManager({
   const [autoFetchedMeterInfo, setAutoFetchedMeterInfo] = useState<string | null>(null);
   const [selectedUtilityYear, setSelectedUtilityYear] = useState<number>(new Date().getFullYear());
   const [historyYearFilter, setHistoryYearFilter] = useState<string>("selected");
+  const [activeChartMonthIndex, setActiveChartMonthIndex] = useState<number | null>(null);
 
   // Auto-fill previous meter when modal opens or billType/billMonth changes
   const handleOpenBillModal = (type: "electricity" | "water", billToEdit?: UtilityBill) => {
@@ -1248,148 +1249,132 @@ export default function ServiceAndUtilityManager({
             </div>
 
             {/* Monthly Bar Chart */}
-            <div className="space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1">
                 <span className={`text-xs font-extrabold flex items-center gap-1.5 ${theme === "light" ? "text-slate-800" : "text-slate-200"}`}>
                   <BarChart3 className="w-4 h-4 text-indigo-500" />
                   <span>กราฟเปรียบเทียบแต่ละเดือน (ม.ค. - ธ.ค.)</span>
                 </span>
-                <span className={`text-[11px] font-medium flex items-center gap-3 ${
-                  theme === "light" ? "text-slate-600" : "text-slate-400"
-                }`}>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> เพิ่มขึ้น (+)
+                <div className="flex items-center justify-between sm:justify-end gap-3">
+                  <span className="sm:hidden text-[10px] font-bold text-indigo-500 animate-pulse">
+                    👈 เลื่อนซ้าย-ขวา / แตะที่แท่งกราฟเพื่อเลือกดูเดือน
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> ลดลง (-)
+                  <span className={`text-[11px] font-medium hidden sm:flex items-center gap-3 ${
+                    theme === "light" ? "text-slate-600" : "text-slate-400"
+                  }`}>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> เพิ่มขึ้น (+)
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> ลดลง (-)
+                    </span>
                   </span>
-                </span>
+                </div>
               </div>
 
-              <div className={`grid grid-cols-12 gap-1 sm:gap-2 items-end h-56 p-2.5 sm:p-4 rounded-2xl border ${
-                theme === "light"
-                  ? "bg-slate-50/90 border-slate-200 shadow-2xs"
-                  : "bg-black/40 border-white/10"
-              }`}>
-                {monthlyMatrix.months.map((m) => {
-                  const elecHeightPercent = monthlyMatrix.maxSingleAmount > 0 && m.elecAmount > 0
-                    ? Math.max(6, Math.round((m.elecAmount / monthlyMatrix.maxSingleAmount) * 100))
-                    : 0;
+              {/* Scrollable Container for Mobile Touch Devices */}
+              <div className="overflow-x-auto pb-2 scrollbar-thin touch-pan-x">
+                <div className="min-w-[600px] sm:min-w-0">
+                  <div className={`grid grid-cols-12 gap-1 sm:gap-2 items-end h-52 p-2.5 sm:p-4 rounded-2xl border ${
+                    theme === "light"
+                      ? "bg-slate-50/90 border-slate-200 shadow-2xs"
+                      : "bg-black/40 border-white/10"
+                  }`}>
+                    {monthlyMatrix.months.map((m) => {
+                      const elecHeightPercent = monthlyMatrix.maxSingleAmount > 0 && m.elecAmount > 0
+                        ? Math.max(6, Math.round((m.elecAmount / monthlyMatrix.maxSingleAmount) * 100))
+                        : 0;
 
-                  const waterHeightPercent = monthlyMatrix.maxSingleAmount > 0 && m.waterAmount > 0
-                    ? Math.max(6, Math.round((m.waterAmount / monthlyMatrix.maxSingleAmount) * 100))
-                    : 0;
+                      const waterHeightPercent = monthlyMatrix.maxSingleAmount > 0 && m.waterAmount > 0
+                        ? Math.max(6, Math.round((m.waterAmount / monthlyMatrix.maxSingleAmount) * 100))
+                        : 0;
 
-                  return (
-                    <div key={m.ym} className="flex flex-col items-center justify-end h-full group relative">
-                      {/* Tooltip on hover */}
-                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-950 border border-white/20 p-2.5 rounded-xl text-[11px] text-white whitespace-nowrap z-30 shadow-2xl pointer-events-none gap-1">
-                        <span className="font-bold text-indigo-300 border-b border-white/10 pb-1">
-                          {m.monthName} พ.ศ. {selectedUtilityYear + 543}
-                        </span>
-                        {m.elecAmount > 0 ? (
-                          <div className="flex items-center justify-between gap-3 text-amber-300">
-                            <span>⚡ ค่าไฟ: ฿{m.elecAmount.toLocaleString()} ({m.elecUnits} หน่วย)</span>
-                            {m.elecDiff !== null && (
-                              <span className={`font-mono font-bold ${
-                                m.elecDiff > 0 ? "text-rose-400" : m.elecDiff < 0 ? "text-emerald-400" : "text-slate-400"
-                              }`}>
-                                ({m.elecDiff > 0 ? `+฿${m.elecDiff.toLocaleString()}` : `-฿${Math.abs(m.elecDiff).toLocaleString()}`})
-                              </span>
-                            )}
+                      const isSelected = activeChartMonthIndex === m.monthIndex;
+
+                      return (
+                        <div 
+                          key={m.ym} 
+                          onClick={() => setActiveChartMonthIndex(prev => prev === m.monthIndex ? null : m.monthIndex)}
+                          className={`flex flex-col items-center justify-end h-full relative cursor-pointer p-1 rounded-xl transition-all duration-200 ${
+                            isSelected 
+                              ? "bg-indigo-500/15 ring-2 ring-indigo-500 scale-[1.02] z-10" 
+                              : "hover:bg-indigo-500/5 hover:scale-[1.01]"
+                          }`}
+                        >
+                          {/* Bars Group (Side-by-side Electricity & Water) */}
+                          <div className="w-full flex items-end justify-center gap-1 h-full pt-6">
+                            {/* Electricity Bar Column */}
+                            <div className="flex-1 max-w-[18px] sm:max-w-[24px] h-full flex flex-col justify-end items-center relative">
+                              {/* Difference text above Electricity Bar */}
+                              {m.elecAmount > 0 && m.elecDiff !== null && (
+                                <span className={`absolute -top-5 text-[8px] sm:text-[10px] font-mono font-extrabold whitespace-nowrap px-0.5 rounded leading-none z-10 ${
+                                  m.elecDiff > 0 
+                                    ? "text-rose-600 dark:text-rose-400 bg-rose-500/10" 
+                                    : m.elecDiff < 0 
+                                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" 
+                                      : "text-slate-400"
+                                }`}>
+                                  {m.elecDiff > 0 ? `+${Math.round(m.elecDiff)}` : `${Math.round(m.elecDiff)}`}
+                                </span>
+                              )}
+
+                              {m.elecAmount > 0 ? (
+                                <div 
+                                  className={`w-full bg-gradient-to-t from-amber-600 via-amber-500 to-amber-400 border-t border-x border-amber-300/60 rounded-t-sm sm:rounded-t-md transition-all duration-200 ${
+                                    isSelected ? "brightness-125 shadow-md" : "hover:brightness-110"
+                                  }`}
+                                  style={{ height: `${elecHeightPercent}%` }}
+                                />
+                              ) : (
+                                <div className={`w-full h-1 rounded-t-xs ${theme === "light" ? "bg-slate-200" : "bg-slate-800"}`} />
+                              )}
+                            </div>
+
+                            {/* Water Bar Column */}
+                            <div className="flex-1 max-w-[18px] sm:max-w-[24px] h-full flex flex-col justify-end items-center relative">
+                              {/* Difference text above Water Bar */}
+                              {m.waterAmount > 0 && m.waterDiff !== null && (
+                                <span className={`absolute -top-5 text-[8px] sm:text-[10px] font-mono font-extrabold whitespace-nowrap px-0.5 rounded leading-none z-10 ${
+                                  m.waterDiff > 0 
+                                    ? "text-rose-600 dark:text-rose-400 bg-rose-500/10" 
+                                    : m.waterDiff < 0 
+                                      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" 
+                                      : "text-slate-400"
+                                }`}>
+                                  {m.waterDiff > 0 ? `+${Math.round(m.waterDiff)}` : `${Math.round(m.waterDiff)}`}
+                                </span>
+                              )}
+
+                              {m.waterAmount > 0 ? (
+                                <div 
+                                  className={`w-full bg-gradient-to-t from-cyan-600 via-cyan-500 to-cyan-400 border-t border-x border-cyan-300/60 rounded-t-sm sm:rounded-t-md transition-all duration-200 ${
+                                    isSelected ? "brightness-125 shadow-md" : "hover:brightness-110"
+                                  }`}
+                                  style={{ height: `${waterHeightPercent}%` }}
+                                />
+                              ) : (
+                                <div className={`w-full h-1 rounded-t-xs ${theme === "light" ? "bg-slate-200" : "bg-slate-800"}`} />
+                              )}
+                            </div>
                           </div>
-                        ) : null}
 
-                        {m.waterAmount > 0 ? (
-                          <div className="flex items-center justify-between gap-3 text-cyan-300">
-                            <span>💧 ค่าน้ำ: ฿{m.waterAmount.toLocaleString()} ({m.waterUnits} หน่วย)</span>
-                            {m.waterDiff !== null && (
-                              <span className={`font-mono font-bold ${
-                                m.waterDiff > 0 ? "text-rose-400" : m.waterDiff < 0 ? "text-emerald-400" : "text-slate-400"
-                              }`}>
-                                ({m.waterDiff > 0 ? `+฿${m.waterDiff.toLocaleString()}` : `-฿${Math.abs(m.waterDiff).toLocaleString()}`})
-                              </span>
-                            )}
-                          </div>
-                        ) : null}
-
-                        {m.totalAmount === 0 && <span className="text-slate-400">ไม่มีบันทึกข้อมูล</span>}
-                        {m.totalAmount > 0 && (
-                          <div className="border-t border-white/10 pt-1 flex justify-between font-bold text-white">
-                            <span>รวมทั้งสิ้น:</span>
-                            <span className="font-mono">฿{m.totalAmount.toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Bars Group (Side-by-side Electricity & Water) */}
-                      <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-full pt-6">
-                        {/* Electricity Bar Column */}
-                        <div className="flex-1 max-w-[16px] sm:max-w-[22px] h-full flex flex-col justify-end items-center relative">
-                          {/* Difference text above Electricity Bar */}
-                          {m.elecAmount > 0 && m.elecDiff !== null && (
-                            <span className={`absolute -top-5 text-[8px] sm:text-[10px] font-mono font-extrabold whitespace-nowrap px-0.5 rounded leading-none z-10 ${
-                              m.elecDiff > 0 
-                                ? "text-rose-600 dark:text-rose-400 bg-rose-500/10" 
-                                : m.elecDiff < 0 
-                                  ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" 
-                                  : "text-slate-400"
-                            }`}>
-                              {m.elecDiff > 0 ? `+${Math.round(m.elecDiff)}` : `${Math.round(m.elecDiff)}`}
-                            </span>
-                          )}
-
-                          {m.elecAmount > 0 ? (
-                            <div 
-                              className="w-full bg-gradient-to-t from-amber-600 via-amber-500 to-amber-400 border-t border-x border-amber-300/60 rounded-t-sm sm:rounded-t-md transition-all duration-300 hover:brightness-110 shadow-xs"
-                              style={{ height: `${elecHeightPercent}%` }}
-                              title={`ค่าไฟ ฿${m.elecAmount.toLocaleString()}`}
-                            />
-                          ) : (
-                            <div className={`w-full h-1 rounded-t-xs ${theme === "light" ? "bg-slate-200" : "bg-slate-800"}`} />
-                          )}
+                          {/* Month Label */}
+                          <span className={`text-[10px] sm:text-xs mt-2 font-bold ${
+                            isSelected 
+                              ? "text-indigo-600 dark:text-indigo-400 scale-110" 
+                              : theme === "light" ? "text-slate-700" : "text-slate-300"
+                          }`}>
+                            {m.monthName}
+                          </span>
                         </div>
-
-                        {/* Water Bar Column */}
-                        <div className="flex-1 max-w-[16px] sm:max-w-[22px] h-full flex flex-col justify-end items-center relative">
-                          {/* Difference text above Water Bar */}
-                          {m.waterAmount > 0 && m.waterDiff !== null && (
-                            <span className={`absolute -top-5 text-[8px] sm:text-[10px] font-mono font-extrabold whitespace-nowrap px-0.5 rounded leading-none z-10 ${
-                              m.waterDiff > 0 
-                                ? "text-rose-600 dark:text-rose-400 bg-rose-500/10" 
-                                : m.waterDiff < 0 
-                                  ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" 
-                                  : "text-slate-400"
-                            }`}>
-                              {m.waterDiff > 0 ? `+${Math.round(m.waterDiff)}` : `${Math.round(m.waterDiff)}`}
-                            </span>
-                          )}
-
-                          {m.waterAmount > 0 ? (
-                            <div 
-                              className="w-full bg-gradient-to-t from-cyan-600 via-cyan-500 to-cyan-400 border-t border-x border-cyan-300/60 rounded-t-sm sm:rounded-t-md transition-all duration-300 hover:brightness-110 shadow-xs"
-                              style={{ height: `${waterHeightPercent}%` }}
-                              title={`ค่าน้ำ ฿${m.waterAmount.toLocaleString()}`}
-                            />
-                          ) : (
-                            <div className={`w-full h-1 rounded-t-xs ${theme === "light" ? "bg-slate-200" : "bg-slate-800"}`} />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Month Label */}
-                      <span className={`text-[10px] sm:text-xs mt-2 font-bold ${
-                        theme === "light" ? "text-slate-700" : "text-slate-300"
-                      }`}>
-                        {m.monthName}
-                      </span>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
               {/* Chart Legend */}
-              <div className={`flex flex-wrap items-center justify-center gap-4 text-xs pt-2 font-bold ${
+              <div className={`flex flex-wrap items-center justify-center gap-3 sm:gap-5 text-xs pt-1 font-bold ${
                 theme === "light" ? "text-slate-700" : "text-slate-300"
               }`}>
                 <span className="flex items-center gap-1.5">
@@ -1405,6 +1390,92 @@ export default function ServiceAndUtilityManager({
                   <span className="font-mono font-extrabold">-ลดลง (สีเขียว)</span>
                 </span>
               </div>
+
+              {/* Mobile & Touch Responsive Detail Inspection Card */}
+              {activeChartMonthIndex !== null && monthlyMatrix.months[activeChartMonthIndex] ? (() => {
+                const activeMonth = monthlyMatrix.months[activeChartMonthIndex];
+                return (
+                  <div className={`mt-3 p-3.5 sm:p-4 rounded-2xl border transition-all animate-fadeIn ${
+                    theme === "light"
+                      ? "bg-indigo-50/90 border-indigo-200 text-slate-800 shadow-xs"
+                      : "bg-slate-900/90 border-indigo-500/30 text-white"
+                  }`}>
+                    <div className="flex items-center justify-between border-b border-indigo-500/15 pb-2 mb-2.5">
+                      <span className="font-extrabold text-xs sm:text-sm text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4 text-indigo-500" />
+                        <span>รายละเอียดเดือน {activeMonth.monthName} พ.ศ. {selectedUtilityYear + 543}</span>
+                      </span>
+                      <span className="text-xs font-mono font-black text-slate-900 dark:text-white bg-indigo-500/15 px-2.5 py-1 rounded-lg border border-indigo-500/20">
+                        รวมทั้งสิ้น: ฿{activeMonth.totalAmount.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      {/* Electricity Detail */}
+                      <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                        theme === "light" ? "bg-amber-50/90 border-amber-200/80" : "bg-amber-950/30 border-amber-500/20"
+                      }`}>
+                        <div>
+                          <span className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1">
+                            ⚡ ค่าไฟฟ้า ({activeMonth.elecUnits.toLocaleString()} หน่วย)
+                          </span>
+                          <span className="font-mono font-extrabold text-sm text-amber-950 dark:text-amber-200 block mt-0.5">
+                            {activeMonth.elecAmount > 0 ? `฿${activeMonth.elecAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}` : "ไม่มีบันทึกข้อมูล"}
+                          </span>
+                        </div>
+                        {activeMonth.elecAmount > 0 && activeMonth.elecDiff !== null && (
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">เทียบเดือนก่อน</span>
+                            <span className={`font-mono font-extrabold text-xs px-2 py-0.5 rounded-md inline-block mt-0.5 ${
+                              activeMonth.elecDiff > 0 
+                                ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30" 
+                                : activeMonth.elecDiff < 0 
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30" 
+                                  : "text-slate-500"
+                            }`}>
+                              {activeMonth.elecDiff > 0 ? `+฿${activeMonth.elecDiff.toLocaleString("th-TH", { minimumFractionDigits: 2 })}` : `-฿${Math.abs(activeMonth.elecDiff).toLocaleString("th-TH", { minimumFractionDigits: 2 })}`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Water Detail */}
+                      <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                        theme === "light" ? "bg-cyan-50/90 border-cyan-200/80" : "bg-cyan-950/30 border-cyan-500/20"
+                      }`}>
+                        <div>
+                          <span className="font-bold text-cyan-900 dark:text-cyan-300 flex items-center gap-1">
+                            💧 ค่าน้ำประปา ({activeMonth.waterUnits.toLocaleString()} หน่วย)
+                          </span>
+                          <span className="font-mono font-extrabold text-sm text-cyan-950 dark:text-cyan-200 block mt-0.5">
+                            {activeMonth.waterAmount > 0 ? `฿${activeMonth.waterAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}` : "ไม่มีบันทึกข้อมูล"}
+                          </span>
+                        </div>
+                        {activeMonth.waterAmount > 0 && activeMonth.waterDiff !== null && (
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">เทียบเดือนก่อน</span>
+                            <span className={`font-mono font-extrabold text-xs px-2 py-0.5 rounded-md inline-block mt-0.5 ${
+                              activeMonth.waterDiff > 0 
+                                ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30" 
+                                : activeMonth.waterDiff < 0 
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30" 
+                                  : "text-slate-500"
+                            }`}>
+                              {activeMonth.waterDiff > 0 ? `+฿${activeMonth.waterDiff.toLocaleString("th-TH", { minimumFractionDigits: 2 })}` : `-฿${Math.abs(activeMonth.waterDiff).toLocaleString("th-TH", { minimumFractionDigits: 2 })}`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className={`mt-2 p-2.5 rounded-xl border text-center text-[11px] font-medium ${
+                  theme === "light" ? "bg-slate-100/70 border-slate-200 text-slate-600" : "bg-white/5 border-white/10 text-slate-400"
+                }`}>
+                  💡 แตะหรือวางเมาส์ที่แท่งกราฟของเดือนใดก็ได้ เพื่อดูสรุปข้อมูลค่าน้ำ/ค่าไฟ และผลต่างจากเดือนก่อนหน้าอย่างละเอียด
+                </div>
+              )}
             </div>
           </div>
 
