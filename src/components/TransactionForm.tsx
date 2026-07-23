@@ -5,6 +5,7 @@ import { Plus, Check, ImageIcon, X, HelpCircle, Calendar, DollarSign, Edit, Arro
 interface TransactionFormProps {
   initialData?: Partial<Transaction> | null;
   onSave: (data: Omit<Transaction, "id" | "createdAt">) => void;
+  onAddDebt?: (debt: Debt, initialWalletId?: string) => Promise<void> | void;
   onCancel?: () => void;
   isEditMode?: boolean;
   wallets: Wallet[];
@@ -17,6 +18,7 @@ interface TransactionFormProps {
 export default function TransactionForm({
   initialData,
   onSave,
+  onAddDebt,
   onCancel,
   isEditMode = false,
   wallets,
@@ -25,7 +27,7 @@ export default function TransactionForm({
   expenseHistoryNames = [],
   incomeHistoryNames = [],
 }: TransactionFormProps) {
-  const [type, setType] = useState<TransactionType>("expense");
+  const [type, setType] = useState<TransactionType | "debt">("expense");
   const [amount, setAmount] = useState<string>("");
   const [category, setCategory] = useState<string>("อื่นๆ");
   const [merchantName, setMerchantName] = useState<string>("");
@@ -36,6 +38,12 @@ export default function TransactionForm({
   const [walletId, setWalletId] = useState<string>("");
   const [toWalletId, setToWalletId] = useState<string>("");
   const [selectedDebtId, setSelectedDebtId] = useState<string>("");
+
+  // States for Debt Creation inside TransactionForm
+  const [debtType, setDebtType] = useState<"borrowed" | "lent">("borrowed");
+  const [creditorDebtorName, setCreditorDebtorName] = useState<string>("");
+  const [dueDate, setDueDate] = useState<string>("");
+  const [linkToWallet, setLinkToWallet] = useState<boolean>(true);
 
   // Calculator states
   const [showCalculator, setShowCalculator] = useState<boolean>(false);
@@ -147,13 +155,60 @@ export default function TransactionForm({
     }
   }, [initialData, wallets]);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!amount || parseFloat(amount) <= 0) {
       alert("กรุณาระบุจำนวนเงินที่มากกว่า 0");
       return;
     }
+
+    // Debt creation branch
+    if (type === "debt") {
+      if (!creditorDebtorName.trim()) {
+        alert("กรุณาระบุชื่อเจ้าหนี้ หรือ ลูกหนี้");
+        return;
+      }
+      const debtAmount = parseFloat(amount);
+      if (isNaN(debtAmount) || debtAmount <= 0) {
+        alert("กรุณาระบุจำนวนเงินกู้ยืมที่มากกว่า 0");
+        return;
+      }
+      if (linkToWallet && !walletId) {
+        alert("กรุณาเลือกกระเป๋าเงินเพื่อผูกรายการ");
+        return;
+      }
+
+      if (linkToWallet && debtType === "lent" && walletBalances) {
+        const balance = walletBalances[walletId] ?? 0;
+        if (balance < debtAmount) {
+          alert(`⚠️ ไม่สามารถให้กู้ยืมได้เนื่องจาก "ยอดคงเหลือในกระเป๋าไม่เพียงพอ"!\n\nยอดเงินปัจจุบัน: ฿${balance.toLocaleString()}\nยอดที่ต้องการให้กู้ยืม: ฿${debtAmount.toLocaleString()}`);
+          return;
+        }
+      }
+
+      if (onAddDebt) {
+        const newDebt: Debt = {
+          id: "debt-" + Date.now(),
+          type: debtType,
+          creditorDebtorName: creditorDebtorName.trim(),
+          amount: debtAmount,
+          remainingAmount: debtAmount,
+          description: note.trim() || undefined,
+          dueDate: dueDate || undefined,
+          status: "active",
+          createdAt: new Date().toISOString(),
+        };
+        await onAddDebt(newDebt, linkToWallet ? walletId : undefined);
+        alert(`บันทึกสร้างรายการหนี้สิน "${creditorDebtorName.trim()}" เรียบร้อยแล้ว!`);
+        setCreditorDebtorName("");
+        setAmount("");
+        setNote("");
+        setDueDate("");
+      }
+      return;
+    }
+
     if (type === "transfer" && walletId === toWalletId) {
       alert("บัญชีต้นทางและปลายทางต้องไม่ซ้ำกัน");
       return;
@@ -270,7 +325,7 @@ export default function TransactionForm({
       )}
 
       {/* Transaction Type Tabs */}
-      <div className="grid grid-cols-3 gap-1.5 mb-4 bg-white/5 p-1 rounded-2xl border border-white/5">
+      <div className="grid grid-cols-4 gap-1 mb-4 bg-white/5 p-1 rounded-2xl border border-white/5">
         <button
           type="button"
           onClick={() => handleTypeChange("expense")}
@@ -303,6 +358,17 @@ export default function TransactionForm({
           }`}
         >
           🔄 โอนเงิน
+        </button>
+        <button
+          type="button"
+          onClick={() => setType("debt")}
+          className={`py-2 px-1 rounded-xl font-bold text-xs transition-all duration-200 cursor-pointer ${
+            type === "debt"
+              ? "bg-amber-500 text-white shadow-xs"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          }`}
+        >
+          🏛️ หนี้สิน
         </button>
       </div>
 
@@ -575,32 +641,113 @@ export default function TransactionForm({
           )}
         </div>
 
-        {/* Wallet Selectors */}
-        {wallets.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
+        {/* Wallet Selectors (Hidden during Debt mode if linkToWallet is false) */}
+        {type === "debt" ? (
+          <div className="space-y-4 bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20">
+            {/* Debt Type (Borrowed vs Lent) */}
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">
-                {type === "transfer" ? "โอนจากกระเป๋า" : "กระเป๋าตัง / บัญชีที่จ่าย/รับ"}
+              <label className="block text-xs font-bold text-amber-300 mb-1.5">
+                ประเภทหนี้สิน
               </label>
-              <select
-                value={walletId}
-                onChange={(e) => setWalletId(e.target.value)}
-                className="w-full px-3 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white focus:outline-hidden text-xs font-semibold cursor-pointer"
-              >
-                {wallets.map((w) => (
-                  <option key={w.id} value={w.id} className="bg-[#1e293b] text-white">
-                    {w.icon} {w.name}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDebtType("borrowed")}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    debtType === "borrowed"
+                      ? "bg-rose-500 text-white shadow-sm border border-rose-400/30"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>🔴 ยืมเงินเขามา</span>
+                  <span className="text-[10px] opacity-80">(เป็นเจ้าหนี้เรา)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebtType("lent")}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    debtType === "lent"
+                      ? "bg-emerald-500 text-white shadow-sm border border-emerald-400/30"
+                      : "bg-white/5 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <span>🟢 ให้เขายืมเงิน</span>
+                  <span className="text-[10px] opacity-80">(เป็นลูกหนี้เรา)</span>
+                </button>
+              </div>
             </div>
 
-            {type === "transfer" && (
+            {/* Creditor / Debtor Name */}
+            <div>
+              <label className="block text-xs font-bold text-amber-300 mb-1">
+                {debtType === "borrowed" ? "ชื่อเจ้าหนี้ (ผู้ที่เรายืมเงินมา)" : "ชื่อลูกหนี้ (ผู้ที่ยืมเงินเราไป)"} *
+              </label>
+              <input
+                type="text"
+                value={creditorDebtorName}
+                onChange={(e) => setCreditorDebtorName(e.target.value)}
+                placeholder={debtType === "borrowed" ? "เช่น เพื่อนสนิท, นาย ก., บัตรเครดิต" : "เช่น นาย ข., น้องชาย"}
+                className="w-full px-3 py-2 bg-[#1e293b] border border-amber-500/30 rounded-xl text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm font-semibold"
+                required
+              />
+            </div>
+
+            {/* Due Date */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">
+                กำหนดชำระคืน (ถ้ามี)
+              </label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-hidden text-sm cursor-pointer"
+              />
+            </div>
+
+            {/* Link to Wallet Option */}
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={linkToWallet}
+                  onChange={(e) => setLinkToWallet(e.target.checked)}
+                  className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+                />
+                <span>บันทึกยอดเงินเข้า/ออกจากกระเป๋าตังค์ทันที</span>
+              </label>
+              
+              {linkToWallet && wallets.length > 0 && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">
+                    {debtType === "borrowed" ? "กระเป๋าตังที่รับเงินยืมเข้า" : "กระเป๋าตังที่จ่ายเงินให้ยืม"}
+                  </label>
+                  <select
+                    value={walletId}
+                    onChange={(e) => setWalletId(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white focus:outline-hidden text-xs font-semibold cursor-pointer"
+                  >
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.id} className="bg-[#1e293b] text-white">
+                        {w.icon} {w.name} (คงเหลือ: ฿{(walletBalances?.[w.id] ?? 0).toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Wallet Selectors for Normal Transactions */
+          wallets.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/5 p-3 rounded-2xl border border-white/5">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">โอนเข้ากระเป๋า</label>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">
+                  {type === "transfer" ? "โอนจากกระเป๋า" : "กระเป๋าตัง / บัญชีที่จ่าย/รับ"}
+                </label>
                 <select
-                  value={toWalletId}
-                  onChange={(e) => setToWalletId(e.target.value)}
+                  value={walletId}
+                  onChange={(e) => setWalletId(e.target.value)}
                   className="w-full px-3 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white focus:outline-hidden text-xs font-semibold cursor-pointer"
                 >
                   {wallets.map((w) => (
@@ -610,12 +757,29 @@ export default function TransactionForm({
                   ))}
                 </select>
               </div>
-            )}
-          </div>
+
+              {type === "transfer" && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">โอนเข้ากระเป๋า</label>
+                  <select
+                    value={toWalletId}
+                    onChange={(e) => setToWalletId(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white focus:outline-hidden text-xs font-semibold cursor-pointer"
+                  >
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.id} className="bg-[#1e293b] text-white">
+                        {w.icon} {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )
         )}
 
-        {/* Category list (Hidden during transfer) */}
-        {type !== "transfer" && (
+        {/* Category list (Hidden during transfer and debt) */}
+        {type !== "transfer" && type !== "debt" && (
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">หมวดหมู่</label>
             <select
@@ -633,7 +797,7 @@ export default function TransactionForm({
         )}
 
         {/* Debt Selector for "ชำระหนี้" category */}
-        {type !== "transfer" && category === "ชำระหนี้" && (
+        {type !== "transfer" && type !== "debt" && category === "ชำระหนี้" && (
           <div className="bg-rose-500/5 border border-rose-500/20 p-3 rounded-2xl space-y-2">
             <label className="block text-xs font-bold text-rose-300">
               {type === "expense" ? "🔗 เลือกรายการหนี้ที่ต้องการชำระคืน" : "🔗 เลือกรายการหนี้ที่รับชำระคืน"}
@@ -649,7 +813,6 @@ export default function TransactionForm({
                   onChange={(e) => {
                     const dId = e.target.value;
                     setSelectedDebtId(dId);
-                    // Automatically pre-fill the merchantName and remaining amount if empty
                     const targetDebt = debts.find(d => d.id === dId);
                     if (targetDebt) {
                       if (type === "expense") {
@@ -684,16 +847,13 @@ export default function TransactionForm({
             ) : (
               <div className="text-xs text-rose-300/80 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20">
                 ⚠️ ไม่พบรายการหนี้สินที่ต้อง {type === "expense" ? "ชำระคืน" : "รับชำระคืน"} ในระบบขณะนี้
-                <p className="text-[10px] text-slate-400 mt-1">
-                  คุณสามารถเพิ่มรายการหนี้สินได้ในแถบ "หนี้สินและกู้ยืม"
-                </p>
               </div>
             )}
           </div>
         )}
 
-        {/* Merchant / Receiver Name (Hidden during transfer) */}
-        {type !== "transfer" && (
+        {/* Merchant / Receiver Name (Hidden during transfer and debt) */}
+        {type !== "transfer" && type !== "debt" && (
           <div>
             <label className="block text-xs font-semibold text-slate-400 mb-1">
               {type === "expense" ? "ร้านค้า / ผู้รับเงิน" : "ผู้โอนเงิน / แหล่งที่มา"}

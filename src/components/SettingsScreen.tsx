@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { 
   ShieldAlert, KeyRound, Download, Upload, Trash2, LogOut, Check, Save, Sparkles, AlertTriangle, Globe, Link,
-  Bell, Send, User, Users, RefreshCw, Clock, MessageSquare, Copy, Palette, Moon, Sun
+  Bell, Send, User, Users, RefreshCw, Clock, MessageSquare, Copy, Palette, Moon, Sun, FileSpreadsheet, Settings
 } from "lucide-react";
-import { Wallet, Transaction } from "../types";
+import { Wallet, Transaction, Debt, DebtPayment } from "../types";
+import MonthlyReport from "./MonthlyReport";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -11,6 +12,12 @@ interface SettingsScreenProps {
   currentUser: string;
   wallets: Wallet[];
   transactions: Transaction[];
+  debts?: Debt[];
+  debtPayments?: DebtPayment[];
+  selectedMonth?: string;
+  onMonthChange?: (m: string) => void;
+  availableMonths?: string[];
+  initialSubTab?: "report" | "settings";
   onResetAllData: () => void;
   onLogout: () => void;
   onImportBackup: (data: { wallets: Wallet[]; transactions: Transaction[] }) => void;
@@ -24,6 +31,12 @@ export default function SettingsScreen({
   currentUser,
   wallets,
   transactions,
+  debts = [],
+  debtPayments = [],
+  selectedMonth = "",
+  onMonthChange = () => {},
+  availableMonths = [],
+  initialSubTab = "report",
   onResetAllData,
   onLogout,
   onImportBackup,
@@ -32,6 +45,7 @@ export default function SettingsScreen({
   accentColor = "indigo",
   setAccentColor = () => {},
 }: SettingsScreenProps) {
+  const [activeSubTab, setActiveSubTab] = useState<"report" | "settings">(initialSubTab);
   const [newPin, setNewPin] = useState("");
   const [newPinConfirm, setNewPinConfirm] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -321,26 +335,85 @@ export default function SettingsScreen({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
-      <div className="flex justify-between items-center pb-4 border-b border-white/10">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            ⚙️ ระบบตั้งค่า (Settings & Security)
+            ⚙️ ระบบตั้งค่า & สรุปบัญชี
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            จัดการระบบความปลอดภัย สำรองข้อมูล และควบคุมบัญชีของคุณ
+            เครื่องมือออกรายงานสรุปบัญชี ตั้งค่าความปลอดภัย และสำรองข้อมูลของคุณ
           </p>
         </div>
-        <button
-          onClick={onLogout}
-          className="px-3 py-1.5 bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          ล็อคหน้าจอ
-        </button>
+        
+        <div className="flex items-center gap-2">
+          {/* Sub-tab Navigation */}
+          <div className="bg-white/5 border border-white/10 p-1 rounded-2xl flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab("report")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === "report"
+                  ? "bg-indigo-600 text-white shadow-md border border-white/10"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-300" />
+              <span>ออกรายงานและสรุปบัญชี</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab("settings")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeSubTab === "settings"
+                  ? "bg-indigo-600 text-white shadow-md border border-white/10"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5 text-slate-300" />
+              <span>ตั้งค่าระบบ & ปลดล็อค</span>
+            </button>
+          </div>
+
+          <button
+            onClick={onLogout}
+            className="px-3 py-2 bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            title="ล็อคหน้าจอเพื่อความปลอดภัย"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">ล็อคหน้าจอ</span>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* SUB-TAB 1: เครื่องมือออกรายงานและสรุปบัญชี */}
+      {activeSubTab === "report" && (
+        <div className="animate-fade-in space-y-4">
+          <div className="bg-indigo-500/10 border border-indigo-500/20 p-3.5 rounded-2xl text-xs text-indigo-300 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4 text-indigo-400 shrink-0" />
+              <span>📊 <strong>เครื่องมือออกรายงานและสรุปบัญชีประจำเดือน:</strong> ตรวจสอบรายรับ รายจ่าย ยอดคงเหลือยกมา ยอดหนี้สิน และส่งออกรายงานเป็นภาพหรือ PDF</span>
+            </div>
+          </div>
+
+          <MonthlyReport
+            transactions={transactions}
+            wallets={wallets}
+            debts={debts}
+            debtPayments={debtPayments}
+            selectedMonth={selectedMonth}
+            onMonthChange={onMonthChange}
+            availableMonths={availableMonths}
+            currentUser={currentUser}
+          />
+        </div>
+      )}
+
+      {/* SUB-TAB 2: ตั้งค่าระบบ ความปลอดภัย และสำรองข้อมูล */}
+      {activeSubTab === "settings" && (
+        <div className="space-y-8 animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Security Settings Section */}
         <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
@@ -788,5 +861,7 @@ export default function SettingsScreen({
         </button>
       </div>
     </div>
-  );
+  )}
+</div>
+);
 }

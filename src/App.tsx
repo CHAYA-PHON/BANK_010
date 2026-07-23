@@ -133,6 +133,7 @@ export default function App() {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("manual");
   const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report" | "services">("dashboard");
+  const [walletSubTab, setWalletSubTab] = useState<"wallets" | "debts">("wallets");
   
   // Dynamically calculate balances of each wallet
   const walletBalances = useMemo(() => {
@@ -1445,18 +1446,7 @@ export default function App() {
               }`}
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>บันทึกเอง</span>
-            </button>
-            <button
-              onClick={() => setCurrentPage("report")}
-              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
-                currentPage === "report"
-                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>รายงาน</span>
+              <span>บันทึกรายการ</span>
             </button>
             <button
               onClick={() => setCurrentPage("services")}
@@ -1470,37 +1460,29 @@ export default function App() {
               <span>น้ำไฟ & บำรุง</span>
             </button>
             <button
-              onClick={() => setCurrentPage("wallets")}
+              onClick={() => {
+                setCurrentPage("wallets");
+                setWalletSubTab("wallets");
+              }}
               className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
-                currentPage === "wallets"
+                currentPage === "wallets" || currentPage === "debts"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
               <WalletIcon className="w-3.5 h-3.5" />
-              <span>กระเป๋าเงิน</span>
-            </button>
-            <button
-              onClick={() => setCurrentPage("debts")}
-              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
-                currentPage === "debts"
-                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <Landmark className="w-3.5 h-3.5" />
-              <span>หนี้สิน</span>
+              <span>กระเป๋าเงิน & หนี้สิน</span>
             </button>
             <button
               onClick={() => setCurrentPage("settings")}
               className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
-                currentPage === "settings"
+                currentPage === "settings" || currentPage === "report"
                   ? "bg-indigo-600 text-white shadow-sm border border-white/10"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
               <Settings className="w-3.5 h-3.5" />
-              <span>ตั้งค่า</span>
+              <span>ตั้งค่า & สรุปบัญชี</span>
             </button>
           </nav>
 
@@ -1550,7 +1532,7 @@ export default function App() {
 
       {/* Mobile Sticky Bottom Navigation Bar (App-like Navigation) */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#090d16]/95 backdrop-blur-lg border-t border-white/10 shadow-[0_-8px_30px_rgb(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2.5">
-        <div className="grid grid-cols-7 h-12 max-w-md mx-auto px-0.5">
+        <div className="grid grid-cols-5 h-12 max-w-md mx-auto px-0.5">
           <button
             onClick={() => setCurrentPage("dashboard")}
             className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
@@ -1582,40 +1564,25 @@ export default function App() {
             <span className="text-[9px] leading-none">น้ำไฟ/รถ</span>
           </button>
           <button
-            onClick={() => setCurrentPage("report")}
+            onClick={() => {
+              setCurrentPage("wallets");
+              setWalletSubTab("wallets");
+            }}
             className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-              currentPage === "report" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+              currentPage === "wallets" || currentPage === "debts" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <FileSpreadsheet className={`w-4 h-4 ${currentPage === "report" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[9px] leading-none">รายงาน</span>
-          </button>
-          <button
-            onClick={() => setCurrentPage("wallets")}
-            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-              currentPage === "wallets" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <WalletIcon className={`w-4 h-4 ${currentPage === "wallets" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[9px] leading-none">กระเป๋า</span>
-          </button>
-          <button
-            onClick={() => setCurrentPage("debts")}
-            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-              currentPage === "debts" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <Landmark className={`w-4 h-4 ${currentPage === "debts" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[9px] leading-none">หนี้สิน</span>
+            <WalletIcon className={`w-4 h-4 ${currentPage === "wallets" || currentPage === "debts" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">กระเป๋า/หนี้</span>
           </button>
           <button
             onClick={() => setCurrentPage("settings")}
             className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-              currentPage === "settings" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
+              currentPage === "settings" || currentPage === "report" ? "text-indigo-400 font-extrabold" : "text-slate-400 hover:text-white"
             }`}
           >
-            <Settings className={`w-4 h-4 ${currentPage === "settings" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
-            <span className="text-[9px] leading-none">ตั้งค่า</span>
+            <Settings className={`w-4 h-4 ${currentPage === "settings" || currentPage === "report" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">ตั้งค่า & สรุป</span>
           </button>
         </div>
       </nav>
@@ -1727,6 +1694,7 @@ export default function App() {
                     wallets={wallets}
                     walletBalances={walletBalances}
                     debts={debts}
+                    onAddDebt={handleAddDebt}
                     expenseHistoryNames={expenseHistoryNames}
                     incomeHistoryNames={incomeHistoryNames}
                   />
@@ -1768,46 +1736,86 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 3: Wallet Management Panel */}
-        {currentPage === "wallets" && (
-          <div className="animate-fade-in">
-            <WalletManager
-              wallets={wallets}
-              transactions={transactions}
-              onAddWallet={handleAddWallet}
-              onUpdateWallet={handleUpdateWallet}
-              onDeleteWallet={handleDeleteWallet}
-              onAddTransaction={handleAddTransaction}
-              onEditTransaction={handleEditTrigger}
-              onDeleteTransaction={handleDeleteTransaction}
-              onReorderWallets={handleReorderWallets}
-              theme={theme}
-            />
+        {/* VIEW 3: Wallet Management Panel & Debt System */}
+        {(currentPage === "wallets" || currentPage === "debts") && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Top Sub-navigation for Wallet & Debt System */}
+            <div className="flex items-center justify-between bg-white/5 border border-white/10 p-2 rounded-2xl">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWalletSubTab("wallets");
+                    if (currentPage === "debts") setCurrentPage("wallets");
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    walletSubTab === "wallets" && currentPage !== "debts"
+                      ? "bg-indigo-600 text-white shadow-md border border-white/10"
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <WalletIcon className="w-4 h-4" />
+                  <span>👛 กระเป๋าเงินทั้งหมด</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWalletSubTab("debts");
+                    if (currentPage === "debts") setCurrentPage("wallets");
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    walletSubTab === "debts" || currentPage === "debts"
+                      ? "bg-indigo-600 text-white shadow-md border border-white/10"
+                      : "text-slate-400 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <Landmark className="w-4 h-4 text-amber-400" />
+                  <span>🏛️ ระบบหนี้สิน & เงินยืม</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub View Content */}
+            {(walletSubTab === "wallets" && currentPage !== "debts") ? (
+              <WalletManager
+                wallets={wallets}
+                transactions={transactions}
+                onAddWallet={handleAddWallet}
+                onUpdateWallet={handleUpdateWallet}
+                onDeleteWallet={handleDeleteWallet}
+                onAddTransaction={handleAddTransaction}
+                onEditTransaction={handleEditTrigger}
+                onDeleteTransaction={handleDeleteTransaction}
+                onReorderWallets={handleReorderWallets}
+                theme={theme}
+              />
+            ) : (
+              <DebtManager
+                wallets={wallets}
+                walletBalances={walletBalances}
+                debts={debts}
+                debtPayments={debtPayments}
+                onAddDebt={handleAddDebt}
+                onAddDebtPayment={handleAddDebtPayment}
+                onDeleteDebt={handleDeleteDebt}
+              />
+            )}
           </div>
         )}
 
-        {/* VIEW 4: Debt & Loan Management Panel */}
-        {currentPage === "debts" && (
-          <div className="animate-fade-in">
-            <DebtManager
-              wallets={wallets}
-              walletBalances={walletBalances}
-              debts={debts}
-              debtPayments={debtPayments}
-              onAddDebt={handleAddDebt}
-              onAddDebtPayment={handleAddDebtPayment}
-              onDeleteDebt={handleDeleteDebt}
-            />
-          </div>
-        )}
-
-        {/* VIEW 5: Core System Settings */}
-        {currentPage === "settings" && (
+        {/* VIEW 4: Core System Settings & Report Summary */}
+        {(currentPage === "settings" || currentPage === "report") && (
           <div className="animate-fade-in">
             <SettingsScreen
               currentUser={currentUser}
               wallets={wallets}
               transactions={transactions}
+              debts={debts}
+              debtPayments={debtPayments}
+              selectedMonth={selectedMonth}
+              onMonthChange={setSelectedMonth}
+              availableMonths={availableMonths}
+              initialSubTab={currentPage === "report" ? "report" : "settings"}
               onResetAllData={handleResetAllData}
               onLogout={handleLogout}
               onImportBackup={handleImportBackup}
@@ -1815,22 +1823,6 @@ export default function App() {
               setTheme={setTheme}
               accentColor={accentColor}
               setAccentColor={setAccentColor}
-            />
-          </div>
-        )}
-
-        {/* VIEW 6: Monthly Statement & Financial Report */}
-        {currentPage === "report" && (
-          <div className="animate-fade-in">
-            <MonthlyReport
-              transactions={transactions}
-              wallets={wallets}
-              debts={debts}
-              debtPayments={debtPayments}
-              selectedMonth={selectedMonth}
-              onMonthChange={setSelectedMonth}
-              availableMonths={availableMonths}
-              currentUser={currentUser}
             />
           </div>
         )}
