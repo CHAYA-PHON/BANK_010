@@ -328,6 +328,14 @@ export default function ServiceAndUtilityManager({
 
   // Yearly monthly matrix for chart
   const monthlyMatrix = useMemo(() => {
+    const getPrecedingBillAmount = (type: "electricity" | "water", currentYm: string): number | null => {
+      const previousBills = utilityBills
+        .filter(b => b.type === type && b.billingMonth < currentYm)
+        .sort((a, b) => b.billingMonth.localeCompare(a.billingMonth));
+      if (previousBills.length === 0) return null;
+      return previousBills[0].totalAmount;
+    };
+
     const months = Array.from({ length: 12 }, (_, i) => {
       const mStr = (i + 1).toString().padStart(2, "0");
       const ym = `${selectedUtilityYear}-${mStr}`;
@@ -339,6 +347,22 @@ export default function ServiceAndUtilityManager({
       const elecUnits = elecBill ? elecBill.unitsUsed : 0;
       const waterUnits = waterBill ? waterBill.unitsUsed : 0;
 
+      let elecDiff: number | null = null;
+      if (elecAmount > 0) {
+        const prevElecAmount = getPrecedingBillAmount("electricity", ym);
+        if (prevElecAmount !== null) {
+          elecDiff = elecAmount - prevElecAmount;
+        }
+      }
+
+      let waterDiff: number | null = null;
+      if (waterAmount > 0) {
+        const prevWaterAmount = getPrecedingBillAmount("water", ym);
+        if (prevWaterAmount !== null) {
+          waterDiff = waterAmount - prevWaterAmount;
+        }
+      }
+
       return {
         monthIndex: i,
         monthName: ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."][i],
@@ -349,10 +373,16 @@ export default function ServiceAndUtilityManager({
         waterAmount,
         elecUnits,
         waterUnits,
+        elecDiff,
+        waterDiff,
         totalAmount: elecAmount + waterAmount
       };
     });
 
+    const maxSingleAmount = Math.max(
+      ...months.flatMap(m => [m.elecAmount, m.waterAmount]),
+      100
+    );
     const maxMonthlyTotal = Math.max(...months.map(m => m.totalAmount), 1);
     const totalElecYear = months.reduce((sum, m) => sum + m.elecAmount, 0);
     const totalWaterYear = months.reduce((sum, m) => sum + m.waterAmount, 0);
@@ -362,13 +392,14 @@ export default function ServiceAndUtilityManager({
 
     return {
       months,
+      maxSingleAmount,
       maxMonthlyTotal,
       totalElecYear,
       totalWaterYear,
       totalYear,
       avgMonthly
     };
-  }, [yearlyBills, selectedUtilityYear]);
+  }, [yearlyBills, utilityBills, selectedUtilityYear]);
 
   // ==========================================
   // VEHICLE MILEAGE & OIL CHANGE STATE & LOGIC
@@ -1218,60 +1249,160 @@ export default function ServiceAndUtilityManager({
 
             {/* Monthly Bar Chart */}
             <div className="space-y-2">
-              <span className={`text-xs font-bold block mb-2 ${theme === "light" ? "text-slate-700" : "text-slate-400"}`}>
-                กราฟเปรียบเทียบแต่ละเดือน (ม.ค. - ธ.ค.)
-              </span>
-              <div className={`grid grid-cols-6 sm:grid-cols-12 gap-1.5 items-end h-40 p-3 rounded-xl border ${
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                <span className={`text-xs font-extrabold flex items-center gap-1.5 ${theme === "light" ? "text-slate-800" : "text-slate-200"}`}>
+                  <BarChart3 className="w-4 h-4 text-indigo-500" />
+                  <span>กราฟเปรียบเทียบแต่ละเดือน (ม.ค. - ธ.ค.)</span>
+                </span>
+                <span className={`text-[11px] font-medium flex items-center gap-3 ${
+                  theme === "light" ? "text-slate-600" : "text-slate-400"
+                }`}>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> เพิ่มขึ้น (+)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> ลดลง (-)
+                  </span>
+                </span>
+              </div>
+
+              <div className={`grid grid-cols-12 gap-1 sm:gap-2 items-end h-56 p-2.5 sm:p-4 rounded-2xl border ${
                 theme === "light"
-                  ? "bg-slate-50 border-slate-200"
-                  : "bg-black/30 border-white/5"
+                  ? "bg-slate-50/90 border-slate-200 shadow-2xs"
+                  : "bg-black/40 border-white/10"
               }`}>
                 {monthlyMatrix.months.map((m) => {
-                  const heightPercent = monthlyMatrix.maxMonthlyTotal > 0
-                    ? Math.max(4, Math.round((m.totalAmount / monthlyMatrix.maxMonthlyTotal) * 100))
-                    : 4;
+                  const elecHeightPercent = monthlyMatrix.maxSingleAmount > 0 && m.elecAmount > 0
+                    ? Math.max(6, Math.round((m.elecAmount / monthlyMatrix.maxSingleAmount) * 100))
+                    : 0;
+
+                  const waterHeightPercent = monthlyMatrix.maxSingleAmount > 0 && m.waterAmount > 0
+                    ? Math.max(6, Math.round((m.waterAmount / monthlyMatrix.maxSingleAmount) * 100))
+                    : 0;
 
                   return (
                     <div key={m.ym} className="flex flex-col items-center justify-end h-full group relative">
                       {/* Tooltip on hover */}
-                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-950 border border-white/20 p-2 rounded-lg text-[10px] text-white whitespace-nowrap z-30 shadow-xl pointer-events-none">
-                        <span className="font-bold text-indigo-300">{m.monthName} {selectedUtilityYear + 543}</span>
-                        {m.elecAmount > 0 && <span className="text-amber-300">⚡ ค่าไฟ: ฿{m.elecAmount.toLocaleString()} ({m.elecUnits} หน่วย)</span>}
-                        {m.waterAmount > 0 && <span className="text-cyan-300">💧 ค่าน้ำ: ฿{m.waterAmount.toLocaleString()} ({m.waterUnits} หน่วย)</span>}
+                      <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col bg-slate-950 border border-white/20 p-2.5 rounded-xl text-[11px] text-white whitespace-nowrap z-30 shadow-2xl pointer-events-none gap-1">
+                        <span className="font-bold text-indigo-300 border-b border-white/10 pb-1">
+                          {m.monthName} พ.ศ. {selectedUtilityYear + 543}
+                        </span>
+                        {m.elecAmount > 0 ? (
+                          <div className="flex items-center justify-between gap-3 text-amber-300">
+                            <span>⚡ ค่าไฟ: ฿{m.elecAmount.toLocaleString()} ({m.elecUnits} หน่วย)</span>
+                            {m.elecDiff !== null && (
+                              <span className={`font-mono font-bold ${
+                                m.elecDiff > 0 ? "text-rose-400" : m.elecDiff < 0 ? "text-emerald-400" : "text-slate-400"
+                              }`}>
+                                ({m.elecDiff > 0 ? `+฿${m.elecDiff.toLocaleString()}` : `-฿${Math.abs(m.elecDiff).toLocaleString()}`})
+                              </span>
+                            )}
+                          </div>
+                        ) : null}
+
+                        {m.waterAmount > 0 ? (
+                          <div className="flex items-center justify-between gap-3 text-cyan-300">
+                            <span>💧 ค่าน้ำ: ฿{m.waterAmount.toLocaleString()} ({m.waterUnits} หน่วย)</span>
+                            {m.waterDiff !== null && (
+                              <span className={`font-mono font-bold ${
+                                m.waterDiff > 0 ? "text-rose-400" : m.waterDiff < 0 ? "text-emerald-400" : "text-slate-400"
+                              }`}>
+                                ({m.waterDiff > 0 ? `+฿${m.waterDiff.toLocaleString()}` : `-฿${Math.abs(m.waterDiff).toLocaleString()}`})
+                              </span>
+                            )}
+                          </div>
+                        ) : null}
+
                         {m.totalAmount === 0 && <span className="text-slate-400">ไม่มีบันทึกข้อมูล</span>}
+                        {m.totalAmount > 0 && (
+                          <div className="border-t border-white/10 pt-1 flex justify-between font-bold text-white">
+                            <span>รวมทั้งสิ้น:</span>
+                            <span className="font-mono">฿{m.totalAmount.toLocaleString()}</span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className={`w-full max-w-[28px] rounded-t-md overflow-hidden flex flex-col justify-end transition-all duration-300 group-hover:scale-105 ${
-                        theme === "light" ? "bg-slate-200" : "bg-slate-800"
-                      }`} style={{ height: `${heightPercent}%` }}>
-                        {m.elecAmount > 0 && (
-                          <div 
-                            className="w-full bg-gradient-to-t from-amber-600 to-amber-400" 
-                            style={{ height: `${(m.elecAmount / (m.totalAmount || 1)) * 100}%` }}
-                          />
-                        )}
-                        {m.waterAmount > 0 && (
-                          <div 
-                            className="w-full bg-gradient-to-t from-cyan-600 to-cyan-400" 
-                            style={{ height: `${(m.waterAmount / (m.totalAmount || 1)) * 100}%` }}
-                          />
-                        )}
+                      {/* Bars Group (Side-by-side Electricity & Water) */}
+                      <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-full pt-6">
+                        {/* Electricity Bar Column */}
+                        <div className="flex-1 max-w-[16px] sm:max-w-[22px] h-full flex flex-col justify-end items-center relative">
+                          {/* Difference text above Electricity Bar */}
+                          {m.elecAmount > 0 && m.elecDiff !== null && (
+                            <span className={`absolute -top-5 text-[8px] sm:text-[10px] font-mono font-extrabold whitespace-nowrap px-0.5 rounded leading-none z-10 ${
+                              m.elecDiff > 0 
+                                ? "text-rose-600 dark:text-rose-400 bg-rose-500/10" 
+                                : m.elecDiff < 0 
+                                  ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" 
+                                  : "text-slate-400"
+                            }`}>
+                              {m.elecDiff > 0 ? `+${Math.round(m.elecDiff)}` : `${Math.round(m.elecDiff)}`}
+                            </span>
+                          )}
+
+                          {m.elecAmount > 0 ? (
+                            <div 
+                              className="w-full bg-gradient-to-t from-amber-600 via-amber-500 to-amber-400 border-t border-x border-amber-300/60 rounded-t-sm sm:rounded-t-md transition-all duration-300 hover:brightness-110 shadow-xs"
+                              style={{ height: `${elecHeightPercent}%` }}
+                              title={`ค่าไฟ ฿${m.elecAmount.toLocaleString()}`}
+                            />
+                          ) : (
+                            <div className={`w-full h-1 rounded-t-xs ${theme === "light" ? "bg-slate-200" : "bg-slate-800"}`} />
+                          )}
+                        </div>
+
+                        {/* Water Bar Column */}
+                        <div className="flex-1 max-w-[16px] sm:max-w-[22px] h-full flex flex-col justify-end items-center relative">
+                          {/* Difference text above Water Bar */}
+                          {m.waterAmount > 0 && m.waterDiff !== null && (
+                            <span className={`absolute -top-5 text-[8px] sm:text-[10px] font-mono font-extrabold whitespace-nowrap px-0.5 rounded leading-none z-10 ${
+                              m.waterDiff > 0 
+                                ? "text-rose-600 dark:text-rose-400 bg-rose-500/10" 
+                                : m.waterDiff < 0 
+                                  ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" 
+                                  : "text-slate-400"
+                            }`}>
+                              {m.waterDiff > 0 ? `+${Math.round(m.waterDiff)}` : `${Math.round(m.waterDiff)}`}
+                            </span>
+                          )}
+
+                          {m.waterAmount > 0 ? (
+                            <div 
+                              className="w-full bg-gradient-to-t from-cyan-600 via-cyan-500 to-cyan-400 border-t border-x border-cyan-300/60 rounded-t-sm sm:rounded-t-md transition-all duration-300 hover:brightness-110 shadow-xs"
+                              style={{ height: `${waterHeightPercent}%` }}
+                              title={`ค่าน้ำ ฿${m.waterAmount.toLocaleString()}`}
+                            />
+                          ) : (
+                            <div className={`w-full h-1 rounded-t-xs ${theme === "light" ? "bg-slate-200" : "bg-slate-800"}`} />
+                          )}
+                        </div>
                       </div>
-                      <span className={`text-[10px] mt-1.5 font-bold ${
-                        theme === "light" ? "text-slate-700" : "text-slate-400"
-                      }`}>{m.monthName}</span>
+
+                      {/* Month Label */}
+                      <span className={`text-[10px] sm:text-xs mt-2 font-bold ${
+                        theme === "light" ? "text-slate-700" : "text-slate-300"
+                      }`}>
+                        {m.monthName}
+                      </span>
                     </div>
                   );
                 })}
               </div>
-              <div className={`flex items-center justify-center gap-4 text-[11px] pt-2 font-medium ${
-                theme === "light" ? "text-slate-700" : "text-slate-400"
+
+              {/* Chart Legend */}
+              <div className={`flex flex-wrap items-center justify-center gap-4 text-xs pt-2 font-bold ${
+                theme === "light" ? "text-slate-700" : "text-slate-300"
               }`}>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" /> ค่าไฟ (⚡)
+                  <span className="w-3 h-3 rounded-xs bg-amber-500 inline-block border border-amber-300" /> ค่าไฟฟ้า (⚡)
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-cyan-500 inline-block" /> ค่าน้ำ (💧)
+                  <span className="w-3 h-3 rounded-xs bg-cyan-500 inline-block border border-cyan-300" /> ค่าน้ำประปา (💧)
+                </span>
+                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                  <span className="font-mono font-extrabold">+เพิ่มขึ้น (สีแดง)</span>
+                </span>
+                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                  <span className="font-mono font-extrabold">-ลดลง (สีเขียว)</span>
                 </span>
               </div>
             </div>
