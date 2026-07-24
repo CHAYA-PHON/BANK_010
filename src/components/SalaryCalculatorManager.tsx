@@ -6,7 +6,8 @@ import {
   Truck, Coffee, HelpCircle, Check, Edit, ShieldAlert, ArrowRight, 
   ChevronDown, ChevronUp, RefreshCw, Sliders, Landmark, Wallet as WalletIcon,
   Printer, ArrowUpRight, Flag, CalendarCheck, UserCheck, Star, ShieldCheck,
-  FileCheck, Repeat, Loader2, CreditCard
+  FileCheck, Repeat, Loader2, CreditCard, Coins, TrendingUp, TrendingDown,
+  BarChart3, Search, ArrowUp, ArrowDown, Utensils
 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -53,6 +54,14 @@ export interface PublicHolidayItem {
   name: string; // เช่น วันขึ้นปีใหม่, วันสงกรานต์
 }
 
+export interface SalaryRaiseItem {
+  id: string;
+  effectiveMonth: string; // YYYY-MM e.g. "2026-04"
+  type: "amount" | "percent"; // "amount" (บาท) or "percent" (%)
+  value: number; // e.g. 2000 or 5
+  note?: string; // e.g. "ปรับประจำปี 2026"
+}
+
 export interface SalaryConfig {
   baseSalary: number; // ฐานเงินเดือน
   mealAllowanceDaily: number; // ค่าข้าว ต่อวัน (default 47)
@@ -76,11 +85,13 @@ export interface SalaryConfig {
 
   annualBonus: number; // โบนัสประจำปี (จ่าย ธันวาคม)
   studentLoanDeduction: number; // หัก กยศ. (default 900)
-  socialSecurityPercent: number; // ประกันสังคม % (default 5% max 750)
+  socialSecurityPercent: number; // ประกันสังคม % (default 5%)
+  socialSecurityMaxCap?: number; // ยอดหักสูงสุดประกันสังคม (default 750)
   kpiDeduction: number; // หัก KPI
   otherDeduction: number; // รายการหักเพิ่มเติม
 
   publicHolidays: PublicHolidayItem[]; // รายการวันหยุดนักขัตฤกษ์ที่กำหนดไว้
+  salaryRaises?: SalaryRaiseItem[]; // ประวัติ/กำหนดการปรับขึ้นเงินเดือน
 }
 
 export interface DailyAttendance {
@@ -148,6 +159,7 @@ const DEFAULT_SALARY_CONFIG: SalaryConfig = {
   annualBonus: 15000,
   studentLoanDeduction: 900,
   socialSecurityPercent: 5,
+  socialSecurityMaxCap: 750,
   kpiDeduction: 0,
   otherDeduction: 0,
   publicHolidays: DEFAULT_HOLIDAYS,
@@ -178,7 +190,7 @@ export default function SalaryCalculatorManager({
   });
 
   const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<"summary" | "daily" | "payslip">("summary");
+  const [activeTab, setActiveTab] = useState<"summary" | "daily" | "payslip" | "annual">("summary");
 
   // Selected Month & Period
   const now = new Date();
@@ -197,6 +209,85 @@ export default function SalaryCalculatorManager({
   const periodKey = useMemo(() => {
     return `${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
   }, [selectedMonth, isDecember, decemberPeriod]);
+
+  // Direct monthly overrides for KPI, Position, Other Income, Student Loan, Social Security
+  const [kpiAllowanceInput, setKpiAllowanceInput] = useState<number>(config.kpiAllowanceMonthly);
+  const [positionAllowanceInput, setPositionAllowanceInput] = useState<number>(config.positionAllowanceMonthly);
+  const [otherIncomeInput, setOtherIncomeInput] = useState<number>(config.otherIncomeMonthly);
+
+  const [studentLoanInput, setStudentLoanInput] = useState<number>(config.studentLoanDeduction);
+  const [socialSecurityInput, setSocialSecurityInput] = useState<number>(750);
+
+  // Search History for Custom Earnings Autocomplete
+  const DEFAULT_EARNING_HISTORY = [
+    "เบี้ยขยัน (จ่ายช่วงไฮซีซัน)",
+    "พักร้อนคืนเงิน",
+    "ค่าอายุงานประจำปี",
+    "ค่าจุดพิเศษ",
+    "ค่าวุฒิบัตร",
+    "ค่าเข้าเวรพิเศษ",
+    "ค่าเบี้ยเลี้ยงต่างจังหวัด",
+    "ค่าโทรศัพท์",
+    "ค่าคอมมิชชั่น",
+    "เงินรางวัลพิเศษ",
+    "ค่าเช่าคอมพิวเตอร์",
+    "ค่าโอทีเหมาจ่าย",
+    "ค่าครองชีพ",
+    "ค่าตอบแทนพิเศษ",
+    "โบนัสเป้าหมาย",
+  ];
+
+  const [earningHistory, setEarningHistory] = useState<string[]>(() => {
+    const saved = localStorage.getItem(`salary_earning_history_${currentUser || "default"}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return DEFAULT_EARNING_HISTORY;
+  });
+
+  const [showEarningSuggestions, setShowEarningSuggestions] = useState<boolean>(false);
+
+  // Search History for Custom Deductions Autocomplete
+  const DEFAULT_DEDUCTION_HISTORY = [
+    "ค่าวุฒิบัตร",
+    "หัก KPI (ส่งงานเกินกำหนด/ผิดพลาด)",
+    "ค่าปรับเข้างานสาย",
+    "ค่าประกันเครื่องแบบ / อุปกรณ์",
+    "ค่าของเสียหาย / ปรับทุจริต",
+    "หักลาเกินกำหนด / ขาดงาน",
+    "เงินกู้ยืมสวัสดิการ",
+    "ค่าธรรมเนียมการโอน",
+    "รายการหักอื่นๆ",
+  ];
+
+  const [deductionHistory, setDeductionHistory] = useState<string[]>(() => {
+    const saved = localStorage.getItem(`salary_deduction_history_${currentUser || "default"}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return DEFAULT_DEDUCTION_HISTORY;
+  });
+
+  const [showDeductionSuggestions, setShowDeductionSuggestions] = useState<boolean>(false);
+
+  // New Salary Raise Input state in config modal
+  const [newRaiseMonth, setNewRaiseMonth] = useState<string>(defaultMonthStr);
+  const [newRaiseType, setNewRaiseType] = useState<"amount" | "percent">("amount");
+  const [newRaiseValue, setNewRaiseValue] = useState<string>("");
+  const [newRaiseNote, setNewRaiseNote] = useState<string>("");
+
+  // Annual Overview Year
+  const [annualSelectedYear, setAnnualSelectedYear] = useState<number>(now.getFullYear());
 
   // Recorded Status for current month/period
   const [recordStatus, setRecordStatus] = useState<RecordedPeriodStatus>({
@@ -487,20 +578,30 @@ export default function SalaryCalculatorManager({
 
   // Handlers for Custom Earnings & Deductions
   const handleAddCustomEarning = () => {
-    if (!newEarningName.trim()) {
+    const trimmedName = newEarningName.trim();
+    if (!trimmedName) {
       alert("กรุณากรอกชื่อรายการรับเพิ่มเติม");
       return;
     }
     const amt = Number(newEarningAmount) || 0;
     const newItem: CustomAdjustmentItem = {
       id: `ce_${Date.now()}`,
-      name: newEarningName.trim(),
+      name: trimmedName,
       amount: amt,
     };
     const updated = [...customEarnings, newItem];
     saveCustomAdjustments(updated, customDeductions);
+
+    // Save to history list for autocomplete search
+    if (!earningHistory.includes(trimmedName)) {
+      const updatedHistory = [trimmedName, ...earningHistory].slice(0, 20);
+      setEarningHistory(updatedHistory);
+      localStorage.setItem(`salary_earning_history_${currentUser || "default"}`, JSON.stringify(updatedHistory));
+    }
+
     setNewEarningName("");
     setNewEarningAmount("");
+    setShowEarningSuggestions(false);
   };
 
   const handleDeleteCustomEarning = (id: string) => {
@@ -509,20 +610,30 @@ export default function SalaryCalculatorManager({
   };
 
   const handleAddCustomDeduction = () => {
-    if (!newDeductionName.trim()) {
+    const trimmedName = newDeductionName.trim();
+    if (!trimmedName) {
       alert("กรุณากรอกชื่อรายการหักเพิ่มเติม");
       return;
     }
     const amt = Number(newDeductionAmount) || 0;
     const newItem: CustomAdjustmentItem = {
       id: `cd_${Date.now()}`,
-      name: newDeductionName.trim(),
+      name: trimmedName,
       amount: amt,
     };
     const updated = [...customDeductions, newItem];
     saveCustomAdjustments(customEarnings, updated);
+
+    // Save to deduction history list for autocomplete search
+    if (!deductionHistory.includes(trimmedName)) {
+      const updatedHistory = [trimmedName, ...deductionHistory].slice(0, 20);
+      setDeductionHistory(updatedHistory);
+      localStorage.setItem(`salary_deduction_history_${currentUser || "default"}`, JSON.stringify(updatedHistory));
+    }
+
     setNewDeductionName("");
     setNewDeductionAmount("");
+    setShowDeductionSuggestions(false);
   };
 
   const handleDeleteCustomDeduction = (id: string) => {
@@ -688,7 +799,7 @@ export default function SalaryCalculatorManager({
         }
 
         const savedItem = savedMap[d];
-        if (savedItem) {
+        if (savedItem && (!savedItem.dateStr || savedItem.dateStr === dateStr)) {
           logs.push({
             ...savedItem,
             day: d,
@@ -721,9 +832,15 @@ export default function SalaryCalculatorManager({
     };
   }, [selectedMonth, decemberPeriod, config.publicHolidays, currentMonthStorageKey, currentUser, isDecember]);
 
+  // Guard dailyLogs matching selected month before persisting to avoid month-change race conditions
+  const isDailyLogsMatchingSelectedMonth = useMemo(() => {
+    if (!dailyLogs || dailyLogs.length === 0) return false;
+    return dailyLogs[0]?.dateStr?.startsWith(selectedMonth) ?? false;
+  }, [dailyLogs, selectedMonth]);
+
   // Persist dailyLogs to localStorage AND Firestore (with 400ms debounce for smooth editing)
   useEffect(() => {
-    if (!selectedMonth || dailyLogs.length === 0) return;
+    if (!selectedMonth || dailyLogs.length === 0 || !isDailyLogsMatchingSelectedMonth) return;
     localStorage.setItem(currentMonthStorageKey, JSON.stringify(dailyLogs));
 
     if (currentUser) {
@@ -806,28 +923,76 @@ export default function SalaryCalculatorManager({
     setShiftedHolidayCount(shiftHoliday);
   }, [dailyLogs]);
 
+  // Effective Base Salary considering Salary Raises Schedule
+  const effectiveBaseSalary = useMemo(() => {
+    let currentBase = config.baseSalary;
+    const raises = config.salaryRaises || [];
+    if (raises.length > 0) {
+      const sorted = [...raises].sort((a, b) => a.effectiveMonth.localeCompare(b.effectiveMonth));
+      for (const r of sorted) {
+        if (selectedMonth >= r.effectiveMonth) {
+          if (r.type === "amount") {
+            currentBase += Number(r.value) || 0;
+          } else if (r.type === "percent") {
+            currentBase += currentBase * ((Number(r.value) || 0) / 100);
+          }
+        }
+      }
+    }
+    return Math.round(currentBase);
+  }, [config.baseSalary, config.salaryRaises, selectedMonth]);
+
+  // Calculated default social security
+  const defaultSocialSecurity = useMemo(() => {
+    let periodBaseSalary = effectiveBaseSalary;
+    if (isDecember) {
+      if (decemberPeriod === "p1") periodBaseSalary = (effectiveBaseSalary / 31) * 20;
+      else if (decemberPeriod === "p2") periodBaseSalary = (effectiveBaseSalary / 31) * 11;
+    }
+    if (isDecember && decemberPeriod === "p2") return 0;
+    const rawSocSec = periodBaseSalary * (config.socialSecurityPercent / 100);
+    const maxCap = config.socialSecurityMaxCap ?? 750;
+    return Math.min(maxCap, Math.round(rawSocSec));
+  }, [effectiveBaseSalary, config.socialSecurityPercent, config.socialSecurityMaxCap, isDecember, decemberPeriod]);
+
+  // Sync direct monthly inputs when config or period changes
+  useEffect(() => {
+    setKpiAllowanceInput(config.kpiAllowanceMonthly);
+    setPositionAllowanceInput(config.positionAllowanceMonthly);
+    setOtherIncomeInput(config.otherIncomeMonthly);
+    setStudentLoanInput(config.studentLoanDeduction);
+    setSocialSecurityInput(defaultSocialSecurity);
+  }, [
+    config.kpiAllowanceMonthly,
+    config.positionAllowanceMonthly,
+    config.otherIncomeMonthly,
+    config.studentLoanDeduction,
+    defaultSocialSecurity,
+    periodKey,
+  ]);
+
   // Main Salary Calculations
   const calcResults = useMemo(() => {
-    // OT 1.0 Hourly Rate = Base Salary / 30 / 8
-    const ot1Rate = config.baseSalary / 30 / 8;
+    // OT 1.0 Hourly Rate = Effective Base Salary / 30 / 8
+    const ot1Rate = effectiveBaseSalary / 30 / 8;
     const ot15Rate = ot1Rate * 1.5;
     const ot3Rate = ot1Rate * 3.0;
 
     // Base salary for period
-    let periodBaseSalary = config.baseSalary;
+    let periodBaseSalary = effectiveBaseSalary;
     let periodDaysCount = totalDaysInSelectedMonth;
 
     if (isDecember) {
       if (decemberPeriod === "p1") {
         // งวด 1: วันที่ 1-20 ธันวาคม (20 วัน) คำนวณจาก ฐานเงินเดือน / 31 * 20
-        periodBaseSalary = (config.baseSalary / 31) * 20;
+        periodBaseSalary = (effectiveBaseSalary / 31) * 20;
         periodDaysCount = 20;
       } else if (decemberPeriod === "p2") {
         // งวด 2: วันที่ 21-31 ธันวาคม (11 วัน) คำนวณจาก ฐานเงินเดือน / 31 * 11
-        periodBaseSalary = (config.baseSalary / 31) * 11;
+        periodBaseSalary = (effectiveBaseSalary / 31) * 11;
         periodDaysCount = 11;
       } else {
-        periodBaseSalary = config.baseSalary;
+        periodBaseSalary = effectiveBaseSalary;
         periodDaysCount = 31;
       }
     }
@@ -846,11 +1011,11 @@ export default function SalaryCalculatorManager({
 
     const separateMealPay = config.separateMealPay !== false;
 
-    // Monthly fixed allowances
-    const kpiPay = (isDecember && decemberPeriod === "p2") ? 0 : config.kpiAllowanceMonthly;
+    // Monthly fixed allowances (หรือให้กรอกเพิ่มเองสำหรับ KPI, ค่าตำแหน่ง และ รายได้เพิ่มเติมอื่นๆ)
+    const kpiPay = (isDecember && decemberPeriod === "p2") ? 0 : kpiAllowanceInput;
     const housingPay = (isDecember && decemberPeriod === "p2") ? 0 : config.housingAllowanceMonthly;
-    const positionPay = (isDecember && decemberPeriod === "p2") ? 0 : config.positionAllowanceMonthly;
-    const otherIncomePay = (isDecember && decemberPeriod === "p2") ? 0 : config.otherIncomeMonthly;
+    const positionPay = (isDecember && decemberPeriod === "p2") ? 0 : positionAllowanceInput;
+    const otherIncomePay = (isDecember && decemberPeriod === "p2") ? 0 : otherIncomeInput;
 
     // New Additional Earnings
     const diligentPay = (isDecember && decemberPeriod === "p2") ? 0 : config.diligentAllowance;
@@ -892,12 +1057,9 @@ export default function SalaryCalculatorManager({
     // Total Gross Earnings (all allowances combined)
     const grossEarnings = grossSalaryCash + (separateMealPay ? mealPay : 0);
 
-    // Deductions
-    const studentLoan = (isDecember && decemberPeriod === "p2") ? 0 : config.studentLoanDeduction;
-    
-    // Social Security: 5% capped at 750
-    const rawSocSec = periodBaseSalary * (config.socialSecurityPercent / 100);
-    const socialSecurity = (isDecember && decemberPeriod === "p2") ? 0 : Math.min(750, Math.round(rawSocSec));
+    // Deductions ( editable )
+    const studentLoan = (isDecember && decemberPeriod === "p2") ? 0 : studentLoanInput;
+    const socialSecurity = (isDecember && decemberPeriod === "p2") ? 0 : socialSecurityInput;
 
     const kpiDeductionVal = config.kpiDeduction;
     const otherDeductionVal = config.otherDeduction;
@@ -956,7 +1118,228 @@ export default function SalaryCalculatorManager({
     nightShiftDaysInput,
     customEarnings,
     customDeductions,
+    effectiveBaseSalary,
+    kpiAllowanceInput,
+    positionAllowanceInput,
+    otherIncomeInput,
+    studentLoanInput,
+    socialSecurityInput,
   ]);
+
+  // Salary Raise Handlers for Settings Modal
+  const handleAddSalaryRaise = () => {
+    if (!newRaiseMonth || !newRaiseValue) return;
+    const val = parseFloat(newRaiseValue);
+    if (isNaN(val) || val <= 0) return;
+
+    const newRaise: SalaryRaiseItem = {
+      id: Date.now().toString(),
+      effectiveMonth: newRaiseMonth,
+      type: newRaiseType,
+      value: val,
+      note: newRaiseNote.trim() || undefined,
+    };
+
+    const updatedRaises = [...(config.salaryRaises || []), newRaise];
+    const newConfig = { ...config, salaryRaises: updatedRaises };
+    setConfig(newConfig);
+    localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConfig));
+
+    setNewRaiseValue("");
+    setNewRaiseNote("");
+  };
+
+  const handleDeleteSalaryRaise = (raiseId: string) => {
+    const updatedRaises = (config.salaryRaises || []).filter((r) => r.id !== raiseId);
+    const newConfig = { ...config, salaryRaises: updatedRaises };
+    setConfig(newConfig);
+    localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConfig));
+  };
+
+  // Annual Overview Data Calculation
+  const annualOverviewData = useMemo(() => {
+    const year = annualSelectedYear;
+    const months = [
+      { num: "01", name: "ม.ค." },
+      { num: "02", name: "ก.พ." },
+      { num: "03", name: "มี.ค." },
+      { num: "04", name: "เม.ย." },
+      { num: "05", name: "พ.ค." },
+      { num: "06", name: "มิ.ย." },
+      { num: "07", name: "ก.ค." },
+      { num: "08", name: "ส.ค." },
+      { num: "09", name: "ก.ย." },
+      { num: "10", name: "ต.ค." },
+      { num: "11", name: "พ.ย." },
+      { num: "12", name: "ธ.ค." },
+    ];
+
+    let totalNet = 0;
+    let totalOT = 0;
+    let totalMeal = 0;
+    let totalGross = 0;
+    let recordedCount = 0;
+
+    const uId = currentUser ? currentUser.toLowerCase().trim() : "default";
+
+    const list = months.map((m) => {
+      const monthKey = `${year}-${m.num}`;
+
+      // Calculate effective base salary for this specific month in the year
+      let monthBaseSalary = config.baseSalary;
+      const raises = config.salaryRaises || [];
+      if (raises.length > 0) {
+        const sorted = [...raises].sort((a, b) => a.effectiveMonth.localeCompare(b.effectiveMonth));
+        for (const r of sorted) {
+          if (monthKey >= r.effectiveMonth) {
+            if (r.type === "amount") monthBaseSalary += Number(r.value) || 0;
+            else if (r.type === "percent") monthBaseSalary += monthBaseSalary * ((Number(r.value) || 0) / 100);
+          }
+        }
+      }
+      monthBaseSalary = Math.round(monthBaseSalary);
+
+      // Check recorded status across all potential period suffixes (_full, _p1, _p2)
+      const pKeys = [`${monthKey}_full`, `${monthKey}_p1`, `${monthKey}_p2`];
+      let isRecorded = false;
+      let recordedStatusAmt = 0;
+      let recordedDate = "";
+
+      for (const pk of pKeys) {
+        const keyLocal = `salary_record_status_${uId}_${pk}`;
+        const keyDefault = `salary_record_status_default_${pk}`;
+        const savedStr = localStorage.getItem(keyLocal) || localStorage.getItem(keyDefault);
+        if (savedStr) {
+          try {
+            const parsed = JSON.parse(savedStr);
+            if (parsed.salaryRecorded) {
+              isRecorded = true;
+              recordedStatusAmt += Number(parsed.salaryAmount) || 0;
+              if (parsed.salaryRecordedAt) recordedDate = parsed.salaryRecordedAt;
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+
+      // Check transactions array for matching salary income
+      const matchingSalaryTxs = (transactions || []).filter((t) => {
+        if (t.type !== "income") return false;
+        const isSalaryCategory = t.category === "เงินเดือน" || t.category?.includes("เงินเดือน");
+        const isMonthMatch =
+          (t.merchantName && t.merchantName.includes(monthKey)) ||
+          (t.note && t.note.includes(monthKey)) ||
+          (t.date && t.date.startsWith(monthKey) && isSalaryCategory);
+        return isSalaryCategory && isMonthMatch;
+      });
+
+      const txSalarySum = matchingSalaryTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      if (matchingSalaryTxs.length > 0) {
+        isRecorded = true;
+      }
+
+      const finalRecordedAmt = txSalarySum > 0 ? txSalarySum : recordedStatusAmt;
+
+      // Check meal transactions
+      const matchingMealTxs = (transactions || []).filter((t) => {
+        if (t.type !== "income") return false;
+        const isMealCat = t.category === "สวัสดิการอาหาร" || t.category?.includes("อาหาร") || t.category?.includes("ค่าข้าว");
+        const isMonthMatch =
+          (t.merchantName && t.merchantName.includes(monthKey)) ||
+          (t.note && t.note.includes(monthKey)) ||
+          (t.date && t.date.startsWith(monthKey) && isMealCat);
+        return isMealCat && isMonthMatch;
+      });
+      const txMealSum = matchingMealTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+      // Standard estimates
+      const ot10Rate = monthBaseSalary / 30 / 8;
+      const ot15Rate = ot10Rate * 1.5;
+      const estOT = Math.round(10 * ot15Rate); // ~10 hrs OT estimate
+      const estMeal = 22 * config.mealAllowanceDaily;
+      const estTravel = 22 * config.travelAllowanceDaily;
+      const estKPI = m.num === "12" ? 0 : config.kpiAllowanceMonthly;
+      const estHousing = m.num === "12" ? 0 : config.housingAllowanceMonthly;
+      const estPosition = m.num === "12" ? 0 : config.positionAllowanceMonthly;
+      const estBonus = m.num === "12" ? config.annualBonus : 0;
+
+      const estGrossCash = monthBaseSalary + estOT + estTravel + estKPI + estHousing + estPosition + estBonus;
+      const estSocSec = Math.min(750, Math.round(monthBaseSalary * (config.socialSecurityPercent / 100)));
+      const estDeductions = config.studentLoanDeduction + estSocSec;
+      const estNet = Math.max(0, estGrossCash - estDeductions);
+
+      let finalNet = estNet;
+      let finalOT = estOT;
+      let finalMeal = txMealSum > 0 ? txMealSum : estMeal;
+      let finalGross = estGrossCash;
+
+      if (isRecorded) {
+        recordedCount++;
+        finalNet = finalRecordedAmt;
+        finalGross = Math.max(finalRecordedAmt, estGrossCash);
+      } else if (monthKey === selectedMonth && calcResults) {
+        // If current selected month and not recorded yet, use live calculated values from app state
+        finalNet = Math.round(calcResults.netSalary);
+        finalOT = Math.round(calcResults.totalOTPay);
+        finalMeal = Math.round(calcResults.mealPay);
+        finalGross = Math.round(calcResults.grossEarnings);
+      }
+
+      totalNet += finalNet;
+      totalOT += finalOT;
+      totalMeal += finalMeal;
+      totalGross += finalGross;
+
+      return {
+        monthNum: m.num,
+        monthName: m.name,
+        monthKey,
+        baseSalary: monthBaseSalary,
+        otPay: finalOT,
+        mealPay: finalMeal,
+        grossCash: finalGross,
+        netSalary: finalNet,
+        isRecorded,
+        recordedDate,
+        isCurrentSelected: monthKey === selectedMonth,
+      };
+    });
+
+    const maxMonthlyGross = Math.max(...list.map((l) => l.grossCash), 1);
+
+    return {
+      year,
+      list,
+      totalNet,
+      totalOT,
+      totalMeal,
+      totalGross,
+      recordedCount,
+      projectedCount: 12 - recordedCount,
+      averageMonthlyNet: Math.round(totalNet / 12),
+      maxMonthlyGross,
+    };
+  }, [annualSelectedYear, config, currentUser, transactions, selectedMonth, calcResults]);
+
+  // User input for actual net salary received
+  const [actualSalaryInput, setActualSalaryInput] = useState<string>("");
+
+  // Auto-sync actualSalaryInput with calculated net salary whenever period or calculated net salary changes
+  useEffect(() => {
+    setActualSalaryInput(calcResults.netSalary.toFixed(2));
+  }, [periodKey, calcResults.netSalary]);
+
+  const calculatedNetSalary = useMemo(() => Number(calcResults.netSalary.toFixed(2)), [calcResults.netSalary]);
+
+  const actualSalaryReceived = useMemo(() => {
+    const parsed = parseFloat(actualSalaryInput);
+    return isNaN(parsed) ? calculatedNetSalary : Number(parsed.toFixed(2));
+  }, [actualSalaryInput, calculatedNetSalary]);
+
+  const salaryDiff = useMemo(() => {
+    return Number((actualSalaryReceived - calculatedNetSalary).toFixed(2));
+  }, [actualSalaryReceived, calculatedNetSalary]);
 
   // Handle Recording Net Salary Transaction to Wallet
   const handleRecordSalaryToWallet = async (targetWalletId?: string) => {
@@ -970,6 +1353,16 @@ export default function SalaryCalculatorManager({
       ? (decemberPeriod === "p1" ? "งวดที่ 1 (1-20 ธ.ค.)" : decemberPeriod === "p2" ? "งวดที่ 2 (21-31 ธ.ค.)" : "งวดเต็มเดือน ธ.ค.")
       : "ประจำเดือน";
 
+    const calculatedNet = calculatedNetSalary;
+    const actualAmt = actualSalaryReceived;
+    const diff = salaryDiff;
+
+    const diffNoteStr = diff === 0 
+      ? "ตรงตามยอดคำนวณ (ไม่มีส่วนต่าง)"
+      : diff > 0 
+      ? `ได้รับมากกว่ายอดคำนวณ +฿${diff.toLocaleString()} บาท`
+      : `ได้รับน้อยกว่ายอดคำนวณ -฿${Math.abs(diff).toLocaleString()} บาท`;
+
     // Duplicate recording check
     if (isSalaryAlreadyRecorded) {
       const timeStr = recordStatus.salaryRecordedAt ? ` (บันทึกเมื่อ ${recordStatus.salaryRecordedAt})` : "";
@@ -980,6 +1373,10 @@ export default function SalaryCalculatorManager({
     }
 
     const noteText = `[ระบบคำนวณเงินเดือน ${selectedMonth} ${periodLabel}]
+• เงินเดือนสุทธิ (ตามคำนวณ): ฿${calculatedNet.toLocaleString()}
+• เงินที่ได้รับจริง (โอนเข้าบัญชี): ฿${actualAmt.toLocaleString()}
+• หมายเหตุส่วนต่าง: ${diffNoteStr}
+----------------------------------------
 • ฐานเงินเดือน/ค่าแรง: ฿${calcResults.periodBaseSalary.toLocaleString(undefined, { maximumFractionDigits: 2 })}
 • รวม OT: ฿${calcResults.totalOTPay.toLocaleString()} (OT 1.5 = ${ot15HoursInput}ชม., OT 3.0 = ${ot30HoursInput}ชม.)
 • ค่าเดินทาง: ฿${calcResults.travelPay.toLocaleString()} ${calcResults.separateMealPay ? "(ค่าข้าวแยกเข้าบัตรพนักงาน ฿" + calcResults.mealPay.toLocaleString() + ")" : `• ค่าข้าว: ฿${calcResults.mealPay.toLocaleString()}`}
@@ -989,7 +1386,7 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
 
     onAddTransaction({
       type: "income",
-      amount: Math.round(calcResults.netSalary),
+      amount: actualAmt, // Record actual received amount into wallet
       category: "เงินเดือน",
       merchantName: `เงินเดือน ${selectedMonth} (${periodLabel})`,
       date: new Date().toISOString().split("T")[0],
@@ -1002,7 +1399,7 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
       ...recordStatus,
       salaryRecorded: true,
       salaryRecordedAt: nowStr,
-      salaryAmount: Math.round(calcResults.netSalary),
+      salaryAmount: actualAmt,
     };
 
     setRecordStatus(updatedStatus);
@@ -1234,22 +1631,22 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
         </div>
 
         {/* Input Mode Selector Tabs */}
-        <div className="flex items-center justify-between border-t border-white/10 pt-4">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-4">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
                 setActiveTab("summary");
                 setUseDailyLog(false);
               }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === "summary"
                   ? "bg-indigo-600 text-white shadow-md"
                   : "bg-white/5 text-slate-400 hover:text-white"
               }`}
             >
               <Sliders className="w-4 h-4" />
-              <span>ป้อนสรุปเร็ว (Quick Summary)</span>
+              <span>ป้อนสรุปเร็ว</span>
             </button>
             <button
               type="button"
@@ -1257,14 +1654,26 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                 setActiveTab("daily");
                 setUseDailyLog(true);
               }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === "daily"
                   ? "bg-indigo-600 text-white shadow-md"
                   : "bg-white/5 text-slate-400 hover:text-white"
               }`}
             >
               <Calendar className="w-4 h-4 text-emerald-400" />
-              <span>ตารางลงเวลาประจำวัน (Daily Log)</span>
+              <span>ตารางลงเวลาประจำวัน</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("annual")}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === "annual"
+                  ? "bg-indigo-600 text-white shadow-md"
+                  : "bg-white/5 text-slate-400 hover:text-white"
+              }`}
+            >
+              <BarChart3 className="w-4 h-4 text-sky-400" />
+              <span>กราฟสรุปภาพรวมทั้งปี</span>
             </button>
           </div>
 
@@ -1459,21 +1868,45 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                       <span>฿{calcResults.certificatePay.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-slate-300">
+                  <div className="flex justify-between text-slate-300 items-center">
                     <span>ค่า KPI ประจำเดือน:</span>
-                    <span className="font-bold text-white">฿{calcResults.kpiPay.toLocaleString()}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">฿</span>
+                      <input
+                        type="number"
+                        value={kpiAllowanceInput}
+                        onChange={(e) => setKpiAllowanceInput(Number(e.target.value))}
+                        className="w-24 px-2 py-0.5 bg-[#1e293b] border border-white/20 rounded-lg text-emerald-300 font-bold text-xs text-right focus:outline-hidden focus:border-emerald-400"
+                      />
+                    </div>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>ค่าที่พัก:</span>
                     <span className="font-bold text-white">฿{calcResults.housingPay.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-slate-300">
+                  <div className="flex justify-between text-slate-300 items-center">
                     <span>ค่าตำแหน่ง:</span>
-                    <span className="font-bold text-white">฿{calcResults.positionPay.toLocaleString()}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">฿</span>
+                      <input
+                        type="number"
+                        value={positionAllowanceInput}
+                        onChange={(e) => setPositionAllowanceInput(Number(e.target.value))}
+                        className="w-24 px-2 py-0.5 bg-[#1e293b] border border-white/20 rounded-lg text-emerald-300 font-bold text-xs text-right focus:outline-hidden focus:border-emerald-400"
+                      />
+                    </div>
                   </div>
-                  <div className="flex justify-between text-slate-300">
+                  <div className="flex justify-between text-slate-300 items-center">
                     <span>รายได้เพิ่มเติมอื่นๆ:</span>
-                    <span className="font-bold text-white">฿{calcResults.otherIncomePay.toLocaleString()}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">฿</span>
+                      <input
+                        type="number"
+                        value={otherIncomeInput}
+                        onChange={(e) => setOtherIncomeInput(Number(e.target.value))}
+                        className="w-24 px-2 py-0.5 bg-[#1e293b] border border-white/20 rounded-lg text-emerald-300 font-bold text-xs text-right focus:outline-hidden focus:border-emerald-400"
+                      />
+                    </div>
                   </div>
                   {calcResults.bonusPay > 0 && (
                     <div className="flex justify-between text-amber-300 font-bold pt-1 border-t border-amber-500/20">
@@ -1488,6 +1921,28 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   <div className="flex items-center justify-between text-xs font-bold text-emerald-300">
                     <span>➕ รายการรับเพิ่มเติม (กำหนดเอง):</span>
                     <span>฿{calcResults.totalCustomEarnings.toLocaleString()}</span>
+                  </div>
+
+                  {/* Quick Chips for Custom Earnings */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {[
+                      "เบี้ยขยัน (จ่ายช่วงไฮซีซัน)",
+                      "พักร้อนคืนเงิน",
+                      "ค่าอายุงานประจำปี",
+                      "ค่าจุดพิเศษ",
+                    ].map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          setNewEarningName(opt);
+                          setShowEarningSuggestions(true);
+                        }}
+                        className="text-[10px] px-2 py-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
+                      >
+                        + {opt}
+                      </button>
+                    ))}
                   </div>
 
                   {customEarnings.length > 0 && (
@@ -1511,30 +1966,80 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                     </div>
                   )}
 
-                  {/* Add Custom Earning Form */}
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <input
-                      type="text"
-                      placeholder="เช่น +KPI *ตักจับงานขาด"
-                      value={newEarningName}
-                      onChange={(e) => setNewEarningName(e.target.value)}
-                      className="flex-1 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white text-xs focus:border-emerald-500"
-                    />
-                    <input
-                      type="number"
-                      placeholder="จำนวน"
-                      value={newEarningAmount}
-                      onChange={(e) => setNewEarningAmount(e.target.value)}
-                      className="w-20 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white font-bold text-xs focus:border-emerald-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddCustomEarning}
-                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>เพิ่ม</span>
-                    </button>
+                  {/* Add Custom Earning Form with Search History */}
+                  <div className="relative pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          placeholder="พิมพ์ค้นหาประวัติ หรือชื่อรายการใหม่..."
+                          value={newEarningName}
+                          onFocus={() => setShowEarningSuggestions(true)}
+                          onChange={(e) => {
+                            setNewEarningName(e.target.value);
+                            setShowEarningSuggestions(true);
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white text-xs focus:border-emerald-500 pr-7"
+                        />
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+                      </div>
+
+                      <input
+                        type="number"
+                        placeholder="จำนวน"
+                        value={newEarningAmount}
+                        onChange={(e) => setNewEarningAmount(e.target.value)}
+                        className="w-20 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white font-bold text-xs focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomEarning}
+                        className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>เพิ่ม</span>
+                      </button>
+                    </div>
+
+                    {/* Autocomplete Suggestions Popup */}
+                    {showEarningSuggestions && (
+                      <div className="absolute left-0 right-24 bottom-full mb-1 z-30 bg-[#1e293b] border border-emerald-500/30 rounded-xl shadow-xl max-h-40 overflow-y-auto p-1 animate-in fade-in">
+                        <div className="flex justify-between items-center px-2 py-1 border-b border-white/10 text-[10px] text-emerald-400 font-bold">
+                          <span>🔍 ประวัติรายการรับเพิ่มเติม</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowEarningSuggestions(false)}
+                            className="text-slate-400 hover:text-white cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {earningHistory.filter((item) =>
+                          item.toLowerCase().includes(newEarningName.toLowerCase())
+                        ).length === 0 ? (
+                          <div className="px-2 py-1.5 text-[11px] text-slate-400 italic">
+                            ไม่พบในประวัติ คุณสามารถพิมพ์ชื่อใหม่เพื่อเพิ่มได้
+                          </div>
+                        ) : (
+                          earningHistory
+                            .filter((item) => item.toLowerCase().includes(newEarningName.toLowerCase()))
+                            .map((item, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  setNewEarningName(item);
+                                  setShowEarningSuggestions(false);
+                                }}
+                                className="w-full text-left px-2 py-1 hover:bg-emerald-500/20 text-slate-200 hover:text-emerald-300 text-xs rounded-lg transition-colors flex items-center justify-between cursor-pointer"
+                              >
+                                <span>{item}</span>
+                                <span className="text-[10px] text-slate-400">เลือก</span>
+                              </button>
+                            ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1554,13 +2059,29 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                 </h4>
 
                 <div className="space-y-1.5 text-xs">
-                  <div className="flex justify-between text-slate-300">
+                  <div className="flex justify-between text-slate-300 items-center">
                     <span>หัก กยศ.:</span>
-                    <span className="font-bold text-rose-300">-฿{calcResults.studentLoan.toLocaleString()}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">-฿</span>
+                      <input
+                        type="number"
+                        value={studentLoanInput}
+                        onChange={(e) => setStudentLoanInput(Number(e.target.value))}
+                        className="w-24 px-2 py-0.5 bg-[#1e293b] border border-white/20 rounded-lg text-rose-300 font-bold text-xs text-right focus:outline-hidden focus:border-rose-400"
+                      />
+                    </div>
                   </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>ประกันสังคม ({config.socialSecurityPercent}% สูงสุด 750฿):</span>
-                    <span className="font-bold text-rose-300">-฿{calcResults.socialSecurity.toLocaleString()}</span>
+                  <div className="flex justify-between text-slate-300 items-center">
+                    <span>ประกันสังคม ({config.socialSecurityPercent}% สูงสุด {config.socialSecurityMaxCap ?? 750}฿):</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">-฿</span>
+                      <input
+                        type="number"
+                        value={socialSecurityInput}
+                        onChange={(e) => setSocialSecurityInput(Number(e.target.value))}
+                        className="w-24 px-2 py-0.5 bg-[#1e293b] border border-white/20 rounded-lg text-rose-300 font-bold text-xs text-right focus:outline-hidden focus:border-rose-400"
+                      />
+                    </div>
                   </div>
                   {config.kpiDeduction > 0 && (
                     <div className="flex justify-between text-slate-300">
@@ -1581,6 +2102,28 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   <div className="flex items-center justify-between text-xs font-bold text-rose-300">
                     <span>➖ รายการหักเพิ่มเติม (กำหนดเอง):</span>
                     <span>-฿{calcResults.totalCustomDeductions.toLocaleString()}</span>
+                  </div>
+
+                  {/* Quick Chips for Custom Deductions */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {[
+                      "ค่าวุฒิบัตร",
+                      "หัก KPI",
+                      "ค่าปรับเข้างานสาย",
+                      "ค่าประกันเครื่องแบบ",
+                    ].map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          setNewDeductionName(opt);
+                          setShowDeductionSuggestions(true);
+                        }}
+                        className="text-[10px] px-2 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
+                      >
+                        - {opt}
+                      </button>
+                    ))}
                   </div>
 
                   {customDeductions.length > 0 && (
@@ -1604,30 +2147,80 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                     </div>
                   )}
 
-                  {/* Add Custom Deduction Form */}
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <input
-                      type="text"
-                      placeholder="เช่น -KPI *ส่งงานเกิน"
-                      value={newDeductionName}
-                      onChange={(e) => setNewDeductionName(e.target.value)}
-                      className="flex-1 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white text-xs focus:border-rose-500"
-                    />
-                    <input
-                      type="number"
-                      placeholder="จำนวน"
-                      value={newDeductionAmount}
-                      onChange={(e) => setNewDeductionAmount(e.target.value)}
-                      className="w-20 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white font-bold text-xs focus:border-rose-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddCustomDeduction}
-                      className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>เพิ่ม</span>
-                    </button>
+                  {/* Add Custom Deduction Form with Search History */}
+                  <div className="relative pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          placeholder="พิมพ์ค้นหาประวัติ หรือชื่อรายการหัก..."
+                          value={newDeductionName}
+                          onFocus={() => setShowDeductionSuggestions(true)}
+                          onChange={(e) => {
+                            setNewDeductionName(e.target.value);
+                            setShowDeductionSuggestions(true);
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white text-xs focus:border-rose-500 pr-7"
+                        />
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-2 pointer-events-none" />
+                      </div>
+
+                      <input
+                        type="number"
+                        placeholder="จำนวน"
+                        value={newDeductionAmount}
+                        onChange={(e) => setNewDeductionAmount(e.target.value)}
+                        className="w-20 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white font-bold text-xs focus:border-rose-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomDeduction}
+                        className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>เพิ่ม</span>
+                      </button>
+                    </div>
+
+                    {/* Autocomplete Suggestions Popup */}
+                    {showDeductionSuggestions && (
+                      <div className="absolute left-0 right-24 bottom-full mb-1 z-30 bg-[#1e293b] border border-rose-500/30 rounded-xl shadow-xl max-h-40 overflow-y-auto p-1 animate-in fade-in">
+                        <div className="flex justify-between items-center px-2 py-1 border-b border-white/10 text-[10px] text-rose-400 font-bold">
+                          <span>🔍 ประวัติรายการหักเพิ่มเติม</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowDeductionSuggestions(false)}
+                            className="text-slate-400 hover:text-white cursor-pointer"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {deductionHistory.filter((item) =>
+                          item.toLowerCase().includes(newDeductionName.toLowerCase())
+                        ).length === 0 ? (
+                          <div className="px-2 py-1.5 text-[11px] text-slate-400 italic">
+                            ไม่พบในประวัติ คุณสามารถพิมพ์ชื่อใหม่เพื่อเพิ่มได้
+                          </div>
+                        ) : (
+                          deductionHistory
+                            .filter((item) => item.toLowerCase().includes(newDeductionName.toLowerCase()))
+                            .map((item, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  setNewDeductionName(item);
+                                  setShowDeductionSuggestions(false);
+                                }}
+                                className="w-full text-left px-2 py-1 hover:bg-rose-500/20 text-slate-200 hover:text-rose-300 text-xs rounded-lg transition-colors flex items-center justify-between cursor-pointer"
+                              >
+                                <span>{item}</span>
+                                <span className="text-[10px] text-slate-400">เลือก</span>
+                              </button>
+                            ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1651,7 +2244,7 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   💰 เงินเดือนสุทธิที่ได้รับ (Net Salary)
                 </span>
                 <h3 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-                  ฿{Math.round(calcResults.netSalary).toLocaleString()}
+                  ฿{calcResults.netSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
                   ประจำเดือน {selectedMonth} {isDecember ? `(${decemberPeriod === "p1" ? "งวด 1: 1-20 ธ.ค." : decemberPeriod === "p2" ? "งวด 2: 21-31 ธ.ค." : "ทั้งเดือน"})` : ""}
@@ -1732,10 +2325,61 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   </div>
                 )}
 
+                {/* Actual Received Salary Input Box */}
+                <div className="space-y-1.5 bg-emerald-950/40 p-3 rounded-2xl border border-emerald-500/30">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300">
+                    <span className="flex items-center gap-1">
+                      <Coins className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>เงินที่ได้รับจริง (โอนเข้ากระเป๋า/บัญชี)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActualSalaryInput(calculatedNetSalary.toFixed(2))}
+                      className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      title="รีเซ็ตเป็นยอดตามคำนวณ"
+                    >
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      <span>รีเซ็ตตามคำนวณ (฿{calculatedNetSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
+                    </button>
+                  </div>
+
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">฿</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={actualSalaryInput}
+                      onChange={(e) => setActualSalaryInput(e.target.value)}
+                      placeholder={calculatedNetSalary.toFixed(2)}
+                      className="w-full pl-7 pr-3 py-2 bg-[#1e293b] border border-emerald-500/40 rounded-xl text-emerald-200 font-bold text-sm focus:outline-hidden focus:border-emerald-400"
+                    />
+                  </div>
+
+                  {/* Difference display tag */}
+                  <div className="flex items-center justify-between text-[11px] pt-0.5">
+                    <span className="text-slate-400">
+                      ยอดคำนวณ: <strong className="text-slate-200">฿{calculatedNetSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    </span>
+                    {salaryDiff === 0 ? (
+                      <span className="text-emerald-400/90 font-medium text-[10px]">✓ ตรงตามยอดคำนวณ</span>
+                    ) : salaryDiff > 0 ? (
+                      <span className="text-emerald-300 font-bold text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-0.5">
+                        <TrendingUp className="w-3 h-3 text-emerald-400" />
+                        <span>เกินกว่าคำนวณ +฿{salaryDiff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </span>
+                    ) : (
+                      <span className="text-rose-300 font-bold text-[10px] bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/30 flex items-center gap-0.5">
+                        <TrendingDown className="w-3 h-3 text-rose-400" />
+                        <span>น้อยกว่าคำนวณ -฿{Math.abs(salaryDiff).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
                 {/* Salary Wallet Selection */}
                 <div className="space-y-1">
                   <label className="block text-[11px] font-medium text-slate-300 flex items-center gap-1 justify-between">
-                    <span>🏦 กระเป๋ารับเงินเดือนสุทธิ (฿{Math.round(calcResults.netSalary).toLocaleString()})</span>
+                    <span>🏦 กระเป๋ารับเงินเดือน (บันทึกจริง ฿{actualSalaryReceived.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
                     {isSalaryAlreadyRecorded && (
                       <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                         ✓ บันทึกแล้ว
@@ -2277,23 +2921,314 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
             </div>
 
             {/* Net Salary Bottom Strip */}
-            <div className="bg-indigo-900 text-white p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
+            <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/30 text-white p-5 rounded-2xl flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 shadow-xl">
+              <div className="space-y-1">
+                <span className="text-xs text-indigo-300 block uppercase font-bold tracking-wider flex items-center gap-1.5">
+                  <Coins className="w-4 h-4 text-emerald-400" />
+                  <span>ยอดเงินเดือนสุทธิประจำงวด {calcResults.separateMealPay ? "(ไม่รวมค่าข้าวเข้าบัตร)" : ""}</span>
+                </span>
+                <div className="text-xs text-slate-300 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>ยอดคำนวณสุทธิ: <strong className="text-white">฿{calculatedNetSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                  <span>(รายได้เงินสด ฿{calcResults.grossSalaryCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} - รายการหัก ฿{calcResults.totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
+                </div>
+                {calcResults.separateMealPay && (
+                  <span className="block text-amber-300 font-medium text-[11px] pt-0.5">
+                    💳 ค่าข้าวเข้าบัตรพนักงานต่างหาก: ฿{calcResults.mealPay.toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-end md:items-center gap-3 bg-indigo-900/60 p-3 rounded-xl border border-indigo-500/30">
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-300 block font-semibold uppercase">เงินที่ได้รับจริง (โอนเข้าบัญชี)</span>
+                  <div className="text-2xl sm:text-3xl font-black text-emerald-300 tracking-tight">
+                    ฿{actualSalaryReceived.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                {salaryDiff !== 0 && (
+                  <div className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border text-center whitespace-nowrap ${
+                    salaryDiff > 0 
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" 
+                      : "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                  }`}>
+                    {salaryDiff > 0 ? `+฿${salaryDiff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `-฿${Math.abs(salaryDiff).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    <span className="block text-[9px] font-normal opacity-80">ส่วนต่าง</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: ANNUAL OVERVIEW CHART & SUMMARY */}
+      {activeTab === "annual" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header & Year Selector */}
+          <div className="bg-[#111827] border border-white/10 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-indigo-400" />
+                <span>สรุปภาพรวมรายได้และเงินเดือนตลอดทั้งปี ({annualOverviewData.year})</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                เปรียบเทียบรายได้รวม OT สวัสดิการ และเงินเดือนสุทธิรายเดือน พร้อมระบุรายการที่บันทึกแล้ว
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 bg-[#1e293b] border border-white/10 p-1.5 rounded-2xl shrink-0">
+              <button
+                type="button"
+                onClick={() => setAnnualSelectedYear(annualSelectedYear - 1)}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white transition-all cursor-pointer"
+              >
+                ◀ {annualSelectedYear - 1}
+              </button>
+              <span className="px-4 py-1 text-sm font-black text-indigo-300">
+                ปี {annualSelectedYear}
+              </span>
+              <button
+                type="button"
+                onClick={() => setAnnualSelectedYear(annualSelectedYear + 1)}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white transition-all cursor-pointer"
+              >
+                {annualSelectedYear + 1} ▶
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Summary Stat Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-3xl space-y-2 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">เงินเดือนสุทธิทั้งปี (Net)</span>
+                <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                  <Coins className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-emerald-300">
+                ฿{annualOverviewData.totalNet.toLocaleString()}
+              </div>
+              <p className="text-[10px] text-slate-400">เงินสดที่โอนเข้าบัญชีจริงทั้งปี</p>
+            </div>
+
+            <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-3xl space-y-2 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">เฉลี่ยสุทธิ / เดือน</span>
+                <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl">
+                  <Calculator className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-indigo-300">
+                ฿{annualOverviewData.averageMonthlyNet.toLocaleString()}
+              </div>
+              <p className="text-[10px] text-slate-400">คำนวณจากเฉลี่ย 12 เดือน</p>
+            </div>
+
+            <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-3xl space-y-2 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">รายได้ OT สะสมทั้งปี</span>
+                <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-amber-300">
+                ฿{annualOverviewData.totalOT.toLocaleString()}
+              </div>
+              <p className="text-[10px] text-slate-400">รวม OT 1.0 / 1.5 / 3.0 ทั้งปี</p>
+            </div>
+
+            <div className="bg-[#111827] border border-indigo-500/20 p-5 rounded-3xl space-y-2 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 font-medium">ค่าข้าวเข้าบัตรพนักงาน</span>
+                <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl">
+                  <Utensils className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-black text-purple-300">
+                ฿{annualOverviewData.totalMeal.toLocaleString()}
+              </div>
+              <p className="text-[10px] text-slate-400">สวัสดิการอาหารแยกเข้าบัตร</p>
+            </div>
+          </div>
+
+          {/* Visual Bar Chart Comparison */}
+          <div className="bg-[#111827] border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-4">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>📊 กราฟเปรียบเทียบรายได้รายเดือน (ม.ค. - ธ.ค. {annualOverviewData.year})</span>
+              </h4>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
+                  <span className="text-slate-300">สุทธิที่ได้รับจริง (Recorded)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-indigo-500/60 inline-block" />
+                  <span className="text-slate-300">คาดการณ์ (Projected)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bars Container */}
+            <div className="pt-4 pb-2 px-2 overflow-x-auto">
+              <div className="min-w-[650px] h-64 flex items-end justify-between gap-3 border-b border-slate-700/60 pb-2">
+                {annualOverviewData.list.map((m) => {
+                  const netHeightPct = Math.round((m.netSalary / annualOverviewData.maxMonthlyGross) * 100);
+
+                  return (
+                    <div key={m.monthNum} className="flex-1 flex flex-col items-center gap-2 group relative">
+                      {/* Tooltip Hover */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full mb-2 bg-[#1e293b] border border-white/20 p-2 rounded-xl text-[10px] text-white shadow-2xl z-20 whitespace-nowrap pointer-events-none">
+                        <div className="font-bold text-indigo-300">{m.monthName} {annualOverviewData.year}</div>
+                        <div>สุทธิ: <strong className="text-emerald-300">฿{m.netSalary.toLocaleString()}</strong></div>
+                        <div>ฐานเงินเดือน: ฿{m.baseSalary.toLocaleString()}</div>
+                        <div>OT: ฿{m.otPay.toLocaleString()}</div>
+                        <div>สถานะ: {m.isRecorded ? "✅ บันทึกแล้ว" : "⏳ คาดการณ์"}</div>
+                      </div>
+
+                      {/* Bar Graphic */}
+                      <div className="w-full flex justify-center items-end h-48 bg-slate-800/40 rounded-t-xl p-1 relative overflow-hidden">
+                        <div
+                          style={{ height: `${Math.max(netHeightPct, 6)}%` }}
+                          className={`w-full max-w-[28px] rounded-t-lg transition-all duration-500 flex flex-col justify-between items-center py-1 ${
+                            m.isRecorded
+                              ? "bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-lg shadow-emerald-500/20"
+                              : "bg-gradient-to-t from-indigo-700 to-indigo-500/70"
+                          }`}
+                        >
+                          <span className="text-[9px] font-black text-white scale-90 tracking-tighter">
+                            {(m.netSalary / 1000).toFixed(1)}k
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Month Label */}
+                      <div className="text-center">
+                        <span className="block text-xs font-bold text-slate-300">{m.monthName}</span>
+                        {m.isRecorded ? (
+                          <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mt-0.5" title="บันทึกแล้ว" />
+                        ) : (
+                          <span className="inline-block w-2 h-2 rounded-full bg-slate-600 mt-0.5" title="คาดการณ์" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 12-Month Detailed Summary Table */}
+          <div className="bg-[#111827] border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
               <div>
-                <span className="text-xs text-indigo-200 block uppercase font-bold tracking-wider">
-                  ยอดเงินเดือนสุทธิที่ได้รับ {calcResults.separateMealPay ? "(ไม่รวมค่าข้าวเข้าบัตร)" : ""}
+                <h4 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>📋 รายละเอียดเงินเดือน 12 เดือน ประจำปี {annualOverviewData.year}</span>
+                </h4>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  แสดงข้อมูลทั้งงวดที่บันทึกจริงลงกระเป๋าเงินแล้ว และงวดคาดการณ์ล่วงหน้า
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs shrink-0">
+                <span className="px-3 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-xl font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>บันทึกจริง: {annualOverviewData.recordedCount} เดือน</span>
                 </span>
-                <span className="text-xs text-indigo-300">
-                  รวมรายได้เงินสด ฿{Math.round(calcResults.grossSalaryCash).toLocaleString()} - รวมรายการหัก ฿{calcResults.totalDeductions.toLocaleString()}
-                  {calcResults.separateMealPay && (
-                    <span className="block text-amber-300 font-medium text-[11px] mt-0.5">
-                      💳 ค่าข้าวเข้าบัตรพนักงานต่างหาก: ฿{calcResults.mealPay.toLocaleString()}
-                    </span>
-                  )}
+                <span className="px-3 py-1 bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 rounded-xl font-bold flex items-center gap-1.5">
+                  <span>⏳ คาดการณ์: {annualOverviewData.projectedCount} เดือน</span>
                 </span>
               </div>
-              <div className="text-3xl font-black text-emerald-300 tracking-tight">
-                ฿{Math.round(calcResults.netSalary).toLocaleString()}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead>
+                  <tr className="border-b border-white/10 text-slate-400 text-[11px] uppercase tracking-wider">
+                    <th className="py-2.5 px-3">เดือน</th>
+                    <th className="py-2.5 px-3">ฐานเงินเดือน</th>
+                    <th className="py-2.5 px-3">รวม OT</th>
+                    <th className="py-2.5 px-3">ค่าข้าวเข้าบัตร</th>
+                    <th className="py-2.5 px-3">รายได้รวม</th>
+                    <th className="py-2.5 px-3 text-right">เงินเดือนสุทธิ</th>
+                    <th className="py-2.5 px-3 text-center">สถานะ</th>
+                    <th className="py-2.5 px-3 text-center">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 font-medium">
+                  {annualOverviewData.list.map((m) => (
+                    <tr key={m.monthNum} className={`hover:bg-white/5 transition-colors ${m.isCurrentSelected ? "bg-indigo-950/30" : ""}`}>
+                      <td className="py-3 px-3 font-bold text-white flex items-center gap-1.5">
+                        <span>{m.monthName} {annualOverviewData.year}</span>
+                        {m.isCurrentSelected && (
+                          <span className="px-1.5 py-0.5 bg-indigo-500/30 text-indigo-300 text-[9px] rounded font-bold">
+                            เลือกอยู่
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-slate-300">
+                        ฿{m.baseSalary.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-amber-300">
+                        ฿{m.otPay.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-purple-300">
+                        ฿{m.mealPay.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-white font-bold">
+                        ฿{m.grossCash.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-right font-black text-emerald-300 text-sm">
+                        ฿{m.netSalary.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {m.isRecorded ? (
+                          <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-bold inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> บันทึกจริงแล้ว
+                          </span>
+                        ) : m.isCurrentSelected ? (
+                          <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-bold inline-flex items-center gap-1">
+                            📝 ยอดคำนวณปัจจุบัน
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 bg-slate-800 text-slate-400 border border-white/10 rounded-full text-[10px] font-medium">
+                            ⏳ คาดการณ์
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMonth(m.monthKey);
+                            setActiveTab("summary");
+                          }}
+                          className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer border ${
+                            m.isCurrentSelected
+                              ? "bg-indigo-600 text-white border-indigo-400 shadow-md"
+                              : "bg-white/5 hover:bg-white/10 text-slate-300 border-white/10"
+                          }`}
+                        >
+                          {m.isCurrentSelected ? "✏️ ป้อนข้อมูล/บันทึก" : "👉 สลับไปคำนวณเดือนนี้"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Explanatory Info Box */}
+            <div className="bg-indigo-950/40 border border-indigo-500/20 p-4 rounded-2xl text-xs text-indigo-200/90 space-y-1">
+              <div className="font-bold text-indigo-300 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <span>คำแนะนำการใช้งานและสถานะข้อมูลประจำปี:</span>
               </div>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-300 pl-1">
+                <li><strong className="text-emerald-300">🟢 บันทึกจริงแล้ว:</strong> คือยอดเงินเดือนที่ผ่านการกด "บันทึกเงินเดือนลงกระเป๋าเงิน" เรียบร้อยแล้ว ซึ่งจะถูกนำยอดโอนจริงไปคำนวณในระบบบัญชี</li>
+                <li><strong className="text-indigo-300">📝 ยอดคำนวณปัจจุบัน / ⏳ คาดการณ์:</strong> เป็นยอดประมาณการตามฐานเงินเดือนและสวัสดิการ สามารถกดปุ่ม <strong className="text-white">"สลับไปคำนวณเดือนนี้"</strong> เพื่อกรอกชั่วโมง OT วันลงเวลา หรือวันหยุดของเดือนนั้นๆ แล้วกดบันทึกเข้ากระเป๋าเงินได้ทันที</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -2334,7 +3269,7 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Base Salary */}
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-300">ฐานเงินเดือน (บาท)</label>
+                    <label className="block text-xs font-bold text-slate-300">ฐานเงินเดือนเริ่มต้น (บาท)</label>
                     <input
                       type="number"
                       value={config.baseSalary}
@@ -2499,6 +3434,107 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                     />
                   </div>
                 </div>
+
+                {/* Salary Raise Schedule Sub-section */}
+                <div className="pt-3 border-t border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                      <ArrowUp className="w-4 h-4 text-emerald-400" />
+                      <span>ประวัติ & กำหนดการปรับขึ้นเงินเดือน (Salary Raises Schedule):</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      ระบุเดือนที่เริ่มปรับขึ้น และจำนวนเงิน/เปอร์เซ็นต์ที่ปรับ
+                    </span>
+                  </div>
+
+                  {config.salaryRaises && config.salaryRaises.length > 0 ? (
+                    <div className="space-y-2">
+                      {config.salaryRaises.map((raise) => (
+                        <div
+                          key={raise.id}
+                          className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl text-xs"
+                        >
+                          <div>
+                            <span className="font-bold text-emerald-300">
+                              เริ่มเดือน {raise.effectiveMonth}:
+                            </span>{" "}
+                            <span className="text-white font-semibold">
+                              ปรับขึ้น {raise.type === "amount" ? `+฿${raise.value.toLocaleString()} บาท` : `+${raise.value}%`}
+                            </span>
+                            {raise.note && (
+                              <span className="block text-[11px] text-slate-400 mt-0.5">
+                                หมายเหตุ: {raise.note}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSalaryRaise(raise.id)}
+                            className="text-slate-400 hover:text-rose-400 p-1 cursor-pointer"
+                            title="ลบรายการปรับขึ้นเงินเดือนนี้"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 italic bg-white/5 p-3 rounded-xl">
+                      ยังไม่มีการปรับขึ้นเงินเดือน (ใช้ฐานเงินเดือนปัจจุบัน ฿{config.baseSalary.toLocaleString()})
+                    </div>
+                  )}
+
+                  {/* Add New Salary Raise Form */}
+                  <div className="bg-[#1e293b]/60 border border-white/10 p-3 rounded-2xl space-y-2">
+                    <span className="text-[11px] font-bold text-slate-300 block">
+                      + เพิ่มกำหนดการปรับขึ้นเงินเดือนใหม่:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-slate-400">เดือนที่เริ่มปรับขึ้น</label>
+                        <input
+                          type="month"
+                          value={newRaiseMonth}
+                          onChange={(e) => setNewRaiseMonth(e.target.value)}
+                          className="w-full px-2 py-1 bg-[#111827] border border-white/10 rounded-lg text-white text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400">รูปแบบการปรับ</label>
+                        <select
+                          value={newRaiseType}
+                          onChange={(e) => setNewRaiseType(e.target.value as "amount" | "percent")}
+                          className="w-full px-2 py-1 bg-[#111827] border border-white/10 rounded-lg text-white text-xs font-bold"
+                        >
+                          <option value="amount">จำนวนเงิน (บาท)</option>
+                          <option value="percent">เปอร์เซ็นต์ (%)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400">
+                          {newRaiseType === "amount" ? "จำนวนเงินที่ปรับขึ้น" : "เปอร์เซ็นต์ที่ปรับขึ้น (%)"}
+                        </label>
+                        <input
+                          type="number"
+                          placeholder={newRaiseType === "amount" ? "เช่น 1000" : "เช่น 5"}
+                          value={newRaiseValue}
+                          onChange={(e) => setNewRaiseValue(e.target.value)}
+                          className="w-full px-2 py-1 bg-[#111827] border border-white/10 rounded-lg text-white text-xs font-bold"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={handleAddSalaryRaise}
+                          className="w-full py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1 shadow-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>เพิ่มกำหนดการ</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* SECTION 2: รายการหัก */}
@@ -2520,15 +3556,27 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                     />
                   </div>
 
-                  {/* Social Security Percent */}
+                  {/* Social Security Percent & Max Cap */}
                   <div className="space-y-1">
-                    <label className="block text-xs font-semibold text-rose-300">หัก ประกันสังคม (% - ปกติ 5% สูงสุด 750฿)</label>
+                    <label className="block text-xs font-semibold text-rose-300">หัก ประกันสังคม (%)</label>
                     <input
                       type="number"
                       value={config.socialSecurityPercent}
                       onChange={(e) => setConfig({ ...config, socialSecurityPercent: Number(e.target.value) })}
                       className="w-full px-3 py-2 bg-[#1e293b] border border-rose-500/30 rounded-xl text-white font-semibold text-sm"
                     />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-rose-300">ยอดหักประกันสังคมสูงสุด (บาท/เดือน)</label>
+                    <input
+                      type="number"
+                      value={config.socialSecurityMaxCap ?? 750}
+                      onChange={(e) => setConfig({ ...config, socialSecurityMaxCap: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1e293b] border border-rose-500/30 rounded-xl text-white font-semibold text-sm"
+                      placeholder="750"
+                    />
+                    <p className="text-[10px] text-slate-400">ปกติ 750 บาท (สามารถปรับเพดานสูงสุดใหม่ได้ตามกฎหมายประกันสังคม)</p>
                   </div>
                 </div>
               </div>
