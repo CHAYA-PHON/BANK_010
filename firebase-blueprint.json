@@ -117,6 +117,33 @@
         "note": "string",
         "createdAt": "string"
       }
+    },
+    {
+      "name": "salary_config",
+      "description": "Salary calculation rules, base allowances, and public holidays",
+      "fields": {
+        "baseSalary": "number",
+        "mealAllowanceDaily": "number",
+        "travelAllowanceDaily": "number",
+        "publicHolidays": "array"
+      }
+    },
+    {
+      "name": "salary_daily_logs",
+      "description": "Daily attendance logs, OT hours, and work status per period",
+      "fields": {
+        "logs": "array",
+        "updatedAt": "string"
+      }
+    },
+    {
+      "name": "salary_custom_adjustments",
+      "description": "Custom earnings and deductions per month and period",
+      "fields": {
+        "earnings": "array",
+        "deductions": "array",
+        "updatedAt": "string"
+      }
     }
   ]
 }

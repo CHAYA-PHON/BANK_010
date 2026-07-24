@@ -6,9 +6,31 @@ import {
   Truck, Coffee, HelpCircle, Check, Edit, ShieldAlert, ArrowRight, 
   ChevronDown, ChevronUp, RefreshCw, Sliders, Landmark, Wallet as WalletIcon,
   Printer, ArrowUpRight, Flag, CalendarCheck, UserCheck, Star, ShieldCheck,
-  FileCheck, Repeat
+  FileCheck, Repeat, Loader2
 } from "lucide-react";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "../firebase";
 import { Wallet, Transaction } from "../types";
+
+function cleanObjectForFirestore<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => cleanObjectForFirestore(item)) as any;
+  }
+  if (typeof obj === "object") {
+    const cleaned: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const val = (obj as any)[key];
+        if (val !== undefined) {
+          cleaned[key] = cleanObjectForFirestore(val);
+        }
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
 
 export type WorkStatus = 
   | "work"             // 🟢 มาทำงาน
@@ -18,6 +40,12 @@ export type WorkStatus =
   | "personal_leave"   // 🟡 ลากิจ
   | "sick_leave"       // 🔵 ลาป่วย
   | "vacation_leave";  // 🟣 ลาพักร้อน
+
+export interface CustomAdjustmentItem {
+  id: string;
+  name: string;
+  amount: number;
+}
 
 export interface PublicHolidayItem {
   id: string;
@@ -141,6 +169,20 @@ export default function SalaryCalculatorManager({
   const [selectedMonth, setSelectedMonth] = useState<string>(defaultMonthStr); // YYYY-MM
   const [decemberPeriod, setDecemberPeriod] = useState<"p1" | "p2" | "full">("p1"); // For Dec: p1 (1-20), p2 (21-31), full (1-31)
 
+  // Determine if selected month is December
+  const isDecember = useMemo(() => {
+    if (!selectedMonth) return false;
+    const parts = selectedMonth.split("-");
+    return parts[1] === "12";
+  }, [selectedMonth]);
+
+  // Days in month helper
+  const totalDaysInSelectedMonth = useMemo(() => {
+    if (!selectedMonth) return 30;
+    const [year, month] = selectedMonth.split("-").map(Number);
+    return new Date(year, month, 0).getDate();
+  }, [selectedMonth]);
+
   // Quick summary inputs
   const [workDaysInput, setWorkDaysInput] = useState<number>(22);
   const [ot15HoursInput, setOt15HoursInput] = useState<number>(10);
@@ -160,6 +202,15 @@ export default function SalaryCalculatorManager({
   const [useDailyLog, setUseDailyLog] = useState<boolean>(false);
   const [dailyLogs, setDailyLogs] = useState<DailyAttendance[]>([]);
 
+  // Custom Earnings & Custom Deductions List State (+KPI *ตักจับงานขาด, -KPI *ส่งงานเกิน, ฯลฯ)
+  const [customEarnings, setCustomEarnings] = useState<CustomAdjustmentItem[]>([]);
+  const [customDeductions, setCustomDeductions] = useState<CustomAdjustmentItem[]>([]);
+
+  const [newEarningName, setNewEarningName] = useState<string>("");
+  const [newEarningAmount, setNewEarningAmount] = useState<string>("");
+  const [newDeductionName, setNewDeductionName] = useState<string>("");
+  const [newDeductionAmount, setNewDeductionAmount] = useState<string>("");
+
   // New Holiday Input state in config modal
   const [newHolidayDate, setNewHolidayDate] = useState<string>("");
   const [newHolidayName, setNewHolidayName] = useState<string>("");
@@ -168,15 +219,213 @@ export default function SalaryCalculatorManager({
   const [selectedWalletId, setSelectedWalletId] = useState<string>(wallets[0]?.id || "");
   const [recordedSuccess, setRecordedSuccess] = useState<boolean>(false);
 
-  // Save config to local storage
-  const handleSaveConfig = (newConfig: SalaryConfig) => {
+  // Cloud sync status state
+  const [syncStatus, setSyncStatus] = useState<"synced" | "saving" | "error">("synced");
+
+  // Load config from Firestore on mount / user change
+  useEffect(() => {
+    let isMounted = true;
+    async function loadSalaryConfigFromFirestore() {
+      if (!currentUser) return;
+      const uId = currentUser.toLowerCase().trim();
+      try {
+        const configRef = doc(db, "users", uId, "salary_config", "config");
+        const snap = await getDoc(configRef);
+        if (snap.exists()) {
+          const cloudData = snap.data();
+          if (isMounted && cloudData) {
+            const mergedConfig: SalaryConfig = {
+              ...DEFAULT_SALARY_CONFIG,
+              ...cloudData,
+              publicHolidays:
+                cloudData.publicHolidays && cloudData.publicHolidays.length > 0
+                  ? cloudData.publicHolidays
+                  : DEFAULT_HOLIDAYS,
+            };
+            setConfig(mergedConfig);
+            localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(mergedConfig));
+          }
+        } else {
+          // If not in Firestore yet, push current local config
+          const saved = localStorage.getItem(`salary_config_${currentUser || "default"}`);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              await setDoc(configRef, cleanObjectForFirestore(parsed));
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading salary config from Firestore:", err);
+      }
+    }
+    loadSalaryConfigFromFirestore();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
+
+  // Storage key for custom earnings and deductions per month/period
+  const customAdjustmentsStorageKey = useMemo(() => {
+    return `salary_custom_adj_${currentUser || "default"}_${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
+  }, [currentUser, selectedMonth, isDecember, decemberPeriod]);
+
+  // Load custom earnings & deductions from Firestore with localStorage fallback
+  useEffect(() => {
+    if (!selectedMonth) return;
+    let isMounted = true;
+
+    async function fetchCustomAdjustments() {
+      const savedStr = localStorage.getItem(customAdjustmentsStorageKey);
+      let localEarnings: CustomAdjustmentItem[] = [];
+      let localDeductions: CustomAdjustmentItem[] = [];
+
+      if (savedStr) {
+        try {
+          const parsed = JSON.parse(savedStr);
+          if (parsed && Array.isArray(parsed.earnings)) localEarnings = parsed.earnings;
+          if (parsed && Array.isArray(parsed.deductions)) localDeductions = parsed.deductions;
+        } catch (e) {
+          console.error("Failed to parse custom adjustments:", e);
+        }
+      } else {
+        localEarnings = [{ id: "ce-kpi1", name: "+KPI *ตักจับงานขาด", amount: 100 }];
+        localDeductions = [{ id: "cd-kpi1", name: "-KPI *ส่งงานเกิน", amount: 500 }];
+      }
+
+      if (currentUser) {
+        const uId = currentUser.toLowerCase().trim();
+        const periodKey = `${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
+        try {
+          const docRef = doc(db, "users", uId, "salary_custom_adjustments", periodKey);
+          const snap = await getDoc(docRef);
+          if (snap.exists() && isMounted) {
+            const cloudData = snap.data();
+            const earnings = Array.isArray(cloudData.earnings) ? cloudData.earnings : [];
+            const deductions = Array.isArray(cloudData.deductions) ? cloudData.deductions : [];
+            setCustomEarnings(earnings);
+            setCustomDeductions(deductions);
+            localStorage.setItem(customAdjustmentsStorageKey, JSON.stringify({ earnings, deductions }));
+            return;
+          }
+        } catch (e) {
+          console.error("Failed to load custom adjustments from Firestore:", e);
+        }
+      }
+
+      if (isMounted) {
+        setCustomEarnings(localEarnings);
+        setCustomDeductions(localDeductions);
+      }
+    }
+
+    fetchCustomAdjustments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [customAdjustmentsStorageKey, selectedMonth, currentUser, isDecember, decemberPeriod]);
+
+  // Helper to persist custom earnings & deductions to localStorage AND Firestore
+  const saveCustomAdjustments = async (
+    updatedEarnings: CustomAdjustmentItem[],
+    updatedDeductions: CustomAdjustmentItem[]
+  ) => {
+    setCustomEarnings(updatedEarnings);
+    setCustomDeductions(updatedDeductions);
+
+    const dataToSave = {
+      earnings: updatedEarnings,
+      deductions: updatedDeductions,
+    };
+    localStorage.setItem(customAdjustmentsStorageKey, JSON.stringify(dataToSave));
+
+    if (currentUser && selectedMonth) {
+      setSyncStatus("saving");
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        const periodKey = `${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
+        await setDoc(doc(db, "users", uId, "salary_custom_adjustments", periodKey), {
+          earnings: cleanObjectForFirestore(updatedEarnings),
+          deductions: cleanObjectForFirestore(updatedDeductions),
+          updatedAt: new Date().toISOString(),
+        });
+        setSyncStatus("synced");
+      } catch (e) {
+        console.error("Failed to sync custom adjustments to Firestore:", e);
+        setSyncStatus("error");
+      }
+    }
+  };
+
+  // Handlers for Custom Earnings & Deductions
+  const handleAddCustomEarning = () => {
+    if (!newEarningName.trim()) {
+      alert("กรุณากรอกชื่อรายการรับเพิ่มเติม");
+      return;
+    }
+    const amt = Number(newEarningAmount) || 0;
+    const newItem: CustomAdjustmentItem = {
+      id: `ce_${Date.now()}`,
+      name: newEarningName.trim(),
+      amount: amt,
+    };
+    const updated = [...customEarnings, newItem];
+    saveCustomAdjustments(updated, customDeductions);
+    setNewEarningName("");
+    setNewEarningAmount("");
+  };
+
+  const handleDeleteCustomEarning = (id: string) => {
+    const updated = customEarnings.filter((item) => item.id !== id);
+    saveCustomAdjustments(updated, customDeductions);
+  };
+
+  const handleAddCustomDeduction = () => {
+    if (!newDeductionName.trim()) {
+      alert("กรุณากรอกชื่อรายการหักเพิ่มเติม");
+      return;
+    }
+    const amt = Number(newDeductionAmount) || 0;
+    const newItem: CustomAdjustmentItem = {
+      id: `cd_${Date.now()}`,
+      name: newDeductionName.trim(),
+      amount: amt,
+    };
+    const updated = [...customDeductions, newItem];
+    saveCustomAdjustments(customEarnings, updated);
+    setNewDeductionName("");
+    setNewDeductionAmount("");
+  };
+
+  const handleDeleteCustomDeduction = (id: string) => {
+    const updated = customDeductions.filter((item) => item.id !== id);
+    saveCustomAdjustments(customEarnings, updated);
+  };
+
+  // Save config to local storage and Firestore
+  const handleSaveConfig = async (newConfig: SalaryConfig) => {
     setConfig(newConfig);
     localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConfig));
     setShowConfigModal(false);
+
+    if (currentUser) {
+      setSyncStatus("saving");
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        await setDoc(doc(db, "users", uId, "salary_config", "config"), cleanObjectForFirestore(newConfig));
+        setSyncStatus("synced");
+      } catch (err) {
+        console.error("Error syncing config to Firestore:", err);
+        setSyncStatus("error");
+      }
+    }
   };
 
   // Add Public Holiday to config
-  const handleAddPublicHoliday = () => {
+  const handleAddPublicHoliday = async () => {
     if (!newHolidayDate || !newHolidayName.trim()) {
       alert("กรุณาระบุวันที่และชื่อวันหยุดนักขัตฤกษ์");
       return;
@@ -191,38 +440,50 @@ export default function SalaryCalculatorManager({
     localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConf));
     setNewHolidayDate("");
     setNewHolidayName("");
+
+    if (currentUser) {
+      setSyncStatus("saving");
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        await setDoc(doc(db, "users", uId, "salary_config", "config"), cleanObjectForFirestore(newConf));
+        setSyncStatus("synced");
+      } catch (err) {
+        console.error("Error syncing holiday to Firestore:", err);
+        setSyncStatus("error");
+      }
+    }
   };
 
   // Delete Public Holiday
-  const handleDeletePublicHoliday = (id: string) => {
+  const handleDeletePublicHoliday = async (id: string) => {
     const updatedHolidays = config.publicHolidays.filter(h => h.id !== id);
     const newConf = { ...config, publicHolidays: updatedHolidays };
     setConfig(newConf);
     localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConf));
+
+    if (currentUser) {
+      setSyncStatus("saving");
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        await setDoc(doc(db, "users", uId, "salary_config", "config"), cleanObjectForFirestore(newConf));
+        setSyncStatus("synced");
+      } catch (err) {
+        console.error("Error syncing deleted holiday to Firestore:", err);
+        setSyncStatus("error");
+      }
+    }
   };
-
-  // Determine if selected month is December
-  const isDecember = useMemo(() => {
-    if (!selectedMonth) return false;
-    const parts = selectedMonth.split("-");
-    return parts[1] === "12";
-  }, [selectedMonth]);
-
-  // Days in month helper
-  const totalDaysInSelectedMonth = useMemo(() => {
-    if (!selectedMonth) return 30;
-    const [year, month] = selectedMonth.split("-").map(Number);
-    return new Date(year, month, 0).getDate();
-  }, [selectedMonth]);
 
   // Storage key helper for current selected month & period
   const currentMonthStorageKey = useMemo(() => {
     return `salary_daily_logs_${currentUser || "default"}_${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
   }, [currentUser, selectedMonth, isDecember, decemberPeriod]);
 
-  // Generate / Load Daily Attendance logs from localStorage when month, period, or holidays change
+  // Generate / Load Daily Attendance logs from Firestore & localStorage
   useEffect(() => {
     if (!selectedMonth) return;
+    let isMounted = true;
+
     const [yearStr, monthStr] = selectedMonth.split("-");
     const year = parseInt(yearStr, 10);
     const month = parseInt(monthStr, 10);
@@ -240,70 +501,125 @@ export default function SalaryCalculatorManager({
       }
     }
 
-    // Attempt to load saved logs from localStorage
-    const savedStr = localStorage.getItem(currentMonthStorageKey);
-    let savedMap: Record<number, DailyAttendance> = {};
-    if (savedStr) {
-      try {
-        const parsedArr: DailyAttendance[] = JSON.parse(savedStr);
-        if (Array.isArray(parsedArr)) {
-          parsedArr.forEach((item) => {
-            if (item && typeof item.day === "number") {
-              savedMap[item.day] = item;
+    async function fetchDailyLogs() {
+      let savedMap: Record<number, DailyAttendance> = {};
+      let loadedFromCloud = false;
+
+      if (currentUser) {
+        const uId = currentUser.toLowerCase().trim();
+        const periodKey = `${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
+        try {
+          const docRef = doc(db, "users", uId, "salary_daily_logs", periodKey);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const cloudData = snap.data();
+            if (cloudData && Array.isArray(cloudData.logs)) {
+              cloudData.logs.forEach((item: DailyAttendance) => {
+                if (item && typeof item.day === "number") {
+                  savedMap[item.day] = item;
+                }
+              });
+              loadedFromCloud = true;
+              localStorage.setItem(currentMonthStorageKey, JSON.stringify(cloudData.logs));
             }
+          }
+        } catch (e) {
+          console.error("Failed to load daily logs from Firestore:", e);
+        }
+      }
+
+      if (!loadedFromCloud) {
+        const savedStr = localStorage.getItem(currentMonthStorageKey);
+        if (savedStr) {
+          try {
+            const parsedArr: DailyAttendance[] = JSON.parse(savedStr);
+            if (Array.isArray(parsedArr)) {
+              parsedArr.forEach((item) => {
+                if (item && typeof item.day === "number") {
+                  savedMap[item.day] = item;
+                }
+              });
+            }
+          } catch (e) {
+            console.error("Failed to parse saved daily logs:", e);
+          }
+        }
+      }
+
+      const logs: DailyAttendance[] = [];
+      for (let d = startDay; d <= endDay; d++) {
+        const dateStr = `${yearStr}-${String(monthStr).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const date = new Date(year, month - 1, d);
+        const dayOfWeek = date.getDay(); // 0 = Sun
+        const isSun = dayOfWeek === 0;
+
+        const matchingHoliday = config.publicHolidays.find((h) => h.dateStr === dateStr);
+
+        let initialStatus: WorkStatus = "work";
+        if (matchingHoliday) {
+          initialStatus = "public_holiday";
+        } else if (isSun) {
+          initialStatus = "off";
+        }
+
+        const savedItem = savedMap[d];
+        if (savedItem) {
+          logs.push({
+            ...savedItem,
+            day: d,
+            dateStr,
+            note: savedItem.note ?? (matchingHoliday ? matchingHoliday.name : undefined),
+          });
+        } else {
+          logs.push({
+            day: d,
+            dateStr,
+            status: initialStatus,
+            isNightShift: false,
+            ot15Hours: 0,
+            ot10Hours: 0,
+            ot30Hours: 0,
+            note: matchingHoliday ? matchingHoliday.name : undefined,
           });
         }
-      } catch (e) {
-        console.error("Failed to parse saved daily logs:", e);
+      }
+
+      if (isMounted) {
+        setDailyLogs(logs);
       }
     }
 
-    const logs: DailyAttendance[] = [];
-    for (let d = startDay; d <= endDay; d++) {
-      const dateStr = `${yearStr}-${String(monthStr).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const date = new Date(year, month - 1, d);
-      const dayOfWeek = date.getDay(); // 0 = Sun
-      const isSun = dayOfWeek === 0;
+    fetchDailyLogs();
 
-      // Check if date is in public holidays
-      const matchingHoliday = config.publicHolidays.find(h => h.dateStr === dateStr);
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedMonth, decemberPeriod, config.publicHolidays, currentMonthStorageKey, currentUser, isDecember]);
 
-      let initialStatus: WorkStatus = "work";
-      if (matchingHoliday) {
-        initialStatus = "public_holiday";
-      } else if (isSun) {
-        initialStatus = "off";
-      }
-
-      const savedItem = savedMap[d];
-      if (savedItem) {
-        logs.push({
-          ...savedItem,
-          day: d,
-          dateStr,
-          note: savedItem.note ?? (matchingHoliday ? matchingHoliday.name : undefined),
-        });
-      } else {
-        logs.push({
-          day: d,
-          dateStr,
-          status: initialStatus,
-          isNightShift: false,
-          ot15Hours: 0,
-          ot10Hours: 0,
-          ot30Hours: 0,
-          note: matchingHoliday ? matchingHoliday.name : undefined,
-        });
-      }
-    }
-    setDailyLogs(logs);
-  }, [selectedMonth, decemberPeriod, config.publicHolidays, currentMonthStorageKey]);
-
-  // Persist dailyLogs to localStorage whenever dailyLogs state updates
+  // Persist dailyLogs to localStorage AND Firestore (with 400ms debounce for smooth editing)
   useEffect(() => {
     if (!selectedMonth || dailyLogs.length === 0) return;
     localStorage.setItem(currentMonthStorageKey, JSON.stringify(dailyLogs));
-  }, [dailyLogs, currentMonthStorageKey, selectedMonth]);
+
+    if (currentUser) {
+      setSyncStatus("saving");
+      const timer = setTimeout(async () => {
+        try {
+          const uId = currentUser.toLowerCase().trim();
+          const periodKey = `${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
+          await setDoc(doc(db, "users", uId, "salary_daily_logs", periodKey), {
+            logs: cleanObjectForFirestore(dailyLogs),
+            updatedAt: new Date().toISOString(),
+          });
+          setSyncStatus("synced");
+        } catch (e) {
+          console.error("Error saving daily logs to Firestore:", e);
+          setSyncStatus("error");
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [dailyLogs, currentMonthStorageKey, selectedMonth, currentUser, isDecember, decemberPeriod]);
 
   // Re-calculate totals from daily logs when in daily log mode
   useEffect(() => {
@@ -422,6 +738,10 @@ export default function SalaryCalculatorManager({
       bonusPay = config.annualBonus;
     }
 
+    // Dynamic Custom Earnings and Deductions
+    const totalCustomEarnings = customEarnings.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+    const totalCustomDeductions = customDeductions.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+
     // Total Gross Earnings
     const grossEarnings = 
       periodBaseSalary + 
@@ -439,7 +759,8 @@ export default function SalaryCalculatorManager({
       seniorityPay + 
       specialDutyPay + 
       certificatePay + 
-      bonusPay;
+      bonusPay + 
+      totalCustomEarnings;
 
     // Deductions
     const studentLoan = (isDecember && decemberPeriod === "p2") ? 0 : config.studentLoanDeduction;
@@ -451,7 +772,7 @@ export default function SalaryCalculatorManager({
     const kpiDeductionVal = config.kpiDeduction;
     const otherDeductionVal = config.otherDeduction;
 
-    const totalDeductions = studentLoan + socialSecurity + kpiDeductionVal + otherDeductionVal;
+    const totalDeductions = studentLoan + socialSecurity + kpiDeductionVal + otherDeductionVal + totalCustomDeductions;
 
     // Net Payable Salary
     const netSalary = Math.max(0, grossEarnings - totalDeductions);
@@ -480,6 +801,8 @@ export default function SalaryCalculatorManager({
       specialDutyPay,
       certificatePay,
       bonusPay,
+      totalCustomEarnings,
+      totalCustomDeductions,
       grossEarnings,
       studentLoan,
       socialSecurity,
@@ -499,6 +822,8 @@ export default function SalaryCalculatorManager({
     ot30HoursInput,
     otMealDaysInput,
     nightShiftDaysInput,
+    customEarnings,
+    customDeductions,
   ]);
 
   // Handle Recording Income Transaction to Wallet
@@ -518,7 +843,7 @@ export default function SalaryCalculatorManager({
 • ค่าข้าว & เดินทาง: ฿${(calcResults.mealPay + calcResults.travelPay + calcResults.otMealPay).toLocaleString()}
 • เบี้ยขยัน/วุฒิ/จุดพิเศษ/อายุงาน: ฿${(calcResults.diligentPay + calcResults.certificatePay + calcResults.specialDutyPay + calcResults.seniorityPay + calcResults.vacationRefundPay).toLocaleString()}
 • ค่ากะ & สวัสดิการ: ฿${(calcResults.nightShiftPay + calcResults.kpiPay + calcResults.housingPay + calcResults.positionPay + calcResults.otherIncomePay).toLocaleString()}
-${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${calcResults.bonusPay.toLocaleString()}\n` : ""}• รายการหัก: -฿${calcResults.totalDeductions.toLocaleString()} (กยศ ฿${calcResults.studentLoan}, ประกันสังคม ฿${calcResults.socialSecurity})`;
+${customEarnings.length > 0 ? `• รายการรับเพิ่มเติม: ${customEarnings.map((e) => `${e.name} (+฿${e.amount})`).join(", ")}\n` : ""}${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${calcResults.bonusPay.toLocaleString()}\n` : ""}• รายการหัก: -฿${calcResults.totalDeductions.toLocaleString()} (กยศ ฿${calcResults.studentLoan}, ประกันสังคม ฿${calcResults.socialSecurity}${customDeductions.length > 0 ? `, หักเพิ่มเติม: ${customDeductions.map((d) => `${d.name} -฿${d.amount}`).join(", ")}` : ""})`;
 
     onAddTransaction({
       type: "income",
@@ -572,7 +897,26 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {syncStatus === "saving" && (
+            <span className="px-3 py-1.5 bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 animate-pulse">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>กำลังบันทึกไปยังคลาวด์...</span>
+            </span>
+          )}
+          {syncStatus === "synced" && (
+            <span className="px-3 py-1.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>ซิงค์คลาวด์แล้ว</span>
+            </span>
+          )}
+          {syncStatus === "error" && (
+            <span className="px-3 py-1.5 bg-rose-500/15 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+              <span>บันทึกในเครื่อง</span>
+            </span>
+          )}
+
           <button
             type="button"
             onClick={() => setShowConfigModal(true)}
@@ -838,10 +1182,17 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
             {/* Income & Allowances Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Allowances Summary Box */}
-              <div className="bg-[#111827] border border-white/10 rounded-3xl p-5 space-y-3">
-                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-white/10 pb-2">
-                  <Award className="w-4 h-4" />
-                  <span>สวัสดิการ & รายรับเพิ่มเติม</span>
+              <div className="bg-[#111827] border border-white/10 rounded-3xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="flex items-center gap-1.5">
+                    <Award className="w-4 h-4" />
+                    <span>สวัสดิการ & รายรับเพิ่มเติม</span>
+                  </span>
+                  {calcResults.totalCustomEarnings > 0 && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                      +฿{calcResults.totalCustomEarnings.toLocaleString()}
+                    </span>
+                  )}
                 </h4>
 
                 <div className="space-y-1.5 text-xs">
@@ -898,13 +1249,75 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
                     </div>
                   )}
                 </div>
+
+                {/* Custom Earnings List (+รายการรับเพิ่มเติม) */}
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-300">
+                    <span>➕ รายการรับเพิ่มเติม (กำหนดเอง):</span>
+                    <span>฿{calcResults.totalCustomEarnings.toLocaleString()}</span>
+                  </div>
+
+                  {customEarnings.length > 0 && (
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {customEarnings.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-xl text-xs">
+                          <span className="text-emerald-200 font-medium">{item.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-emerald-300">+฿{item.amount.toLocaleString()}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomEarning(item.id)}
+                              className="text-slate-400 hover:text-rose-400 p-0.5 transition-colors cursor-pointer"
+                              title="ลบรายการรับนี้"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Custom Earning Form */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <input
+                      type="text"
+                      placeholder="เช่น +KPI *ตักจับงานขาด"
+                      value={newEarningName}
+                      onChange={(e) => setNewEarningName(e.target.value)}
+                      className="flex-1 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white text-xs focus:border-emerald-500"
+                    />
+                    <input
+                      type="number"
+                      placeholder="จำนวน"
+                      value={newEarningAmount}
+                      onChange={(e) => setNewEarningAmount(e.target.value)}
+                      className="w-20 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white font-bold text-xs focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCustomEarning}
+                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>เพิ่ม</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Deductions Summary Box */}
-              <div className="bg-[#111827] border border-white/10 rounded-3xl p-5 space-y-3">
-                <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-white/10 pb-2">
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>รายการหักประจำเดือน</span>
+              <div className="bg-[#111827] border border-white/10 rounded-3xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>รายการหักประจำเดือน</span>
+                  </span>
+                  {calcResults.totalCustomDeductions > 0 && (
+                    <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold">
+                      -฿{calcResults.totalCustomDeductions.toLocaleString()}
+                    </span>
+                  )}
                 </h4>
 
                 <div className="space-y-1.5 text-xs">
@@ -928,10 +1341,66 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
                       <span className="font-bold text-rose-300">-฿{calcResults.otherDeductionVal.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-rose-400 font-bold pt-2 border-t border-white/10">
-                    <span>รวมรายการหักทั้งหมด:</span>
-                    <span>-฿{calcResults.totalDeductions.toLocaleString()}</span>
+                </div>
+
+                {/* Custom Deductions List (-รายการหักเพิ่มเติม) */}
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-300">
+                    <span>➖ รายการหักเพิ่มเติม (กำหนดเอง):</span>
+                    <span>-฿{calcResults.totalCustomDeductions.toLocaleString()}</span>
                   </div>
+
+                  {customDeductions.length > 0 && (
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                      {customDeductions.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between bg-rose-500/10 border border-rose-500/20 p-2 rounded-xl text-xs">
+                          <span className="text-rose-200 font-medium">{item.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-rose-300">-฿{item.amount.toLocaleString()}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomDeduction(item.id)}
+                              className="text-slate-400 hover:text-rose-400 p-0.5 transition-colors cursor-pointer"
+                              title="ลบรายการหักนี้"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Custom Deduction Form */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <input
+                      type="text"
+                      placeholder="เช่น -KPI *ส่งงานเกิน"
+                      value={newDeductionName}
+                      onChange={(e) => setNewDeductionName(e.target.value)}
+                      className="flex-1 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white text-xs focus:border-rose-500"
+                    />
+                    <input
+                      type="number"
+                      placeholder="จำนวน"
+                      value={newDeductionAmount}
+                      onChange={(e) => setNewDeductionAmount(e.target.value)}
+                      className="w-20 px-2.5 py-1.5 bg-[#1e293b] border border-white/10 rounded-xl text-white font-bold text-xs focus:border-rose-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCustomDeduction}
+                      className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap shadow-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>เพิ่ม</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between text-rose-400 font-bold pt-2 border-t border-white/10 text-xs">
+                  <span>รวมรายการหักทั้งหมด:</span>
+                  <span>-฿{calcResults.totalDeductions.toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -1376,6 +1845,12 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
                       <span className="font-bold">฿{calcResults.otherIncomePay.toLocaleString()}</span>
                     </div>
                   )}
+                  {customEarnings.map((item) => (
+                    <div key={item.id} className="flex justify-between py-1 border-b border-slate-100 text-emerald-800 font-bold">
+                      <span>{item.name}</span>
+                      <span>+฿{item.amount.toLocaleString()}</span>
+                    </div>
+                  ))}
                   {calcResults.bonusPay > 0 && (
                     <div className="flex justify-between py-1.5 bg-amber-50 px-2 rounded border border-amber-200 font-bold text-amber-900">
                       <span>🎁 โบนัสประจำปี (จ่าย ธ.ค.)</span>
@@ -1415,6 +1890,12 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
                       <span className="font-bold text-rose-700">฿{calcResults.otherDeductionVal.toLocaleString()}</span>
                     </div>
                   )}
+                  {customDeductions.map((item) => (
+                    <div key={item.id} className="flex justify-between py-1 border-b border-slate-100 text-rose-800 font-bold">
+                      <span>{item.name}</span>
+                      <span>-฿{item.amount.toLocaleString()}</span>
+                    </div>
+                  ))}
                   <div className="flex justify-between pt-2 text-sm font-extrabold text-rose-900 border-t-2 border-rose-200">
                     <span>รวมรายการหัก</span>
                     <span>฿{calcResults.totalDeductions.toLocaleString()}</span>
