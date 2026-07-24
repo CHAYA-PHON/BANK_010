@@ -215,7 +215,12 @@ export default function SalaryCalculatorManager({
     return new Date(year, month, 0).getDate();
   }, [selectedMonth]);
 
-  // Generate Daily Attendance logs when month, period, or holidays change
+  // Storage key helper for current selected month & period
+  const currentMonthStorageKey = useMemo(() => {
+    return `salary_daily_logs_${currentUser || "default"}_${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
+  }, [currentUser, selectedMonth, isDecember, decemberPeriod]);
+
+  // Generate / Load Daily Attendance logs from localStorage when month, period, or holidays change
   useEffect(() => {
     if (!selectedMonth) return;
     const [yearStr, monthStr] = selectedMonth.split("-");
@@ -232,6 +237,24 @@ export default function SalaryCalculatorManager({
       } else if (decemberPeriod === "p2") {
         startDay = 21;
         endDay = 31;
+      }
+    }
+
+    // Attempt to load saved logs from localStorage
+    const savedStr = localStorage.getItem(currentMonthStorageKey);
+    let savedMap: Record<number, DailyAttendance> = {};
+    if (savedStr) {
+      try {
+        const parsedArr: DailyAttendance[] = JSON.parse(savedStr);
+        if (Array.isArray(parsedArr)) {
+          parsedArr.forEach((item) => {
+            if (item && typeof item.day === "number") {
+              savedMap[item.day] = item;
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse saved daily logs:", e);
       }
     }
 
@@ -252,24 +275,40 @@ export default function SalaryCalculatorManager({
         initialStatus = "off";
       }
 
-      logs.push({
-        day: d,
-        dateStr,
-        status: initialStatus,
-        isNightShift: false,
-        ot15Hours: 0,
-        ot10Hours: 0,
-        ot30Hours: 0,
-        note: matchingHoliday ? matchingHoliday.name : undefined,
-      });
+      const savedItem = savedMap[d];
+      if (savedItem) {
+        logs.push({
+          ...savedItem,
+          day: d,
+          dateStr,
+          note: savedItem.note ?? (matchingHoliday ? matchingHoliday.name : undefined),
+        });
+      } else {
+        logs.push({
+          day: d,
+          dateStr,
+          status: initialStatus,
+          isNightShift: false,
+          ot15Hours: 0,
+          ot10Hours: 0,
+          ot30Hours: 0,
+          note: matchingHoliday ? matchingHoliday.name : undefined,
+        });
+      }
     }
     setDailyLogs(logs);
-  }, [selectedMonth, decemberPeriod, config.publicHolidays]);
+  }, [selectedMonth, decemberPeriod, config.publicHolidays, currentMonthStorageKey]);
+
+  // Persist dailyLogs to localStorage whenever dailyLogs state updates
+  useEffect(() => {
+    if (!selectedMonth || dailyLogs.length === 0) return;
+    localStorage.setItem(currentMonthStorageKey, JSON.stringify(dailyLogs));
+  }, [dailyLogs, currentMonthStorageKey, selectedMonth]);
 
   // Re-calculate totals from daily logs when in daily log mode
   useEffect(() => {
     if (!useDailyLog) return;
-    let worked = 0;
+    let totalAllowanceDays = 0; // Days that qualify for daily travel allowance (50฿) & meal allowance (47฿)
     let ot15 = 0;
     let ot10 = 0;
     let ot30 = 0;
@@ -283,7 +322,17 @@ export default function SalaryCalculatorManager({
     let shiftHoliday = 0;
 
     dailyLogs.forEach((log) => {
-      if (log.status === "work") worked++;
+      const isNormalWork = log.status === "work";
+      const isHolidayOrOff = log.status === "off" || log.status === "public_holiday" || log.status === "shifted_holiday";
+      const totalOtHoursInDay = (log.ot10Hours || 0) + (log.ot15Hours || 0) + (log.ot30Hours || 0);
+      const workedOnHoliday = isHolidayOrOff && totalOtHoursInDay > 0;
+
+      // Rule: Travel allowance & Meal allowance are earned on normal work days AND when coming in to work/OT on holidays/off days!
+      // Leave days (ลากิจ/ลาป่วย/ลาพักร้อน) and unworked holiday days DO NOT get travel or meal allowance.
+      if (isNormalWork || workedOnHoliday) {
+        totalAllowanceDays++;
+      }
+
       if (log.status === "personal_leave") pLeave++;
       if (log.status === "sick_leave") sLeave++;
       if (log.status === "vacation_leave") vLeave++;
@@ -302,7 +351,7 @@ export default function SalaryCalculatorManager({
       }
     });
 
-    setWorkDaysInput(worked);
+    setWorkDaysInput(totalAllowanceDays);
     setOt15HoursInput(ot15);
     setOt10HoursInput(ot10);
     setOt30HoursInput(ot30);
@@ -976,10 +1025,16 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
         <div className="bg-[#111827] border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-emerald-400" />
-                <span>ตารางลงเวลาทำงาน & วันหยุด/การลาประจำวัน ({selectedMonth})</span>
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-emerald-400" />
+                  <span>ตารางลงเวลาทำงาน & วันหยุด/การลาประจำวัน ({selectedMonth})</span>
+                </h3>
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>บันทึกอัตโนมัติแล้ว</span>
+                </span>
+              </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 เลือกสถานะ มาทำงาน / วันหยุดประจำสัปดาห์ / วันหยุดนักขัตฤกษ์ / ปรับเลื่อนวันหยุด / ลากิจ / ลาป่วย / ลาพักร้อน
               </p>
@@ -988,7 +1043,7 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
             {/* Leave & Work Days Quick Counters */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-lg">
-                ทำงาน: <strong>{workDaysInput} วัน</strong>
+                ทำงาน/ได้ค่าเดินทาง: <strong>{workDaysInput} วัน</strong>
               </span>
               <span className="px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 rounded-lg">
                 ลากิจ: <strong>{personalLeaveDays} วัน</strong>
@@ -1014,13 +1069,19 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
                   <th className="py-2.5 px-3">เข้ากะดึก</th>
                   <th className="py-2.5 px-3">OT 1.5 (ปกติ)</th>
                   <th className="py-2.5 px-3">OT 1.0 / OT 3.0 (วันหยุด)</th>
-                  <th className="py-2.5 px-3">หมายเหตุ / ค่าข้าว OT</th>
+                  <th className="py-2.5 px-3">สวัสดิการประจำวัน & ค่าข้าว OT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-xs">
                 {dailyLogs.map((log, idx) => {
                   const totalOtInDay = (log.ot15Hours || 0) + (log.ot30Hours || 0);
                   const isOtMealQualify = totalOtInDay >= 2.5;
+
+                  const isLeaveDay = log.status === "personal_leave" || log.status === "sick_leave" || log.status === "vacation_leave";
+                  const isHolidayOrOff = log.status === "off" || log.status === "public_holiday" || log.status === "shifted_holiday";
+                  const totalOtHoursInDay = (log.ot10Hours || 0) + (log.ot15Hours || 0) + (log.ot30Hours || 0);
+                  const workedOnHoliday = isHolidayOrOff && totalOtHoursInDay > 0;
+                  const isNormalWork = log.status === "work";
 
                   return (
                     <tr key={log.day} className={`hover:bg-white/5 transition-colors ${log.status === "public_holiday" ? "bg-rose-500/10" : log.status === "off" ? "bg-slate-800/30" : ""}`}>
@@ -1125,14 +1186,33 @@ ${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${cal
                       </td>
 
                       <td className="py-2 px-3">
-                        {isOtMealQualify ? (
-                          <span className="text-amber-400 font-bold text-xs flex items-center gap-1">
-                            <Coffee className="w-3.5 h-3.5" />
-                            <span>ค่าข้าว OT +35฿</span>
-                          </span>
-                        ) : (
-                          <span className="text-slate-600 text-xs">-</span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {isNormalWork && (
+                            <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 rounded-md text-[10px] font-bold">
+                              🚗 +50฿ 🍚 +47฿
+                            </span>
+                          )}
+                          {workedOnHoliday && (
+                            <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[10px] font-bold">
+                              🚗 +50฿ 🍚 +47฿ (ทำงานวันหยุด)
+                            </span>
+                          )}
+                          {isOtMealQualify && (
+                            <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[10px] font-bold flex items-center gap-0.5">
+                              <Coffee className="w-3 h-3" /> ☕️ ข้าว OT +35฿
+                            </span>
+                          )}
+                          {isLeaveDay && (
+                            <span className="text-slate-500 text-[10px]">
+                              ❌ วันลา (ไม่ได้ค่าเดินทาง/อาหาร)
+                            </span>
+                          )}
+                          {isHolidayOrOff && !workedOnHoliday && (
+                            <span className="text-slate-500 text-[10px]">
+                              ⚪️ วันหยุด (ไม่ได้มาทำงาน)
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
