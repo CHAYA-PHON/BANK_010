@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, RefreshCw, Sliders, Landmark, Wallet as WalletIcon,
   Printer, ArrowUpRight, Flag, CalendarCheck, UserCheck, Star, ShieldCheck,
   FileCheck, Repeat, Loader2, CreditCard, Coins, TrendingUp, TrendingDown,
-  BarChart3, Search, ArrowUp, ArrowDown, Utensils
+  BarChart3, Search, ArrowUp, ArrowDown, Utensils, Info
 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -92,6 +92,7 @@ export interface SalaryConfig {
   otherDeduction: number; // รายการหักเพิ่มเติม
 
   publicHolidays: PublicHolidayItem[]; // รายการวันหยุดนักขัตฤกษ์ที่กำหนดไว้
+  workingSaturdays?: string[]; // รายการวันเสาร์ทำงาน (office w) YYYY-MM-DD
   salaryRaises?: SalaryRaiseItem[]; // ประวัติ/กำหนดการปรับขึ้นเงินเดือน
 }
 
@@ -137,18 +138,118 @@ interface SalaryCalculatorManagerProps {
   currentUser: string;
 }
 
-const DEFAULT_HOLIDAYS: PublicHolidayItem[] = [
-  { id: "h1", dateStr: "2026-01-01", name: "วันขึ้นปีใหม่" },
-  { id: "h2", dateStr: "2026-04-13", name: "วันสงกรานต์" },
-  { id: "h3", dateStr: "2026-04-14", name: "วันสงกรานต์" },
-  { id: "h4", dateStr: "2026-04-15", name: "วันสงกรานต์" },
-  { id: "h5", dateStr: "2026-05-01", name: "วันแรงงานแห่งชาติ" },
-  { id: "h6", dateStr: "2026-07-28", name: "วันเฉลิมพระชนมพรรษา ร.10" },
-  { id: "h7", dateStr: "2026-08-12", name: "วันแม่แห่งชาติ" },
-  { id: "h8", dateStr: "2026-10-13", name: "วันคล้ายวันสวรรคต ร.9" },
-  { id: "h9", dateStr: "2026-12-05", name: "วันพ่อแห่งชาติ" },
-  { id: "h10", dateStr: "2026-12-10", name: "วันรัฐธรรมนูญ" },
-  { id: "h11", dateStr: "2026-12-31", name: "วันสิ้นปี" },
+export const DEFAULT_HOLIDAYS_2025: PublicHolidayItem[] = [
+  { id: "h25_1", dateStr: "2025-01-01", name: "วันขึ้นปีใหม่" },
+  { id: "h25_2", dateStr: "2025-01-02", name: "วันหยุดพิเศษปีใหม่" },
+  { id: "h25_3", dateStr: "2025-02-12", name: "วันมาฆบูชา" },
+  { id: "h25_4", dateStr: "2025-04-14", name: "วันสงกรานต์" },
+  { id: "h25_5", dateStr: "2025-04-15", name: "วันสงกรานต์" },
+  { id: "h25_6", dateStr: "2025-04-16", name: "วันสงกรานต์" },
+  { id: "h25_7", dateStr: "2025-04-17", name: "วันสงกรานต์" },
+  { id: "h25_8", dateStr: "2025-05-01", name: "วันแรงงานแห่งชาติ" },
+  { id: "h25_9", dateStr: "2025-06-03", name: "วันเฉลิมพระชนมพรรษา สมเด็จพระนางเจ้าฯ พระบรมราชินี" },
+  { id: "h25_10", dateStr: "2025-07-28", name: "วันเฉลิมพระชนมพรรษา ร.10" },
+  { id: "h25_11", dateStr: "2025-08-12", name: "วันแม่แห่งชาติ" },
+  { id: "h25_12", dateStr: "2025-10-13", name: "วันคล้ายวันสวรรคต ร.9" },
+  { id: "h25_13", dateStr: "2025-12-05", name: "วันพ่อแห่งชาติ" },
+  { id: "h25_14", dateStr: "2025-12-30", name: "วันหยุดพิเศษส่งท้ายปี" },
+  { id: "h25_15", dateStr: "2025-12-31", name: "วันสิ้นปี" },
+];
+
+export const DEFAULT_HOLIDAYS_2026: PublicHolidayItem[] = [
+  { id: "h26_1", dateStr: "2026-01-01", name: "วันขึ้นปีใหม่" },
+  { id: "h26_2", dateStr: "2026-01-02", name: "วันหยุดพิเศษปีใหม่" },
+  { id: "h26_3", dateStr: "2026-03-03", name: "วันมาฆบูชา" },
+  { id: "h26_4", dateStr: "2026-04-13", name: "วันสงกรานต์" },
+  { id: "h26_5", dateStr: "2026-04-14", name: "วันสงกรานต์" },
+  { id: "h26_6", dateStr: "2026-04-15", name: "วันสงกรานต์" },
+  { id: "h26_7", dateStr: "2026-04-16", name: "วันสงกรานต์" },
+  { id: "h26_8", dateStr: "2026-05-01", name: "วันแรงงานแห่งชาติ" },
+  { id: "h26_9", dateStr: "2026-06-03", name: "วันเฉลิมพระชนมพรรษา สมเด็จพระนางเจ้าฯ พระบรมราชินี" },
+  { id: "h26_10", dateStr: "2026-07-28", name: "วันเฉลิมพระชนมพรรษา ร.10" },
+  { id: "h26_11", dateStr: "2026-08-12", name: "วันแม่แห่งชาติ" },
+  { id: "h26_12", dateStr: "2026-10-13", name: "วันคล้ายวันสวรรคต ร.9" },
+  { id: "h26_13", dateStr: "2026-12-05", name: "วันพ่อแห่งชาติ" },
+  { id: "h26_14", dateStr: "2026-12-30", name: "วันหยุดพิเศษส่งท้ายปี" },
+  { id: "h26_15", dateStr: "2026-12-31", name: "วันสิ้นปี" },
+];
+
+export const DEFAULT_HOLIDAYS_2027: PublicHolidayItem[] = [
+  { id: "h27_1", dateStr: "2027-01-01", name: "วันขึ้นปีใหม่" },
+  { id: "h27_2", dateStr: "2027-01-02", name: "วันหยุดพิเศษปีใหม่" },
+  { id: "h27_3", dateStr: "2027-02-21", name: "วันมาฆบูชา" },
+  { id: "h27_4", dateStr: "2027-04-06", name: "วันจักรี" },
+  { id: "h27_5", dateStr: "2027-04-13", name: "วันสงกรานต์" },
+  { id: "h27_6", dateStr: "2027-04-14", name: "วันสงกรานต์" },
+  { id: "h27_7", dateStr: "2027-04-15", name: "วันสงกรานต์" },
+  { id: "h27_8", dateStr: "2027-04-16", name: "วันหยุดชดเชยวันสงกรานต์" },
+  { id: "h27_9", dateStr: "2027-05-01", name: "วันแรงงานแห่งชาติ" },
+  { id: "h27_10", dateStr: "2027-05-04", name: "วันฉัตรมงคล" },
+  { id: "h27_11", dateStr: "2027-05-20", name: "วันวิสาขบูชา" },
+  { id: "h27_12", dateStr: "2027-06-03", name: "วันเฉลิมพระชนมพรรษา สมเด็จพระนางเจ้าฯ พระบรมราชินี" },
+  { id: "h27_13", dateStr: "2027-07-18", name: "วันอาสาฬหบูชา" },
+  { id: "h27_14", dateStr: "2027-07-28", name: "วันเฉลิมพระชนมพรรษา ร.10" },
+  { id: "h27_15", dateStr: "2027-08-12", name: "วันแม่แห่งชาติ" },
+  { id: "h27_16", dateStr: "2027-10-13", name: "วันคล้ายวันสวรรคต ร.9" },
+  { id: "h27_17", dateStr: "2027-10-23", name: "วันปิยมหาราช" },
+  { id: "h27_18", dateStr: "2027-12-05", name: "วันพ่อแห่งชาติ" },
+  { id: "h27_19", dateStr: "2027-12-10", name: "วันรัฐธรรมนูญ" },
+  { id: "h27_20", dateStr: "2027-12-30", name: "วันหยุดพิเศษส่งท้ายปี" },
+  { id: "h27_21", dateStr: "2027-12-31", name: "วันสิ้นปี" },
+];
+
+export const getPresetHolidaysForYear = (y: number): PublicHolidayItem[] => {
+  if (y === 2025) return DEFAULT_HOLIDAYS_2025;
+  if (y === 2026) return DEFAULT_HOLIDAYS_2026;
+  if (y === 2027) return DEFAULT_HOLIDAYS_2027;
+
+  // General official holiday list generator for any year (2028, 2029, 2030, etc.)
+  const yStr = String(y);
+  return [
+    { id: `h_${y}_1`, dateStr: `${yStr}-01-01`, name: "วันขึ้นปีใหม่" },
+    { id: `h_${y}_2`, dateStr: `${yStr}-01-02`, name: "วันหยุดพิเศษปีใหม่" },
+    { id: `h_${y}_3`, dateStr: `${yStr}-04-06`, name: "วันจักรี" },
+    { id: `h_${y}_4`, dateStr: `${yStr}-04-13`, name: "วันสงกรานต์" },
+    { id: `h_${y}_5`, dateStr: `${yStr}-04-14`, name: "วันสงกรานต์" },
+    { id: `h_${y}_6`, dateStr: `${yStr}-04-15`, name: "วันสงกรานต์" },
+    { id: `h_${y}_7`, dateStr: `${yStr}-04-16`, name: "วันหยุดชดเชยวันสงกรานต์" },
+    { id: `h_${y}_8`, dateStr: `${yStr}-05-01`, name: "วันแรงงานแห่งชาติ" },
+    { id: `h_${y}_9`, dateStr: `${yStr}-05-04`, name: "วันฉัตรมงคล" },
+    { id: `h_${y}_10`, dateStr: `${yStr}-06-03`, name: "วันเฉลิมพระชนมพรรษา สมเด็จพระนางเจ้าฯ พระบรมราชินี" },
+    { id: `h_${y}_11`, dateStr: `${yStr}-07-28`, name: "วันเฉลิมพระชนมพรรษา ร.10" },
+    { id: `h_${y}_12`, dateStr: `${yStr}-08-12`, name: "วันแม่แห่งชาติ" },
+    { id: `h_${y}_13`, dateStr: `${yStr}-10-13`, name: "วันคล้ายวันสวรรคต ร.9" },
+    { id: `h_${y}_14`, dateStr: `${yStr}-10-23`, name: "วันปิยมหาราช" },
+    { id: `h_${y}_15`, dateStr: `${yStr}-12-05`, name: "วันพ่อแห่งชาติ" },
+    { id: `h_${y}_16`, dateStr: `${yStr}-12-10`, name: "วันรัฐธรรมนูญ" },
+    { id: `h_${y}_17`, dateStr: `${yStr}-12-30`, name: "วันหยุดพิเศษส่งท้ายปี" },
+    { id: `h_${y}_18`, dateStr: `${yStr}-12-31`, name: "วันสิ้นปี" },
+  ];
+};
+
+export const DEFAULT_HOLIDAYS: PublicHolidayItem[] = [
+  ...DEFAULT_HOLIDAYS_2025,
+  ...DEFAULT_HOLIDAYS_2026,
+  ...DEFAULT_HOLIDAYS_2027,
+];
+
+export const DEFAULT_WORKING_SATURDAYS_2025: string[] = [
+  "2025-01-04", "2025-01-18", "2025-02-01", "2025-02-15", "2025-03-01", "2025-03-15", "2025-03-29",
+  "2025-04-19", "2025-04-26", "2025-05-10", "2025-05-24", "2025-06-07", "2025-06-21", "2025-07-05",
+  "2025-07-19", "2025-08-02", "2025-08-16", "2025-08-30", "2025-09-13", "2025-09-27", "2025-10-11",
+  "2025-10-25", "2025-11-08", "2025-11-22", "2025-12-06", "2025-12-20"
+];
+
+export const DEFAULT_WORKING_SATURDAYS_2026: string[] = [
+  "2026-01-03", "2026-01-17", "2026-01-31", "2026-02-14", "2026-02-28", "2026-03-14", "2026-03-28",
+  "2026-04-11", "2026-04-25", "2026-05-09", "2026-05-23", "2026-06-06", "2026-06-20", "2026-07-04",
+  "2026-07-18", "2026-08-01", "2026-08-15", "2026-08-29", "2026-09-12", "2026-09-26", "2026-10-10",
+  "2026-10-24", "2026-11-07", "2026-11-21", "2026-12-05", "2026-12-19"
+];
+
+export const DEFAULT_WORKING_SATURDAYS: string[] = [
+  ...DEFAULT_WORKING_SATURDAYS_2025,
+  ...DEFAULT_WORKING_SATURDAYS_2026,
 ];
 
 const DEFAULT_SALARY_CONFIG: SalaryConfig = {
@@ -180,7 +281,103 @@ const DEFAULT_SALARY_CONFIG: SalaryConfig = {
   kpiDeduction: 0,
   otherDeduction: 0,
   publicHolidays: DEFAULT_HOLIDAYS,
+  workingSaturdays: DEFAULT_WORKING_SATURDAYS,
 };
+
+// Helper: Calculate Official Payroll Payday according to rule (5th of next month, shifted before weekend/holiday)
+export function getPaydayInfo(
+  year: number,
+  month: number,
+  period: "full" | "p1" | "p2" = "full",
+  publicHolidays: PublicHolidayItem[] = DEFAULT_HOLIDAYS,
+  workingSaturdays: string[] = DEFAULT_WORKING_SATURDAYS
+): {
+  dateStr: string; // YYYY-MM-DD
+  formattedThai: string; // e.g. "5 ก.พ. 2569"
+  isShifted: boolean;
+  originalTargetStr: string;
+  reason: string;
+  shiftNote?: string;
+} {
+  let targetYear = year;
+  let targetMonth = month;
+  let targetDay = 5;
+  let reason = "จ่ายทุกวันที่ 5 ของเดือนถัดไป";
+
+  if (month === 12) {
+    if (period === "p1") {
+      targetYear = year;
+      targetMonth = 12;
+      targetDay = 25; // Paid before year-end holiday
+      reason = "งวดที่ 1 (1-20 ธ.ค.): จ่ายก่อนวันหยุดสิ้นปี";
+    } else {
+      targetYear = year + 1;
+      targetMonth = 1;
+      targetDay = 5;
+      reason = "งวดที่ 2 (21-31 ธ.ค.): จ่ายวันที่ 5 มกราคม ของปีถัดไป";
+    }
+  } else {
+    targetMonth = month + 1;
+    targetDay = 5;
+  }
+
+  const originalTargetStr = `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`;
+
+  let checkDate = new Date(targetYear, targetMonth - 1, targetDay);
+  let isShifted = false;
+  let shiftReason = "";
+
+  const isClosedDay = (d: Date) => {
+    const dayOfWeek = d.getDay(); // 0 = Sun, 6 = Sat
+    const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    if (dayOfWeek === 0) return "วันอาทิตย์ (วันหยุดประจำสัปดาห์)";
+
+    if (dayOfWeek === 6) {
+      // Check if this Saturday is a Working Saturday (office w)
+      const isWorkingSat = workingSaturdays && workingSaturdays.includes(dStr);
+      if (!isWorkingSat) {
+        return "วันเสาร์ (วันหยุดประจำสัปดาห์ เสาร์เว้นเสาร์)";
+      }
+    }
+
+    const hol = publicHolidays.find((h) => h.dateStr === dStr);
+    if (hol) return `วันหยุดบริษัท/นักขัตฤกษ์ (${hol.name})`;
+
+    return null;
+  };
+
+  let closedReason = isClosedDay(checkDate);
+  while (closedReason) {
+    if (!isShifted) {
+      shiftReason = `ตรงกับ${closedReason} จึงเลื่อนจ่ายล่วงหน้ามาเป็นวันทำการก่อนหน้า`;
+    }
+    isShifted = true;
+    checkDate.setDate(checkDate.getDate() - 1);
+    closedReason = isClosedDay(checkDate);
+  }
+
+  const finalYear = checkDate.getFullYear();
+  const finalMonth = checkDate.getMonth() + 1;
+  const finalDay = checkDate.getDate();
+  const dateStr = `${finalYear}-${String(finalMonth).padStart(2, "0")}-${String(finalDay).padStart(2, "0")}`;
+
+  const monthsThai = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+  ];
+  const thaiYear = finalYear + 543;
+  const formattedThai = `${finalDay} ${monthsThai[finalMonth - 1]} ${thaiYear}`;
+
+  return {
+    dateStr,
+    formattedThai,
+    isShifted,
+    originalTargetStr,
+    reason,
+    shiftNote: isShifted ? shiftReason : undefined,
+  };
+}
 
 export default function SalaryCalculatorManager({
   wallets,
@@ -443,9 +640,15 @@ export default function SalaryCalculatorManager({
   const [newDeductionName, setNewDeductionName] = useState<string>("");
   const [newDeductionAmount, setNewDeductionAmount] = useState<string>("");
 
-  // New Holiday Input state in config modal
+  // Holiday Input & Filter states in config modal
   const [newHolidayDate, setNewHolidayDate] = useState<string>("");
   const [newHolidayName, setNewHolidayName] = useState<string>("");
+  const [holidayYearFilter, setHolidayYearFilter] = useState<string>("2026");
+
+  // Editing Holiday state
+  const [editingHolidayId, setEditingHolidayId] = useState<string | null>(null);
+  const [editHolidayDate, setEditHolidayDate] = useState<string>("");
+  const [editHolidayName, setEditHolidayName] = useState<string>("");
 
   // Selected wallet for saving salary & meal card transactions
   const [selectedWalletId, setSelectedWalletId] = useState<string>("");
@@ -728,6 +931,7 @@ export default function SalaryCalculatorManager({
       alert("กรุณาระบุวันที่และชื่อวันหยุดนักขัตฤกษ์");
       return;
     }
+    const yearOfNew = newHolidayDate.split("-")[0];
     const updatedHolidays = [
       ...config.publicHolidays,
       { id: `h_${Date.now()}`, dateStr: newHolidayDate, name: newHolidayName.trim() }
@@ -738,6 +942,7 @@ export default function SalaryCalculatorManager({
     localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConf));
     setNewHolidayDate("");
     setNewHolidayName("");
+    if (yearOfNew) setHolidayYearFilter(yearOfNew);
 
     if (currentUser) {
       setSyncStatus("saving");
@@ -752,9 +957,51 @@ export default function SalaryCalculatorManager({
     }
   };
 
+  // Start Edit Holiday
+  const handleStartEditHoliday = (h: PublicHolidayItem) => {
+    setEditingHolidayId(h.id);
+    setEditHolidayDate(h.dateStr);
+    setEditHolidayName(h.name);
+  };
+
+  // Cancel Edit Holiday
+  const handleCancelEditHoliday = () => {
+    setEditingHolidayId(null);
+    setEditHolidayDate("");
+    setEditHolidayName("");
+  };
+
+  // Save Edited Holiday
+  const handleSaveEditHoliday = async (id: string) => {
+    if (!editHolidayDate || !editHolidayName.trim()) {
+      alert("กรุณาระบุวันที่และชื่อวันหยุดนักขัตฤกษ์");
+      return;
+    }
+    const updatedHolidays = config.publicHolidays
+      .map((h) => (h.id === id ? { ...h, dateStr: editHolidayDate, name: editHolidayName.trim() } : h))
+      .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+
+    const newConf = { ...config, publicHolidays: updatedHolidays };
+    setConfig(newConf);
+    localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConf));
+    setEditingHolidayId(null);
+
+    if (currentUser) {
+      setSyncStatus("saving");
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        await setDoc(doc(db, "users", uId, "salary_config", "config"), cleanObjectForFirestore(newConf));
+        setSyncStatus("synced");
+      } catch (err) {
+        console.error("Error syncing edited holiday to Firestore:", err);
+        setSyncStatus("error");
+      }
+    }
+  };
+
   // Delete Public Holiday
   const handleDeletePublicHoliday = async (id: string) => {
-    const updatedHolidays = config.publicHolidays.filter(h => h.id !== id);
+    const updatedHolidays = config.publicHolidays.filter((h) => h.id !== id);
     const newConf = { ...config, publicHolidays: updatedHolidays };
     setConfig(newConf);
     localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConf));
@@ -771,6 +1018,44 @@ export default function SalaryCalculatorManager({
       }
     }
   };
+
+  // Import Official Preset Holidays by Year (e.g. 2025, 2026, 2027, 2028...)
+  const handleImportPresetHolidaysByYear = async (yearStr: string) => {
+    const yearNum = parseInt(yearStr, 10) || 2027;
+    const presetToImport = getPresetHolidaysForYear(yearNum);
+
+    // Filter out existing holidays from that year, then merge with presetToImport
+    const otherYearHolidays = config.publicHolidays.filter((h) => !h.dateStr.startsWith(`${yearStr}-`));
+    const updatedHolidays = [...otherYearHolidays, ...presetToImport].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+
+    const newConf = { ...config, publicHolidays: updatedHolidays };
+    setConfig(newConf);
+    localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConf));
+    setHolidayYearFilter(yearStr);
+
+    if (currentUser) {
+      setSyncStatus("saving");
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        await setDoc(doc(db, "users", uId, "salary_config", "config"), cleanObjectForFirestore(newConf));
+        setSyncStatus("synced");
+      } catch (err) {
+        console.error("Error syncing preset holidays to Firestore:", err);
+        setSyncStatus("error");
+      }
+    }
+    alert(`⚡ นำเข้าข้อมูลวันหยุดประจำปี ${yearStr} (${yearNum + 543}) เรียบร้อยแล้ว! (${presetToImport.length} รายการ)`);
+  };
+
+  // Filtered Holidays according to chosen year filter
+  const filteredHolidays = useMemo(() => {
+    if (holidayYearFilter === "all") {
+      return [...config.publicHolidays].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+    }
+    return config.publicHolidays
+      .filter((h) => h.dateStr.startsWith(`${holidayYearFilter}-`))
+      .sort((a, b) => a.dateStr.localeCompare(b.dateStr));
+  }, [config.publicHolidays, holidayYearFilter]);
 
   // Storage key helper for current selected month & period
   const currentMonthStorageKey = useMemo(() => {
@@ -848,16 +1133,21 @@ export default function SalaryCalculatorManager({
       for (let d = startDay; d <= endDay; d++) {
         const dateStr = `${yearStr}-${String(monthStr).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
         const date = new Date(year, month - 1, d);
-        const dayOfWeek = date.getDay(); // 0 = Sun
+        const dayOfWeek = date.getDay(); // 0 = Sun, 6 = Sat
         const isSun = dayOfWeek === 0;
+        const isSat = dayOfWeek === 6;
 
         const matchingHoliday = config.publicHolidays.find((h) => h.dateStr === dateStr);
+        const workingSats = config.workingSaturdays || DEFAULT_WORKING_SATURDAYS;
+        const isWorkingSat = isSat && workingSats.includes(dateStr);
 
         let initialStatus: WorkStatus = "work";
         if (matchingHoliday) {
           initialStatus = "public_holiday";
         } else if (isSun) {
           initialStatus = "off";
+        } else if (isSat && !isWorkingSat) {
+          initialStatus = "off"; // Non-working Saturday (เสาร์เว้นเสาร์)
         }
 
         const savedItem = savedMap[d];
@@ -1003,6 +1293,15 @@ export default function SalaryCalculatorManager({
     }
     return Math.round(currentBase);
   }, [config.baseSalary, config.salaryRaises, selectedMonth]);
+
+  // Current selected period payday information
+  const currentPaydayInfo = useMemo(() => {
+    if (!selectedMonth) return null;
+    const [yStr, mStr] = selectedMonth.split("-");
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    return getPaydayInfo(y, m, isDecember ? decemberPeriod : "full", config.publicHolidays, config.workingSaturdays || DEFAULT_WORKING_SATURDAYS);
+  }, [selectedMonth, isDecember, decemberPeriod, config.publicHolidays, config.workingSaturdays]);
 
   // Calculated default social security
   const defaultSocialSecurity = useMemo(() => {
@@ -1234,7 +1533,7 @@ export default function SalaryCalculatorManager({
     localStorage.setItem(`salary_config_${currentUser || "default"}`, JSON.stringify(newConfig));
   };
 
-  // Annual Overview Data Calculation
+  // Annual Overview Data Calculation (Dynamic forecast based on historical OT average, calendar working days, and recorded daily logs)
   const annualOverviewData = useMemo(() => {
     const year = annualSelectedYear;
     const months = [
@@ -1252,18 +1551,72 @@ export default function SalaryCalculatorManager({
       { num: "12", name: "ธ.ค." },
     ];
 
+    const uId = currentUser ? currentUser.toLowerCase().trim() : "default";
+
+    // Helper to calculate exact working days in a specific month according to calendar
+    const getWorkingDaysInMonth = (y: number, m: number, holidays: PublicHolidayItem[], workingSats: string[]) => {
+      const totalDays = new Date(y, m, 0).getDate();
+      let workDays = 0;
+      for (let d = 1; d <= totalDays; d++) {
+        const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const date = new Date(y, m - 1, d);
+        const dayOfWeek = date.getDay(); // 0 = Sun, 6 = Sat
+        const isSun = dayOfWeek === 0;
+        const isSat = dayOfWeek === 6;
+        const isHoliday = holidays.some((h) => h.dateStr === dateStr);
+        const isWorkingSat = isSat && workingSats.includes(dateStr);
+
+        if (!isHoliday && !isSun && (!isSat || isWorkingSat)) {
+          workDays++;
+        }
+      }
+      return workDays;
+    };
+
+    // 1. Compute historical OT baseline from live calculated month or saved daily attendance logs
+    let historicalOTSum = calcResults ? calcResults.totalOTPay : 0;
+    let historicalOTCount = calcResults && calcResults.totalOTPay > 0 ? 1 : 0;
+
+    months.forEach((m) => {
+      const monthKey = `${year}-${m.num}`;
+      const savedDailyLogsStr = localStorage.getItem(`salary_daily_logs_${uId}_${monthKey}_full`);
+      if (savedDailyLogsStr) {
+        try {
+          const parsedArr: DailyAttendance[] = JSON.parse(savedDailyLogsStr);
+          if (Array.isArray(parsedArr) && parsedArr.length > 0) {
+            let mOt15 = 0;
+            let mOt10 = 0;
+            let mOt30 = 0;
+            parsedArr.forEach((item) => {
+              mOt15 += Number(item.ot15Hours) || 0;
+              mOt10 += Number(item.ot10Hours) || 0;
+              mOt30 += Number(item.ot30Hours) || 0;
+            });
+            const otRate = config.baseSalary / 30 / 8;
+            const logOTPay = Math.round((mOt15 * 1.5 + mOt10 * 1.0 + mOt30 * 3.0) * otRate);
+            if (logOTPay > 0) {
+              historicalOTSum += logOTPay;
+              historicalOTCount++;
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    });
+
+    const averageHistoricalOTPay = historicalOTCount > 0 ? Math.round(historicalOTSum / historicalOTCount) : 0;
+
     let totalNet = 0;
     let totalOT = 0;
     let totalMeal = 0;
     let totalGross = 0;
     let recordedCount = 0;
 
-    const uId = currentUser ? currentUser.toLowerCase().trim() : "default";
-
     const list = months.map((m) => {
       const monthKey = `${year}-${m.num}`;
 
-      // Calculate effective base salary for this specific month in the year
+      // Calculate effective base salary for this specific month in the year (including raises)
       let monthBaseSalary = config.baseSalary;
       const raises = config.salaryRaises || [];
       if (raises.length > 0) {
@@ -1301,15 +1654,26 @@ export default function SalaryCalculatorManager({
         }
       }
 
+      // Calculate official payday for this month
+      const monthPayday = getPaydayInfo(year, parseInt(m.num, 10), "full", config.publicHolidays, config.workingSaturdays || DEFAULT_WORKING_SATURDAYS);
+
       // Check transactions array for matching salary income
       const matchingSalaryTxs = (transactions || []).filter((t) => {
         if (t.type !== "income") return false;
         const isSalaryCategory = t.category === "เงินเดือน" || t.category?.includes("เงินเดือน");
-        const isMonthMatch =
-          (t.merchantName && t.merchantName.includes(monthKey)) ||
-          (t.note && t.note.includes(monthKey)) ||
-          (t.date && t.date.startsWith(monthKey) && isSalaryCategory);
-        return isSalaryCategory && isMonthMatch;
+        if (!isSalaryCategory) return false;
+
+        const textToSearch = `${t.merchantName || ""} ${t.note || ""}`;
+        if (textToSearch.includes(monthKey)) {
+          return true;
+        }
+
+        const otherMonthMatch = textToSearch.match(/\b20\d\d-(0[1-9]|1[0-2])\b/);
+        if (otherMonthMatch && otherMonthMatch[0] !== monthKey) {
+          return false;
+        }
+
+        return t.date === monthPayday.dateStr;
       });
 
       const txSalarySum = matchingSalaryTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -1323,26 +1687,87 @@ export default function SalaryCalculatorManager({
       const matchingMealTxs = (transactions || []).filter((t) => {
         if (t.type !== "income") return false;
         const isMealCat = t.category === "สวัสดิการอาหาร" || t.category?.includes("อาหาร") || t.category?.includes("ค่าข้าว");
-        const isMonthMatch =
-          (t.merchantName && t.merchantName.includes(monthKey)) ||
-          (t.note && t.note.includes(monthKey)) ||
-          (t.date && t.date.startsWith(monthKey) && isMealCat);
-        return isMealCat && isMonthMatch;
+        if (!isMealCat) return false;
+
+        const textToSearch = `${t.merchantName || ""} ${t.note || ""}`;
+        if (textToSearch.includes(monthKey)) {
+          return true;
+        }
+
+        const otherMonthMatch = textToSearch.match(/\b20\d\d-(0[1-9]|1[0-2])\b/);
+        if (otherMonthMatch && otherMonthMatch[0] !== monthKey) {
+          return false;
+        }
+
+        return t.date === monthPayday.dateStr;
       });
       const txMealSum = matchingMealTxs.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-      // Standard estimates
+      // Calendar Working Days in this specific month
+      const monthWorkingDays = getWorkingDaysInMonth(
+        year,
+        parseInt(m.num, 10),
+        config.publicHolidays,
+        config.workingSaturdays || DEFAULT_WORKING_SATURDAYS
+      );
+
+      // Check if saved daily logs exist for this specific month
+      const savedDailyLogsStr = localStorage.getItem(`salary_daily_logs_${uId}_${monthKey}_full`);
+      let monthLogWorkDays = 0;
+      let monthLogOt15 = 0;
+      let monthLogOt10 = 0;
+      let monthLogOt30 = 0;
+      let monthLogOtMealDays = 0;
+      let monthLogNightShiftDays = 0;
+      let hasDailyLogsForMonth = false;
+
+      if (savedDailyLogsStr) {
+        try {
+          const parsedArr: DailyAttendance[] = JSON.parse(savedDailyLogsStr);
+          if (Array.isArray(parsedArr) && parsedArr.length > 0) {
+            hasDailyLogsForMonth = true;
+            parsedArr.forEach((item) => {
+              if (item.status === "work") monthLogWorkDays++;
+              monthLogOt15 += Number(item.ot15Hours) || 0;
+              monthLogOt10 += Number(item.ot10Hours) || 0;
+              monthLogOt30 += Number(item.ot30Hours) || 0;
+              const totalOtHr = (Number(item.ot15Hours) || 0) + (Number(item.ot10Hours) || 0) + (Number(item.ot30Hours) || 0);
+              if (totalOtHr >= 2.5) monthLogOtMealDays++;
+              if (item.isNightShift) monthLogNightShiftDays++;
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Calculations for this month's estimates
       const ot10Rate = monthBaseSalary / 30 / 8;
-      const ot15Rate = ot10Rate * 1.5;
-      const estOT = Math.round(10 * ot15Rate); // ~10 hrs OT estimate
-      const estMeal = 22 * config.mealAllowanceDaily;
-      const estTravel = 22 * config.travelAllowanceDaily;
+
+      let estOT = 0;
+      let estMeal = 0;
+      let estTravel = 0;
+      let estOtMeal = 0;
+      let estNightShift = 0;
+
+      if (hasDailyLogsForMonth) {
+        estOT = Math.round((monthLogOt15 * 1.5 + monthLogOt10 * 1.0 + monthLogOt30 * 3.0) * ot10Rate);
+        estMeal = monthLogWorkDays * config.mealAllowanceDaily;
+        estTravel = monthLogWorkDays * config.travelAllowanceDaily;
+        estOtMeal = monthLogOtMealDays * config.otMealAllowanceDaily;
+        estNightShift = monthLogNightShiftDays * config.nightShiftAllowanceDaily;
+      } else {
+        estOT = averageHistoricalOTPay;
+        estMeal = monthWorkingDays * config.mealAllowanceDaily;
+        estTravel = monthWorkingDays * config.travelAllowanceDaily;
+      }
+
       const estKPI = m.num === "12" ? 0 : config.kpiAllowanceMonthly;
       const estHousing = m.num === "12" ? 0 : config.housingAllowanceMonthly;
       const estPosition = m.num === "12" ? 0 : config.positionAllowanceMonthly;
       const estBonus = m.num === "12" ? config.annualBonus : 0;
 
-      const estGrossCash = monthBaseSalary + estOT + estTravel + estKPI + estHousing + estPosition + estBonus;
+      const estGrossCash = monthBaseSalary + estOT + estTravel + estOtMeal + estNightShift + estKPI + estHousing + estPosition + estBonus;
       const estSocSec = Math.min(750, Math.round(monthBaseSalary * (config.socialSecurityPercent / 100)));
       const estDeductions = config.studentLoanDeduction + estSocSec;
       const estNet = Math.max(0, estGrossCash - estDeductions);
@@ -1381,6 +1806,9 @@ export default function SalaryCalculatorManager({
         isRecorded,
         recordedDate,
         isCurrentSelected: monthKey === selectedMonth,
+        paydayInfo: monthPayday,
+        workingDays: monthWorkingDays,
+        hasDailyLogs: hasDailyLogsForMonth,
       };
     });
 
@@ -1396,6 +1824,7 @@ export default function SalaryCalculatorManager({
       recordedCount,
       projectedCount: 12 - recordedCount,
       averageMonthlyNet: Math.round(totalNet / 12),
+      averageHistoricalOTPay,
       maxMonthlyGross,
     };
   }, [annualSelectedYear, config, currentUser, transactions, selectedMonth, calcResults]);
@@ -1462,12 +1891,14 @@ export default function SalaryCalculatorManager({
 • ค่ากะ & สวัสดิการ: ฿${(calcResults.nightShiftPay + calcResults.kpiPay + calcResults.housingPay + calcResults.positionPay + calcResults.otherIncomePay).toLocaleString()}
 ${customEarnings.length > 0 ? `• รายการรับเพิ่มเติม: ${customEarnings.map((e) => `${e.name} (+฿${e.amount})`).join(", ")}\n` : ""}${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${calcResults.bonusPay.toLocaleString()}\n` : ""}• รายการหัก: -฿${calcResults.totalDeductions.toLocaleString()} (กยศ ฿${calcResults.studentLoan}, ประกันสังคม ฿${calcResults.socialSecurity}${customDeductions.length > 0 ? `, หักเพิ่มเติม: ${customDeductions.map((d) => `${d.name} -฿${d.amount}`).join(", ")}` : ""})`;
 
+    const paydayDate = currentPaydayInfo?.dateStr || new Date().toISOString().split("T")[0];
+
     onAddTransaction({
       type: "income",
       amount: actualAmt, // Record actual received amount into wallet
       category: "เงินเดือน",
       merchantName: `เงินเดือน ${selectedMonth} (${periodLabel})`,
-      date: new Date().toISOString().split("T")[0],
+      date: paydayDate,
       note: noteText,
       walletId: wId,
     });
@@ -1546,12 +1977,14 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
 • จำนวนวันที่ได้ค่าข้าว: ${workDaysInput} วัน x ฿${config.mealAllowanceDaily}/วัน
 • รวมสิทธิค่าข้าว: ฿${calcResults.mealPay.toLocaleString()} (แยกไม่รวมกับเงินเดือนสุทธิ)`;
 
+    const paydayDate = currentPaydayInfo?.dateStr || new Date().toISOString().split("T")[0];
+
     onAddTransaction({
       type: "income",
       amount: Math.round(calcResults.mealPay),
       category: "สวัสดิการอาหาร",
       merchantName: `ค่าข้าวเข้าบัตรพนักงาน ${selectedMonth}`,
-      date: new Date().toISOString().split("T")[0],
+      date: paydayDate,
       note: noteText,
       walletId: wId,
     });
@@ -2355,6 +2788,28 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                 <p className="text-xs text-slate-400 mt-1">
                   ประจำเดือน {selectedMonth} {isDecember ? `(${decemberPeriod === "p1" ? "งวด 1: 1-20 ธ.ค." : decemberPeriod === "p2" ? "งวด 2: 21-31 ธ.ค." : "ทั้งเดือน"})` : ""}
                 </p>
+
+                {currentPaydayInfo && (
+                  <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-1 text-xs">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300">
+                      <span className="flex items-center gap-1.5">
+                        <CalendarCheck className="w-4 h-4 text-emerald-400" />
+                        <span>กำหนดวันจ่ายเงินเดือน:</span>
+                      </span>
+                      <span className="text-emerald-200 font-extrabold text-xs bg-emerald-500/20 px-2.5 py-0.5 rounded-xl border border-emerald-500/30">
+                        {currentPaydayInfo.formattedThai}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-300 leading-snug">
+                      💡 {currentPaydayInfo.reason}
+                      {currentPaydayInfo.isShifted && (
+                        <span className="block text-amber-300 font-semibold mt-0.5">
+                          ⚠️ {currentPaydayInfo.shiftNote}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Earnings vs Deductions Quick Breakdown */}
@@ -3160,18 +3615,20 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
 
           {/* Visual Bar Chart Comparison */}
           <div className="bg-[#111827] border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-4">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+              <h4 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                 <span>📊 กราฟเปรียบเทียบรายได้รายเดือน (ม.ค. - ธ.ค. {annualOverviewData.year})</span>
               </h4>
-              <div className="flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
-                  <span className="text-slate-300">สุทธิที่ได้รับจริง (Recorded)</span>
+
+              {/* Clear Legend Badges for Mobile & Desktop */}
+              <div className="flex items-center gap-2 text-xs flex-wrap">
+                <div className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/40 rounded-xl flex items-center gap-2 shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0 shadow-xs shadow-emerald-500/50" />
+                  <span className="text-emerald-300 font-bold leading-normal">ได้รับจริงแล้ว (Recorded)</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-indigo-500/60 inline-block" />
-                  <span className="text-slate-300">คาดการณ์ (Projected)</span>
+                <div className="px-3 py-1.5 bg-indigo-500/20 border border-indigo-500/40 rounded-xl flex items-center gap-2 shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 shrink-0 shadow-xs shadow-indigo-500/50" />
+                  <span className="text-indigo-300 font-bold leading-normal">คาดการณ์ (Projected)</span>
                 </div>
               </div>
             </div>
@@ -3194,7 +3651,7 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                       </div>
 
                       {/* Bar Graphic */}
-                      <div className="w-full flex justify-center items-end h-48 bg-slate-800/40 rounded-t-xl p-1 relative overflow-hidden">
+                      <div className="w-full flex justify-center items-end h-48 bg-slate-800/40 rounded-t-xl p-1 relative">
                         <div
                           style={{ height: `${Math.max(netHeightPct, 6)}%` }}
                           className={`w-full max-w-[28px] rounded-t-lg transition-all duration-500 flex flex-col justify-between items-center py-1 ${
@@ -3248,11 +3705,31 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
               </div>
             </div>
 
+            {/* Explanation Note on How Forecast is Calculated */}
+            <div className="text-[11px] bg-indigo-950/40 border border-indigo-500/20 p-3 rounded-2xl text-slate-300 space-y-1">
+              <div className="font-bold text-indigo-300 flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span>💡 ที่มาของการคำนวณยอด "คาดการณ์ (Projected)":</span>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1 text-[11px] leading-relaxed">
+                <li>
+                  <strong>วันทำงาน & ค่าอาหาร/ค่าเดินทาง:</strong> คำนวณตามจำนวนวันทำงานจริงในปฏิทินของแต่ละเดือน (หักวันอาทิตย์ วันเสาร์หยุด และวันหยุดนักขัตฤกษ์ประจำเดือนนั้นๆ เช่น เม.ย. จะหักวันหยุดสงกรานต์)
+                </li>
+                <li>
+                  <strong>ค่า OT คาดการณ์:</strong> คำนวณอ้างอิงจาก <span className="text-amber-300 font-bold">"ประวัติ OT เฉลี่ยจริงจากเดือนที่บันทึกไว้"</span> (ประมาณ ฿{annualOverviewData.averageHistoricalOTPay.toLocaleString()}/เดือน) หรือคำนวณจาก <span className="text-emerald-300 font-bold">"ข้อมูลลงเวลาประจำวันที่ระบุไว้"</span> ของเดือนนั้นๆ
+                </li>
+                <li>
+                  <strong>ฐานเงินเดือน & โบนัส:</strong> รวมผลการปรับขึ้นเงินเดือนตามรอบย้อนหลัง/ล่วงหน้าที่ตั้งค่าไว้ + โบนัสประจำปี (ธ.ค.)
+                </li>
+              </ul>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-300">
                 <thead>
                   <tr className="border-b border-white/10 text-slate-400 text-[11px] uppercase tracking-wider">
                     <th className="py-2.5 px-3">เดือน</th>
+                    <th className="py-2.5 px-3">วันจ่ายเงินเดือน</th>
                     <th className="py-2.5 px-3">ฐานเงินเดือน</th>
                     <th className="py-2.5 px-3">รวม OT</th>
                     <th className="py-2.5 px-3">ค่าข้าวเข้าบัตร</th>
@@ -3272,6 +3749,18 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                             เลือกอยู่
                           </span>
                         )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-emerald-300 text-xs">
+                            {m.paydayInfo.formattedThai}
+                          </span>
+                          {m.paydayInfo.isShifted && (
+                            <span className="text-[9px] text-amber-300 font-medium">
+                              ⚠️ เลื่อนวันหยุด
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-3 text-slate-300">
                         ฿{m.baseSalary.toLocaleString()}
@@ -3293,13 +3782,17 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                           <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-bold inline-flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" /> บันทึกจริงแล้ว
                           </span>
+                        ) : m.hasDailyLogs ? (
+                          <span className="px-2.5 py-1 bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded-full text-[10px] font-bold inline-flex items-center gap-1" title="คำนวณจากบันทึกเวลาทำงานประจำวันที่ลงไว้ในระบบ">
+                            📅 จากประวัติตารางงาน
+                          </span>
                         ) : m.isCurrentSelected ? (
                           <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-bold inline-flex items-center gap-1">
                             📝 ยอดคำนวณปัจจุบัน
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 bg-slate-800 text-slate-400 border border-white/10 rounded-full text-[10px] font-medium">
-                            ⏳ คาดการณ์
+                          <span className="px-2.5 py-1 bg-slate-800 text-slate-300 border border-white/10 rounded-full text-[10px] font-medium" title={`คาดการณ์จากวันทำงานจริง ${m.workingDays} วัน + OT เฉลี่ยอดีต`}>
+                            ⏳ คาดการณ์ ({m.workingDays} วัน)
                           </span>
                         )}
                       </td>
@@ -3768,10 +4261,76 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
 
               {/* SECTION 3: ตั้งค่าวันหยุดนักขัตฤกษ์ & ปรับเลื่อนวันหยุด */}
               <div className="space-y-3 border-t border-white/10 pt-4">
-                <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-white/10 pb-2">
-                  <Flag className="w-4 h-4" />
-                  <span>ตั้งค่าวันหยุดนักขัตฤกษ์ & ปรับเลื่อนวันหยุด</span>
-                </h4>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/80 p-3 rounded-2xl border border-white/10">
+                  <div className="flex items-center gap-2">
+                    <Flag className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div>
+                      <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                        ตั้งค่าวันหยุดนักขัตฤกษ์ & ปรับเลื่อนวันหยุด
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        เลือกปีที่ต้องการแสดง หรือเลือกปีเพื่อนำเข้าวันหยุดมาตรฐาน
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Clean Dropdowns for Filtering and Importing Year */}
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    {/* 1. Filter Display Year Dropdown */}
+                    <div className="flex items-center gap-1.5 bg-[#1e293b] px-2.5 py-1.5 rounded-xl border border-white/10">
+                      <span className="text-[11px] text-slate-300 font-bold whitespace-nowrap">แสดงวันหยุดปี:</span>
+                      <select
+                        value={holidayYearFilter}
+                        onChange={(e) => setHolidayYearFilter(e.target.value)}
+                        className="bg-transparent text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
+                      >
+                        {[2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map((y) => (
+                          <option key={y} value={String(y)} className="bg-slate-900 text-white">
+                            ปี {y} ({y + 543})
+                          </option>
+                        ))}
+                        <option value="all" className="bg-slate-900 text-white">แสดงวันหยุดทุกปี (All)</option>
+                      </select>
+                    </div>
+
+                    {/* 2. Import Preset Year Dropdown & Action */}
+                    <div className="flex items-center gap-1 bg-[#1e293b] p-1 rounded-xl border border-amber-500/30">
+                      <select
+                        id="importYearSelect"
+                        defaultValue={holidayYearFilter === "all" ? "2027" : holidayYearFilter}
+                        className="bg-transparent text-xs font-bold text-slate-200 px-2 py-0.5 focus:outline-none cursor-pointer"
+                      >
+                        {[2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map((y) => (
+                          <option key={y} value={String(y)} className="bg-slate-900 text-white">
+                            ปี {y} ({y + 543})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const el = document.getElementById("importYearSelect") as HTMLSelectElement;
+                          const chosenYear = el ? el.value : "2027";
+                          handleImportPresetHolidaysByYear(chosenYear);
+                        }}
+                        className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-[11px] rounded-lg transition-all shadow-xs cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                        title="นำเข้าปฏิทินวันหยุดมาตรฐานสำหรับปีที่เลือก"
+                      >
+                        <span>⚡ นำเข้าวันหยุด</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Holiday Count Indicator */}
+                <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/40 rounded-xl border border-white/5 text-xs text-slate-400 font-medium">
+                  <span>
+                    รายการวันหยุดในระบบ ({holidayYearFilter === "all" ? "ทุกปี" : `ปี ${holidayYearFilter} / ${parseInt(holidayYearFilter) + 543}`}):
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-300 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/20">
+                    {filteredHolidays.length} วัน
+                  </span>
+                </div>
 
                 {/* Add new Holiday Form */}
                 <div className="flex flex-col sm:flex-row items-end gap-2 bg-white/5 p-3 rounded-2xl border border-white/5">
@@ -3804,25 +4363,84 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   </button>
                 </div>
 
-                {/* List of configured Public Holidays */}
-                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                  {config.publicHolidays.map((h) => (
-                    <div key={h.id} className="flex justify-between items-center p-2 bg-slate-800/60 border border-white/5 rounded-xl text-xs">
-                      <div className="flex items-center gap-2">
-                        <Flag className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                        <span className="font-bold text-amber-300">{h.dateStr}</span>
-                        <span className="text-slate-300 font-medium">{h.name}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeletePublicHoliday(h.id)}
-                        className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer transition-colors"
-                        title="ลบวันหยุดนี้"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                {/* List of Public Holidays (Filtered by selected Year filter, with Edit & Delete support) */}
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                  {filteredHolidays.length > 0 ? (
+                    filteredHolidays.map((h) => {
+                      const isEditing = editingHolidayId === h.id;
+
+                      if (isEditing) {
+                        return (
+                          <div key={h.id} className="flex flex-col sm:flex-row items-center justify-between gap-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs">
+                            <div className="flex-1 flex flex-col sm:flex-row items-center gap-2 w-full">
+                              <input
+                                type="date"
+                                value={editHolidayDate}
+                                onChange={(e) => setEditHolidayDate(e.target.value)}
+                                className="px-2 py-1 bg-[#1e293b] border border-amber-500/40 rounded-lg text-white font-bold text-xs w-full sm:w-auto"
+                              />
+                              <input
+                                type="text"
+                                value={editHolidayName}
+                                onChange={(e) => setEditHolidayName(e.target.value)}
+                                className="px-2.5 py-1 bg-[#1e293b] border border-amber-500/40 rounded-lg text-white text-xs flex-1 w-full"
+                                placeholder="ชื่อวันหยุด"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => handleSaveEditHoliday(h.id)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center gap-1 cursor-pointer"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>บันทึก</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelEditHoliday}
+                                className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold text-xs rounded-lg cursor-pointer"
+                              >
+                                ยกเลิก
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={h.id} className="flex justify-between items-center p-2 bg-slate-800/60 border border-white/5 rounded-xl text-xs hover:bg-slate-800 transition-colors">
+                          <div className="flex items-center gap-2.5">
+                            <Flag className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                            <span className="font-bold text-amber-300 text-xs">{h.dateStr}</span>
+                            <span className="text-slate-200 font-medium">{h.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditHoliday(h)}
+                              className="text-slate-400 hover:text-amber-300 p-1 cursor-pointer transition-colors"
+                              title="แก้ไขวันหยุดนี้"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePublicHoliday(h.id)}
+                              className="text-slate-400 hover:text-rose-400 p-1 cursor-pointer transition-colors"
+                              title="ลบวันหยุดนี้"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-6 text-xs text-slate-400 italic bg-white/5 rounded-xl">
+                      ยังไม่มีวันหยุดตั้งค่าไว้สำหรับปี {holidayYearFilter === "all" ? "ทั้งหมด" : holidayYearFilter} (กดปุ่ม "⚡ ปี {holidayYearFilter !== "all" ? holidayYearFilter : "2026"}" ด้านบนเพื่อนำเข้าวันหยุดประจำปีนี้)
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
