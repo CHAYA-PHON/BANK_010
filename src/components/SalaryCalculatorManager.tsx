@@ -87,6 +87,7 @@ export interface SalaryConfig {
   studentLoanDeduction: number; // หัก กยศ. (default 900)
   socialSecurityPercent: number; // ประกันสังคม % (default 5%)
   socialSecurityMaxCap?: number; // ยอดหักสูงสุดประกันสังคม (default 750)
+  includeAllowancesInSocialSecurity?: boolean; // รวมเงินเดือน + ค่าตำแหน่ง + ค่าเดินทาง ในฐานประกันสังคม
   kpiDeduction: number; // หัก KPI
   otherDeduction: number; // รายการหักเพิ่มเติม
 
@@ -105,6 +106,20 @@ export interface DailyAttendance {
   note?: string;
 }
 
+export interface QuickSummaryData {
+  workDaysInput: number;
+  ot15HoursInput: number;
+  ot10HoursInput: number;
+  ot30HoursInput: number;
+  otMealDaysInput: number;
+  nightShiftDaysInput: number;
+  kpiAllowanceInput: number;
+  positionAllowanceInput: number;
+  otherIncomeInput: number;
+  studentLoanInput: number;
+  socialSecurityInput: number;
+}
+
 export interface RecordedPeriodStatus {
   salaryRecorded: boolean;
   salaryRecordedAt?: string;
@@ -112,6 +127,7 @@ export interface RecordedPeriodStatus {
   mealRecorded: boolean;
   mealRecordedAt?: string;
   mealAmount?: number;
+  quickSummary?: QuickSummaryData;
 }
 
 interface SalaryCalculatorManagerProps {
@@ -144,7 +160,7 @@ const DEFAULT_SALARY_CONFIG: SalaryConfig = {
   travelAllowanceDaily: 50,
   otMealAllowanceDaily: 35,
   nightShiftAllowanceDaily: 80,
-  kpiAllowanceMonthly: 600,
+  kpiAllowanceMonthly: 0,
   housingAllowanceMonthly: 800,
   positionAllowanceMonthly: 300,
   otherIncomeMonthly: 200,
@@ -160,6 +176,7 @@ const DEFAULT_SALARY_CONFIG: SalaryConfig = {
   studentLoanDeduction: 900,
   socialSecurityPercent: 5,
   socialSecurityMaxCap: 750,
+  includeAllowancesInSocialSecurity: false,
   kpiDeduction: 0,
   otherDeduction: 0,
   publicHolidays: DEFAULT_HOLIDAYS,
@@ -295,13 +312,14 @@ export default function SalaryCalculatorManager({
     mealRecorded: false,
   });
 
-  // Load recordStatus from Firestore & localStorage when period changes
+  // Load recordStatus and quick summary inputs from Firestore & localStorage when period changes
   useEffect(() => {
     if (!selectedMonth) return;
     let isMounted = true;
 
     async function fetchRecordStatus() {
       const storageKey = `salary_record_status_${currentUser || "default"}_${periodKey}`;
+      const quickKey = `salary_quick_inputs_${currentUser || "default"}_${periodKey}`;
       const savedLocal = localStorage.getItem(storageKey);
       let localStatus: RecordedPeriodStatus = { salaryRecorded: false, mealRecorded: false };
 
@@ -313,6 +331,14 @@ export default function SalaryCalculatorManager({
         }
       }
 
+      let savedQuick: QuickSummaryData | null = null;
+      const savedQuickStr = localStorage.getItem(quickKey);
+      if (savedQuickStr) {
+        try { savedQuick = JSON.parse(savedQuickStr); } catch (e) { console.error(e); }
+      } else if (localStatus.quickSummary) {
+        savedQuick = localStatus.quickSummary;
+      }
+
       if (currentUser) {
         const uId = currentUser.toLowerCase().trim();
         try {
@@ -321,9 +347,11 @@ export default function SalaryCalculatorManager({
           if (snap.exists() && isMounted) {
             const cloudData = snap.data() as RecordedPeriodStatus;
             if (cloudData) {
-              setRecordStatus(cloudData);
+              localStatus = cloudData;
               localStorage.setItem(storageKey, JSON.stringify(cloudData));
-              return;
+              if (cloudData.quickSummary) {
+                savedQuick = cloudData.quickSummary;
+              }
             }
           }
         } catch (e) {
@@ -333,6 +361,19 @@ export default function SalaryCalculatorManager({
 
       if (isMounted) {
         setRecordStatus(localStatus);
+        if (savedQuick) {
+          if (typeof savedQuick.workDaysInput === "number") setWorkDaysInput(savedQuick.workDaysInput);
+          if (typeof savedQuick.ot15HoursInput === "number") setOt15HoursInput(savedQuick.ot15HoursInput);
+          if (typeof savedQuick.ot10HoursInput === "number") setOt10HoursInput(savedQuick.ot10HoursInput);
+          if (typeof savedQuick.ot30HoursInput === "number") setOt30HoursInput(savedQuick.ot30HoursInput);
+          if (typeof savedQuick.otMealDaysInput === "number") setOtMealDaysInput(savedQuick.otMealDaysInput);
+          if (typeof savedQuick.nightShiftDaysInput === "number") setNightShiftDaysInput(savedQuick.nightShiftDaysInput);
+          if (typeof savedQuick.kpiAllowanceInput === "number") setKpiAllowanceInput(savedQuick.kpiAllowanceInput);
+          if (typeof savedQuick.positionAllowanceInput === "number") setPositionAllowanceInput(savedQuick.positionAllowanceInput);
+          if (typeof savedQuick.otherIncomeInput === "number") setOtherIncomeInput(savedQuick.otherIncomeInput);
+          if (typeof savedQuick.studentLoanInput === "number") setStudentLoanInput(savedQuick.studentLoanInput);
+          if (typeof savedQuick.socialSecurityInput === "number") setSocialSecurityInput(savedQuick.socialSecurityInput);
+        }
       }
     }
 
@@ -507,8 +548,8 @@ export default function SalaryCalculatorManager({
           console.error("Failed to parse custom adjustments:", e);
         }
       } else {
-        localEarnings = [{ id: "ce-kpi1", name: "+KPI *ตักจับงานขาด", amount: 100 }];
-        localDeductions = [{ id: "cd-kpi1", name: "-KPI *ส่งงานเกิน", amount: 500 }];
+        localEarnings = [];
+        localDeductions = [];
       }
 
       if (currentUser) {
@@ -574,6 +615,27 @@ export default function SalaryCalculatorManager({
         setSyncStatus("error");
       }
     }
+  };
+
+  // Preset Quick Add Handlers for Custom Earnings & Deductions
+  const handleAddPresetEarning = (name: string, amount: number) => {
+    const newItem: CustomAdjustmentItem = {
+      id: `ce_${Date.now()}`,
+      name,
+      amount,
+    };
+    const updated = [...customEarnings, newItem];
+    saveCustomAdjustments(updated, customDeductions);
+  };
+
+  const handleAddPresetDeduction = (name: string, amount: number) => {
+    const newItem: CustomAdjustmentItem = {
+      id: `cd_${Date.now()}`,
+      name,
+      amount,
+    };
+    const updated = [...customDeductions, newItem];
+    saveCustomAdjustments(customEarnings, updated);
   };
 
   // Handlers for Custom Earnings & Deductions
@@ -944,16 +1006,32 @@ export default function SalaryCalculatorManager({
 
   // Calculated default social security
   const defaultSocialSecurity = useMemo(() => {
-    let periodBaseSalary = effectiveBaseSalary;
+    let periodWageBase = effectiveBaseSalary;
+    if (config.includeAllowancesInSocialSecurity) {
+      const posAllowance = config.positionAllowanceMonthly || 0;
+      const travelAllowance = (config.travelAllowanceDaily || 0) * (workDaysInput || 22);
+      periodWageBase += posAllowance + travelAllowance;
+    }
+
     if (isDecember) {
-      if (decemberPeriod === "p1") periodBaseSalary = (effectiveBaseSalary / 31) * 20;
-      else if (decemberPeriod === "p2") periodBaseSalary = (effectiveBaseSalary / 31) * 11;
+      if (decemberPeriod === "p1") periodWageBase = (periodWageBase / 31) * 20;
+      else if (decemberPeriod === "p2") periodWageBase = (periodWageBase / 31) * 11;
     }
     if (isDecember && decemberPeriod === "p2") return 0;
-    const rawSocSec = periodBaseSalary * (config.socialSecurityPercent / 100);
+    const rawSocSec = periodWageBase * (config.socialSecurityPercent / 100);
     const maxCap = config.socialSecurityMaxCap ?? 750;
     return Math.min(maxCap, Math.round(rawSocSec));
-  }, [effectiveBaseSalary, config.socialSecurityPercent, config.socialSecurityMaxCap, isDecember, decemberPeriod]);
+  }, [
+    effectiveBaseSalary,
+    config.includeAllowancesInSocialSecurity,
+    config.positionAllowanceMonthly,
+    config.travelAllowanceDaily,
+    workDaysInput,
+    config.socialSecurityPercent,
+    config.socialSecurityMaxCap,
+    isDecember,
+    decemberPeriod,
+  ]);
 
   // Sync direct monthly inputs when config or period changes
   useEffect(() => {
@@ -1395,23 +1473,42 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
     });
 
     const nowStr = new Date().toLocaleDateString("th-TH") + " " + new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    const currentQuickSummary: QuickSummaryData = {
+      workDaysInput,
+      ot15HoursInput,
+      ot10HoursInput,
+      ot30HoursInput,
+      otMealDaysInput,
+      nightShiftDaysInput,
+      kpiAllowanceInput,
+      positionAllowanceInput,
+      otherIncomeInput,
+      studentLoanInput,
+      socialSecurityInput,
+    };
+
     const updatedStatus: RecordedPeriodStatus = {
       ...recordStatus,
       salaryRecorded: true,
       salaryRecordedAt: nowStr,
       salaryAmount: actualAmt,
+      quickSummary: currentQuickSummary,
     };
 
     setRecordStatus(updatedStatus);
     const storageKey = `salary_record_status_${currentUser || "default"}_${periodKey}`;
     localStorage.setItem(storageKey, JSON.stringify(updatedStatus));
 
+    const quickKey = `salary_quick_inputs_${currentUser || "default"}_${periodKey}`;
+    localStorage.setItem(quickKey, JSON.stringify(currentQuickSummary));
+
     if (currentUser) {
       try {
         const uId = currentUser.toLowerCase().trim();
         await setDoc(doc(db, "users", uId, "salary_records", periodKey), cleanObjectForFirestore(updatedStatus), { merge: true });
+        await setDoc(doc(db, "users", uId, "salary_quick_inputs", periodKey), cleanObjectForFirestore(currentQuickSummary), { merge: true });
       } catch (e) {
-        console.error("Error updating salary record status:", e);
+        console.error("Error updating salary record status and quick summary:", e);
       }
     }
 
@@ -1926,6 +2023,7 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   {/* Quick Chips for Custom Earnings */}
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
                     {[
+                      "+KPI *ตักจับงานขาด (+100฿)",
                       "เบี้ยขยัน (จ่ายช่วงไฮซีซัน)",
                       "พักร้อนคืนเงิน",
                       "ค่าอายุงานประจำปี",
@@ -1935,8 +2033,12 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                         key={opt}
                         type="button"
                         onClick={() => {
-                          setNewEarningName(opt);
-                          setShowEarningSuggestions(true);
+                          if (opt.includes("+KPI *ตักจับงานขาด")) {
+                            handleAddPresetEarning("+KPI *ตักจับงานขาด", 100);
+                          } else {
+                            setNewEarningName(opt);
+                            setShowEarningSuggestions(true);
+                          }
                         }}
                         className="text-[10px] px-2 py-0.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
                       >
@@ -2107,8 +2209,8 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   {/* Quick Chips for Custom Deductions */}
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
                     {[
+                      "-KPI *ส่งงานเกิน (-500฿)",
                       "ค่าวุฒิบัตร",
-                      "หัก KPI",
                       "ค่าปรับเข้างานสาย",
                       "ค่าประกันเครื่องแบบ",
                     ].map((opt) => (
@@ -2116,8 +2218,12 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                         key={opt}
                         type="button"
                         onClick={() => {
-                          setNewDeductionName(opt);
-                          setShowDeductionSuggestions(true);
+                          if (opt.includes("-KPI *ส่งงานเกิน")) {
+                            handleAddPresetDeduction("-KPI *ส่งงานเกิน", 500);
+                          } else {
+                            setNewDeductionName(opt);
+                            setShowDeductionSuggestions(true);
+                          }
                         }}
                         className="text-[10px] px-2 py-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
                       >
@@ -3558,9 +3664,36 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
 
                   {/* Social Security Percent & Max Cap */}
                   <div className="space-y-1">
-                    <label className="block text-xs font-semibold text-rose-300">หัก ประกันสังคม (%)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-rose-300">อัตราหัก ประกันสังคม (%)</label>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setConfig({ ...config, socialSecurityPercent: 4.8 })}
+                          className={`text-[10px] px-2 py-0.5 rounded-lg border font-bold cursor-pointer transition-all ${
+                            config.socialSecurityPercent === 4.8
+                              ? "bg-indigo-600 text-white border-indigo-400"
+                              : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10"
+                          }`}
+                        >
+                          4.8% (ปี 2569)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfig({ ...config, socialSecurityPercent: 5.0 })}
+                          className={`text-[10px] px-2 py-0.5 rounded-lg border font-bold cursor-pointer transition-all ${
+                            config.socialSecurityPercent === 5.0
+                              ? "bg-indigo-600 text-white border-indigo-400"
+                              : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10"
+                          }`}
+                        >
+                          5.0% (ปกติ)
+                        </button>
+                      </div>
+                    </div>
                     <input
                       type="number"
+                      step="0.1"
                       value={config.socialSecurityPercent}
                       onChange={(e) => setConfig({ ...config, socialSecurityPercent: Number(e.target.value) })}
                       className="w-full px-3 py-2 bg-[#1e293b] border border-rose-500/30 rounded-xl text-white font-semibold text-sm"
@@ -3568,7 +3701,33 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-xs font-semibold text-rose-300">ยอดหักประกันสังคมสูงสุด (บาท/เดือน)</label>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-rose-300">ยอดหักประกันสังคมสูงสุด (บาท/เดือน)</label>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setConfig({ ...config, socialSecurityMaxCap: 730 })}
+                          className={`text-[10px] px-2 py-0.5 rounded-lg border font-bold cursor-pointer transition-all ${
+                            config.socialSecurityMaxCap === 730
+                              ? "bg-emerald-600 text-white border-emerald-400"
+                              : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10"
+                          }`}
+                        >
+                          730 บาท (สลิปบริษัท)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfig({ ...config, socialSecurityMaxCap: 750 })}
+                          className={`text-[10px] px-2 py-0.5 rounded-lg border font-bold cursor-pointer transition-all ${
+                            (config.socialSecurityMaxCap ?? 750) === 750
+                              ? "bg-indigo-600 text-white border-indigo-400"
+                              : "bg-white/5 text-slate-400 border-white/10 hover:bg-white/10"
+                          }`}
+                        >
+                          750 บาท (ปกติ)
+                        </button>
+                      </div>
+                    </div>
                     <input
                       type="number"
                       value={config.socialSecurityMaxCap ?? 750}
@@ -3576,7 +3735,33 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                       className="w-full px-3 py-2 bg-[#1e293b] border border-rose-500/30 rounded-xl text-white font-semibold text-sm"
                       placeholder="750"
                     />
-                    <p className="text-[10px] text-slate-400">ปกติ 750 บาท (สามารถปรับเพดานสูงสุดใหม่ได้ตามกฎหมายประกันสังคม)</p>
+                  </div>
+
+                  {/* Wage Base Toggle */}
+                  <div className="md:col-span-2 bg-indigo-950/30 border border-indigo-500/20 p-3.5 rounded-2xl space-y-2">
+                    <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!config.includeAllowancesInSocialSecurity}
+                        onChange={(e) => setConfig({ ...config, includeAllowancesInSocialSecurity: e.target.checked })}
+                        className="mt-1 w-4 h-4 rounded border-white/20 bg-slate-800 text-indigo-500 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-bold text-white block">
+                          นำรายได้ที่มีลักษณะเป็น "เงินเดือนคงที่" (ค่าตำแหน่ง + ค่าเดินทางประจำ) มารวมในฐานคำนวณประกันสังคม
+                        </span>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          ตามกฎหมายประกันสังคม หากได้รับสวัสดิการค่าตำแหน่งคงที่ (฿{config.positionAllowanceMonthly.toLocaleString()}) และค่าเดินทางประจำ (฿{(config.travelAllowanceDaily * 27).toLocaleString()} / 27 วัน) จะถูกนำมารวมกับเงินเดือนหลักเป็นฐานคิด 
+                          <span className="text-amber-300 font-bold ml-1">
+                            (ฐานรวม = ฿{(config.baseSalary + config.positionAllowanceMonthly + config.travelAllowanceDaily * 27).toLocaleString()})
+                          </span>
+                        </p>
+                      </div>
+                    </label>
+
+                    <div className="text-[10px] text-indigo-300/80 bg-indigo-900/30 p-2.5 rounded-xl border border-indigo-500/10 mt-1">
+                      💡 <strong>ตัวอย่างการคำนวณปี 2569:</strong> ฐานรวม 15,150 บาท × อัตราลดหย่อน 4.8% = 727.20 บาท (บริษัทอาจปัดเศษขึ้นเป็นยอด 730 บาท ถ้วนตามที่ปรากฏในสลิป)
+                    </div>
                   </div>
                 </div>
               </div>
