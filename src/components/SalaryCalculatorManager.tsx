@@ -6,7 +6,7 @@ import {
   Truck, Coffee, HelpCircle, Check, Edit, ShieldAlert, ArrowRight, 
   ChevronDown, ChevronUp, RefreshCw, Sliders, Landmark, Wallet as WalletIcon,
   Printer, ArrowUpRight, Flag, CalendarCheck, UserCheck, Star, ShieldCheck,
-  FileCheck, Repeat, Loader2
+  FileCheck, Repeat, Loader2, CreditCard
 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -56,6 +56,9 @@ export interface PublicHolidayItem {
 export interface SalaryConfig {
   baseSalary: number; // ฐานเงินเดือน
   mealAllowanceDaily: number; // ค่าข้าว ต่อวัน (default 47)
+  separateMealPay?: boolean; // แยกค่าข้าวเข้าบัตรพนักงาน (ไม่รวมกับเงินเดือนสุทธิ)
+  salaryWalletId?: string; // กระเป๋าสำหรับรับเงินเดือนสุทธิ
+  mealWalletId?: string; // กระเป๋าสำหรับรับค่าข้าว (บัตรพนักงาน)
   travelAllowanceDaily: number; // ค่าเดินทาง ต่อวัน (default 50)
   otMealAllowanceDaily: number; // ค่าข้าว OT ต่อวัน (default 35)
   nightShiftAllowanceDaily: number; // ค่ากะ ต่อวัน (default 80)
@@ -91,8 +94,18 @@ export interface DailyAttendance {
   note?: string;
 }
 
+export interface RecordedPeriodStatus {
+  salaryRecorded: boolean;
+  salaryRecordedAt?: string;
+  salaryAmount?: number;
+  mealRecorded: boolean;
+  mealRecordedAt?: string;
+  mealAmount?: number;
+}
+
 interface SalaryCalculatorManagerProps {
   wallets: Wallet[];
+  transactions?: Transaction[];
   onAddTransaction: (data: Omit<Transaction, "id" | "createdAt">) => void;
   currentUser: string;
 }
@@ -114,6 +127,9 @@ const DEFAULT_HOLIDAYS: PublicHolidayItem[] = [
 const DEFAULT_SALARY_CONFIG: SalaryConfig = {
   baseSalary: 15000,
   mealAllowanceDaily: 47,
+  separateMealPay: true,
+  salaryWalletId: "",
+  mealWalletId: "",
   travelAllowanceDaily: 50,
   otMealAllowanceDaily: 35,
   nightShiftAllowanceDaily: 80,
@@ -139,6 +155,7 @@ const DEFAULT_SALARY_CONFIG: SalaryConfig = {
 
 export default function SalaryCalculatorManager({
   wallets,
+  transactions = [],
   onAddTransaction,
   currentUser,
 }: SalaryCalculatorManagerProps) {
@@ -175,6 +192,89 @@ export default function SalaryCalculatorManager({
     const parts = selectedMonth.split("-");
     return parts[1] === "12";
   }, [selectedMonth]);
+
+  // Unique Period Key for tracking recording status per period
+  const periodKey = useMemo(() => {
+    return `${selectedMonth}_${isDecember ? decemberPeriod : "full"}`;
+  }, [selectedMonth, isDecember, decemberPeriod]);
+
+  // Recorded Status for current month/period
+  const [recordStatus, setRecordStatus] = useState<RecordedPeriodStatus>({
+    salaryRecorded: false,
+    mealRecorded: false,
+  });
+
+  // Load recordStatus from Firestore & localStorage when period changes
+  useEffect(() => {
+    if (!selectedMonth) return;
+    let isMounted = true;
+
+    async function fetchRecordStatus() {
+      const storageKey = `salary_record_status_${currentUser || "default"}_${periodKey}`;
+      const savedLocal = localStorage.getItem(storageKey);
+      let localStatus: RecordedPeriodStatus = { salaryRecorded: false, mealRecorded: false };
+
+      if (savedLocal) {
+        try {
+          localStatus = JSON.parse(savedLocal);
+        } catch (e) {
+          console.error("Error parsing local record status:", e);
+        }
+      }
+
+      if (currentUser) {
+        const uId = currentUser.toLowerCase().trim();
+        try {
+          const docRef = doc(db, "users", uId, "salary_records", periodKey);
+          const snap = await getDoc(docRef);
+          if (snap.exists() && isMounted) {
+            const cloudData = snap.data() as RecordedPeriodStatus;
+            if (cloudData) {
+              setRecordStatus(cloudData);
+              localStorage.setItem(storageKey, JSON.stringify(cloudData));
+              return;
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching salary_records from Firestore:", e);
+        }
+      }
+
+      if (isMounted) {
+        setRecordStatus(localStatus);
+      }
+    }
+
+    fetchRecordStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [periodKey, currentUser, selectedMonth]);
+
+  // Check matching income transactions in transactions list
+  const hasMatchingSalaryTx = useMemo(() => {
+    if (!transactions || transactions.length === 0) return false;
+    return transactions.some((t) => {
+      if (t.type !== "income") return false;
+      const isSalaryCat = t.category === "เงินเดือน";
+      const nameMatch = t.merchantName?.includes(`เงินเดือน ${selectedMonth}`);
+      return isSalaryCat && nameMatch;
+    });
+  }, [transactions, selectedMonth]);
+
+  const hasMatchingMealTx = useMemo(() => {
+    if (!transactions || transactions.length === 0) return false;
+    return transactions.some((t) => {
+      if (t.type !== "income") return false;
+      const isMealCat = t.category === "สวัสดิการอาหาร";
+      const nameMatch = t.merchantName?.includes(`ค่าข้าวเข้าบัตรพนักงาน ${selectedMonth}`);
+      return isMealCat && nameMatch;
+    });
+  }, [transactions, selectedMonth]);
+
+  const isSalaryAlreadyRecorded = recordStatus.salaryRecorded || hasMatchingSalaryTx;
+  const isMealAlreadyRecorded = recordStatus.mealRecorded || hasMatchingMealTx;
 
   // Days in month helper
   const totalDaysInSelectedMonth = useMemo(() => {
@@ -215,9 +315,34 @@ export default function SalaryCalculatorManager({
   const [newHolidayDate, setNewHolidayDate] = useState<string>("");
   const [newHolidayName, setNewHolidayName] = useState<string>("");
 
-  // Selected wallet for saving salary transaction
-  const [selectedWalletId, setSelectedWalletId] = useState<string>(wallets[0]?.id || "");
+  // Selected wallet for saving salary & meal card transactions
+  const [selectedWalletId, setSelectedWalletId] = useState<string>("");
+  const [selectedMealWalletId, setSelectedMealWalletId] = useState<string>("");
   const [recordedSuccess, setRecordedSuccess] = useState<boolean>(false);
+  const [recordedMealSuccess, setRecordedMealSuccess] = useState<boolean>(false);
+
+  // Auto sync wallet state with config or wallets list
+  useEffect(() => {
+    if (wallets.length === 0) return;
+
+    if (config.salaryWalletId && wallets.some((w) => w.id === config.salaryWalletId)) {
+      setSelectedWalletId(config.salaryWalletId);
+    } else if (!selectedWalletId || !wallets.some((w) => w.id === selectedWalletId)) {
+      setSelectedWalletId(wallets[0]?.id || "");
+    }
+
+    if (config.mealWalletId && wallets.some((w) => w.id === config.mealWalletId)) {
+      setSelectedMealWalletId(config.mealWalletId);
+    } else if (!selectedMealWalletId || !wallets.some((w) => w.id === selectedMealWalletId)) {
+      const foundCardWallet = wallets.find((w) =>
+        w.name.includes("บัตรพนักงาน") ||
+        w.name.includes("ค่าข้าว") ||
+        w.name.includes("บัตรอาหาร") ||
+        w.name.toLowerCase().includes("food")
+      );
+      setSelectedMealWalletId(foundCardWallet?.id || wallets[0]?.id || "");
+    }
+  }, [config.salaryWalletId, config.mealWalletId, wallets]);
 
   // Cloud sync status state
   const [syncStatus, setSyncStatus] = useState<"synced" | "saving" | "error">("synced");
@@ -621,9 +746,9 @@ export default function SalaryCalculatorManager({
     }
   }, [dailyLogs, currentMonthStorageKey, selectedMonth, currentUser, isDecember, decemberPeriod]);
 
-  // Re-calculate totals from daily logs when in daily log mode
+  // Re-calculate totals from daily logs automatically
   useEffect(() => {
-    if (!useDailyLog) return;
+    if (!dailyLogs || dailyLogs.length === 0) return;
     let totalAllowanceDays = 0; // Days that qualify for daily travel allowance (50฿) & meal allowance (47฿)
     let ot15 = 0;
     let ot10 = 0;
@@ -679,7 +804,7 @@ export default function SalaryCalculatorManager({
     setVacationLeaveDays(vLeave);
     setPublicHolidayCount(pubHoliday);
     setShiftedHolidayCount(shiftHoliday);
-  }, [dailyLogs, useDailyLog]);
+  }, [dailyLogs]);
 
   // Main Salary Calculations
   const calcResults = useMemo(() => {
@@ -719,6 +844,8 @@ export default function SalaryCalculatorManager({
     const otMealPay = otMealDaysInput * config.otMealAllowanceDaily;
     const nightShiftPay = nightShiftDaysInput * config.nightShiftAllowanceDaily;
 
+    const separateMealPay = config.separateMealPay !== false;
+
     // Monthly fixed allowances
     const kpiPay = (isDecember && decemberPeriod === "p2") ? 0 : config.kpiAllowanceMonthly;
     const housingPay = (isDecember && decemberPeriod === "p2") ? 0 : config.housingAllowanceMonthly;
@@ -742,11 +869,11 @@ export default function SalaryCalculatorManager({
     const totalCustomEarnings = customEarnings.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
     const totalCustomDeductions = customDeductions.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
 
-    // Total Gross Earnings
-    const grossEarnings = 
+    // Gross Cash Earnings (excludes meal allowance when separateMealPay is enabled)
+    const grossSalaryCash = 
       periodBaseSalary + 
       totalOTPay + 
-      mealPay + 
+      (separateMealPay ? 0 : mealPay) + 
       travelPay + 
       otMealPay + 
       nightShiftPay + 
@@ -762,6 +889,9 @@ export default function SalaryCalculatorManager({
       bonusPay + 
       totalCustomEarnings;
 
+    // Total Gross Earnings (all allowances combined)
+    const grossEarnings = grossSalaryCash + (separateMealPay ? mealPay : 0);
+
     // Deductions
     const studentLoan = (isDecember && decemberPeriod === "p2") ? 0 : config.studentLoanDeduction;
     
@@ -774,8 +904,8 @@ export default function SalaryCalculatorManager({
 
     const totalDeductions = studentLoan + socialSecurity + kpiDeductionVal + otherDeductionVal + totalCustomDeductions;
 
-    // Net Payable Salary
-    const netSalary = Math.max(0, grossEarnings - totalDeductions);
+    // Net Payable Cash Salary (เงินเดือนสุทธิที่ได้รับ)
+    const netSalary = Math.max(0, grossSalaryCash - totalDeductions);
 
     return {
       ot1Rate,
@@ -787,6 +917,7 @@ export default function SalaryCalculatorManager({
       ot10Pay,
       ot30Pay,
       totalOTPay,
+      separateMealPay,
       mealPay,
       travelPay,
       otMealPay,
@@ -803,6 +934,7 @@ export default function SalaryCalculatorManager({
       bonusPay,
       totalCustomEarnings,
       totalCustomDeductions,
+      grossSalaryCash,
       grossEarnings,
       studentLoan,
       socialSecurity,
@@ -826,9 +958,10 @@ export default function SalaryCalculatorManager({
     customDeductions,
   ]);
 
-  // Handle Recording Income Transaction to Wallet
-  const handleRecordToWallet = () => {
-    if (!selectedWalletId) {
+  // Handle Recording Net Salary Transaction to Wallet
+  const handleRecordSalaryToWallet = async (targetWalletId?: string) => {
+    const wId = targetWalletId || selectedWalletId;
+    if (!wId) {
       alert("กรุณาเลือกกระเป๋าเงินสำหรับรับเงินเดือน");
       return;
     }
@@ -837,10 +970,19 @@ export default function SalaryCalculatorManager({
       ? (decemberPeriod === "p1" ? "งวดที่ 1 (1-20 ธ.ค.)" : decemberPeriod === "p2" ? "งวดที่ 2 (21-31 ธ.ค.)" : "งวดเต็มเดือน ธ.ค.")
       : "ประจำเดือน";
 
+    // Duplicate recording check
+    if (isSalaryAlreadyRecorded) {
+      const timeStr = recordStatus.salaryRecordedAt ? ` (บันทึกเมื่อ ${recordStatus.salaryRecordedAt})` : "";
+      const confirmMsg = `⚠️ ระบบตรวจพบว่า "เงินเดือนสุทธิ" สำหรับ ${selectedMonth} (${periodLabel}) ได้ถูกบันทึกเรียบร้อยแล้ว${timeStr}!\n\nคุณแน่ใจหรือไม่ว่าต้องการบันทึกเงินเดือนสุทธิซ้ำอีกครั้ง?`;
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+    }
+
     const noteText = `[ระบบคำนวณเงินเดือน ${selectedMonth} ${periodLabel}]
 • ฐานเงินเดือน/ค่าแรง: ฿${calcResults.periodBaseSalary.toLocaleString(undefined, { maximumFractionDigits: 2 })}
 • รวม OT: ฿${calcResults.totalOTPay.toLocaleString()} (OT 1.5 = ${ot15HoursInput}ชม., OT 3.0 = ${ot30HoursInput}ชม.)
-• ค่าข้าว & เดินทาง: ฿${(calcResults.mealPay + calcResults.travelPay + calcResults.otMealPay).toLocaleString()}
+• ค่าเดินทาง: ฿${calcResults.travelPay.toLocaleString()} ${calcResults.separateMealPay ? "(ค่าข้าวแยกเข้าบัตรพนักงาน ฿" + calcResults.mealPay.toLocaleString() + ")" : `• ค่าข้าว: ฿${calcResults.mealPay.toLocaleString()}`}
 • เบี้ยขยัน/วุฒิ/จุดพิเศษ/อายุงาน: ฿${(calcResults.diligentPay + calcResults.certificatePay + calcResults.specialDutyPay + calcResults.seniorityPay + calcResults.vacationRefundPay).toLocaleString()}
 • ค่ากะ & สวัสดิการ: ฿${(calcResults.nightShiftPay + calcResults.kpiPay + calcResults.housingPay + calcResults.positionPay + calcResults.otherIncomePay).toLocaleString()}
 ${customEarnings.length > 0 ? `• รายการรับเพิ่มเติม: ${customEarnings.map((e) => `${e.name} (+฿${e.amount})`).join(", ")}\n` : ""}${calcResults.bonusPay > 0 ? `• โบนัสประจำปี: ฿${calcResults.bonusPay.toLocaleString()}\n` : ""}• รายการหัก: -฿${calcResults.totalDeductions.toLocaleString()} (กยศ ฿${calcResults.studentLoan}, ประกันสังคม ฿${calcResults.socialSecurity}${customDeductions.length > 0 ? `, หักเพิ่มเติม: ${customDeductions.map((d) => `${d.name} -฿${d.amount}`).join(", ")}` : ""})`;
@@ -852,11 +994,102 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
       merchantName: `เงินเดือน ${selectedMonth} (${periodLabel})`,
       date: new Date().toISOString().split("T")[0],
       note: noteText,
-      walletId: selectedWalletId,
+      walletId: wId,
     });
+
+    const nowStr = new Date().toLocaleDateString("th-TH") + " " + new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    const updatedStatus: RecordedPeriodStatus = {
+      ...recordStatus,
+      salaryRecorded: true,
+      salaryRecordedAt: nowStr,
+      salaryAmount: Math.round(calcResults.netSalary),
+    };
+
+    setRecordStatus(updatedStatus);
+    const storageKey = `salary_record_status_${currentUser || "default"}_${periodKey}`;
+    localStorage.setItem(storageKey, JSON.stringify(updatedStatus));
+
+    if (currentUser) {
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        await setDoc(doc(db, "users", uId, "salary_records", periodKey), cleanObjectForFirestore(updatedStatus), { merge: true });
+      } catch (e) {
+        console.error("Error updating salary record status:", e);
+      }
+    }
 
     setRecordedSuccess(true);
     setTimeout(() => setRecordedSuccess(false), 4000);
+  };
+
+  // Handle Recording Meal Allowance Transaction (Card Wallet / Food Card)
+  const handleRecordMealToWallet = async (targetWalletId?: string) => {
+    const wId = targetWalletId || selectedMealWalletId;
+    if (!wId) {
+      alert("กรุณาเลือกกระเป๋าเงิน/บัตรพนักงานสำหรับรับค่าข้าว");
+      return;
+    }
+
+    if (calcResults.mealPay <= 0) {
+      alert("ไม่มียอดค่าข้าวสำหรับบันทึกในงวดนี้");
+      return;
+    }
+
+    const periodLabel = isDecember 
+      ? (decemberPeriod === "p1" ? "งวดที่ 1" : decemberPeriod === "p2" ? "งวดที่ 2" : "เต็มเดือน")
+      : "ประจำเดือน";
+
+    // Duplicate recording check
+    if (isMealAlreadyRecorded) {
+      const timeStr = recordStatus.mealRecordedAt ? ` (บันทึกเมื่อ ${recordStatus.mealRecordedAt})` : "";
+      const confirmMsg = `⚠️ ระบบตรวจพบว่า "ค่าข้าวเข้าบัตรพนักงาน" สำหรับ ${selectedMonth} (${periodLabel}) ได้ถูกบันทึกเรียบร้อยแล้ว${timeStr}!\n\nคุณแน่ใจหรือไม่ว่าต้องการบันทึกค่าข้าวเข้าบัตรซ้ำอีกครั้ง?`;
+      if (!window.confirm(confirmMsg)) {
+        return;
+      }
+    }
+
+    const noteText = `[สิทธิสวัสดิการค่าข้าวเข้าบัตรพนักงาน ${selectedMonth} (${periodLabel})]
+• จำนวนวันที่ได้ค่าข้าว: ${workDaysInput} วัน x ฿${config.mealAllowanceDaily}/วัน
+• รวมสิทธิค่าข้าว: ฿${calcResults.mealPay.toLocaleString()} (แยกไม่รวมกับเงินเดือนสุทธิ)`;
+
+    onAddTransaction({
+      type: "income",
+      amount: Math.round(calcResults.mealPay),
+      category: "สวัสดิการอาหาร",
+      merchantName: `ค่าข้าวเข้าบัตรพนักงาน ${selectedMonth}`,
+      date: new Date().toISOString().split("T")[0],
+      note: noteText,
+      walletId: wId,
+    });
+
+    const nowStr = new Date().toLocaleDateString("th-TH") + " " + new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+    const updatedStatus: RecordedPeriodStatus = {
+      ...recordStatus,
+      mealRecorded: true,
+      mealRecordedAt: nowStr,
+      mealAmount: Math.round(calcResults.mealPay),
+    };
+
+    setRecordStatus(updatedStatus);
+    const storageKey = `salary_record_status_${currentUser || "default"}_${periodKey}`;
+    localStorage.setItem(storageKey, JSON.stringify(updatedStatus));
+
+    if (currentUser) {
+      try {
+        const uId = currentUser.toLowerCase().trim();
+        await setDoc(doc(db, "users", uId, "salary_records", periodKey), cleanObjectForFirestore(updatedStatus), { merge: true });
+      } catch (e) {
+        console.error("Error updating meal record status:", e);
+      }
+    }
+
+    setRecordedMealSuccess(true);
+    setTimeout(() => setRecordedMealSuccess(false), 4000);
+  };
+
+  // Legacy single call support
+  const handleRecordToWallet = () => {
+    handleRecordSalaryToWallet();
   };
 
   // Helper for Status Badge Display
@@ -1452,35 +1685,167 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
               </div>
 
               {/* Save Income to Wallet Section */}
-              <div className="border-t border-white/10 pt-4 space-y-3">
-                <label className="block text-xs font-bold text-indigo-300">
-                  🏦 บันทึกเงินเดือนสุทธิเข้ากระเป๋าเงิน
-                </label>
-                <select
-                  value={selectedWalletId}
-                  onChange={(e) => setSelectedWalletId(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#1e293b] border border-indigo-500/30 rounded-xl text-white font-semibold text-xs focus:outline-hidden cursor-pointer"
-                >
-                  {wallets.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.icon} {w.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="border-t border-white/10 pt-4 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="block text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                    <Landmark className="w-4 h-4 text-indigo-400" />
+                    <span>บันทึกรายได้เข้ากระเป๋าเงิน (Wallet)</span>
+                  </label>
+                  {calcResults.separateMealPay && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                      แยกค่าข้าว ฿{calcResults.mealPay.toLocaleString()}
+                    </span>
+                  )}
+                </div>
 
-                <button
-                  type="button"
-                  onClick={handleRecordToWallet}
-                  className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ArrowUpRight className="w-4 h-4" />
-                  <span>บันทึกเป็นรายรับ ฿{Math.round(calcResults.netSalary).toLocaleString()}</span>
-                </button>
+                {/* Anti-Duplicate Status Summary Badges */}
+                {(isSalaryAlreadyRecorded || (calcResults.separateMealPay && isMealAlreadyRecorded)) && (
+                  <div className="space-y-1.5 p-2.5 bg-indigo-950/60 border border-indigo-500/30 rounded-2xl text-xs">
+                    <div className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>สถานะการบันทึกรายการประจำงวดนี้ ({selectedMonth}):</span>
+                    </div>
 
+                    {isSalaryAlreadyRecorded && (
+                      <div className="flex items-center justify-between text-[11px] bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl text-emerald-300 font-semibold">
+                        <span className="flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>เงินเดือนสุทธิ: บันทึกเรียบร้อยแล้ว</span>
+                        </span>
+                        {recordStatus.salaryRecordedAt && (
+                          <span className="text-[10px] text-emerald-400/80 font-normal">{recordStatus.salaryRecordedAt}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {calcResults.separateMealPay && isMealAlreadyRecorded && (
+                      <div className="flex items-center justify-between text-[11px] bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl text-amber-300 font-semibold">
+                        <span className="flex items-center gap-1">
+                          <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                          <span>ค่าข้าวเข้าบัตร: บันทึกเรียบร้อยแล้ว</span>
+                        </span>
+                        {recordStatus.mealRecordedAt && (
+                          <span className="text-[10px] text-amber-400/80 font-normal">{recordStatus.mealRecordedAt}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Salary Wallet Selection */}
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-medium text-slate-300 flex items-center gap-1 justify-between">
+                    <span>🏦 กระเป๋ารับเงินเดือนสุทธิ (฿{Math.round(calcResults.netSalary).toLocaleString()})</span>
+                    {isSalaryAlreadyRecorded && (
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        ✓ บันทึกแล้ว
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    value={selectedWalletId}
+                    onChange={(e) => setSelectedWalletId(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1e293b] border border-indigo-500/30 rounded-xl text-white font-semibold text-xs focus:outline-hidden cursor-pointer"
+                  >
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.icon} {w.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Meal Allowance Card Wallet Selection (if separated) */}
+                {calcResults.separateMealPay && (
+                  <div className="space-y-1 bg-amber-500/10 p-3 rounded-2xl border border-amber-500/20">
+                    <label className="block text-[11px] font-bold text-amber-300 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                        <span>💳 กระเป๋าบัตรพนักงาน / ค่าข้าว (฿{calcResults.mealPay.toLocaleString()})</span>
+                      </span>
+                      {isMealAlreadyRecorded ? (
+                        <span className="text-[10px] text-amber-300 font-bold bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/30">
+                          ✓ บันทึกแล้ว
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-400 font-normal">หนี้สินค่ารับ</span>
+                      )}
+                    </label>
+                    <select
+                      value={selectedMealWalletId}
+                      onChange={(e) => setSelectedMealWalletId(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1e293b] border border-amber-500/30 rounded-xl text-white font-semibold text-xs focus:outline-hidden cursor-pointer"
+                    >
+                      {wallets.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.icon} {w.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleRecordSalaryToWallet()}
+                    className={`py-2.5 px-3 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      isSalaryAlreadyRecorded
+                        ? "bg-slate-800 hover:bg-emerald-950 border border-emerald-500/40 text-emerald-300"
+                        : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500"
+                    }`}
+                  >
+                    {isSalaryAlreadyRecorded ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>✓ บันทึกเงินเดือนแล้ว (กดเพื่อบันทึกซ้ำ)</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowUpRight className="w-4 h-4" />
+                        <span>บันทึกเงินเดือนสุทธิ</span>
+                      </>
+                    )}
+                  </button>
+
+                  {calcResults.separateMealPay && (
+                    <button
+                      type="button"
+                      onClick={() => handleRecordMealToWallet()}
+                      className={`py-2.5 px-3 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isMealAlreadyRecorded
+                          ? "bg-slate-800 hover:bg-amber-950 border border-amber-500/40 text-amber-300"
+                          : "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500"
+                      }`}
+                    >
+                      {isMealAlreadyRecorded ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                          <span>✓ บันทึกค่าข้าวแล้ว (กดเพื่อบันทึกซ้ำ)</span>
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4" />
+                          <span>บันทึกค่าข้าวเข้าบัตร</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Feedback Alerts */}
                 {recordedSuccess && (
                   <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-bold text-center animate-fade-in flex items-center justify-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>บันทึกเงินเดือนเข้าบัญชีเรียบร้อยแล้ว!</span>
+                    <span>บันทึกเงินเดือนสุทธิเข้าบัญชีเรียบร้อยแล้ว!</span>
+                  </div>
+                )}
+
+                {recordedMealSuccess && (
+                  <div className="p-2.5 bg-amber-500/20 border border-amber-500/30 rounded-xl text-amber-300 text-xs font-bold text-center animate-fade-in flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                    <span>บันทึกค่าข้าวเข้ากระเป๋าบัตรพนักงานเรียบร้อยแล้ว!</span>
                   </div>
                 )}
               </div>
@@ -1769,7 +2134,14 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                   )}
                   {calcResults.mealPay > 0 && (
                     <div className="flex justify-between py-1 border-b border-slate-100">
-                      <span>ค่าอาหาร ({workDaysInput} วัน)</span>
+                      <span className="flex items-center gap-1.5 flex-wrap">
+                        <span>ค่าอาหาร ({workDaysInput} วัน)</span>
+                        {calcResults.separateMealPay && (
+                          <span className="text-[10px] text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-full font-bold">
+                            💳 แยกเข้าบัตรพนักงาน
+                          </span>
+                        )}
+                      </span>
                       <span className="font-bold">฿{calcResults.mealPay.toLocaleString()}</span>
                     </div>
                   )}
@@ -1908,10 +2280,15 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
             <div className="bg-indigo-900 text-white p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 shadow-lg">
               <div>
                 <span className="text-xs text-indigo-200 block uppercase font-bold tracking-wider">
-                  ยอดเงินรับสุทธิ (NET PAYABLE)
+                  ยอดเงินเดือนสุทธิที่ได้รับ {calcResults.separateMealPay ? "(ไม่รวมค่าข้าวเข้าบัตร)" : ""}
                 </span>
                 <span className="text-xs text-indigo-300">
-                  รวมรายได้ ฿{Math.round(calcResults.grossEarnings).toLocaleString()} - รวมรายการหัก ฿{calcResults.totalDeductions.toLocaleString()}
+                  รวมรายได้เงินสด ฿{Math.round(calcResults.grossSalaryCash).toLocaleString()} - รวมรายการหัก ฿{calcResults.totalDeductions.toLocaleString()}
+                  {calcResults.separateMealPay && (
+                    <span className="block text-amber-300 font-medium text-[11px] mt-0.5">
+                      💳 ค่าข้าวเข้าบัตรพนักงานต่างหาก: ฿{calcResults.mealPay.toLocaleString()}
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="text-3xl font-black text-emerald-300 tracking-tight">
@@ -2213,6 +2590,76 @@ ${customEarnings.length > 0 ? `• รายการรับเพิ่มเ
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* SECTION 4: ตั้งค่ากระเป๋าเงินรับเงิน & ค่าข้าวเข้าบัตรพนักงาน */}
+              <div className="space-y-3 border-t border-white/10 pt-4">
+                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-white/10 pb-2">
+                  <Landmark className="w-4 h-4 text-indigo-400" />
+                  <span>ตั้งค่ากระเป๋าเงินสำหรับรับเงิน (Wallets) & สวัสดิการค่าข้าว</span>
+                </h4>
+
+                <div className="bg-indigo-950/40 p-4 rounded-2xl border border-indigo-500/20 space-y-4">
+                  {/* Separate Meal Pay Toggle */}
+                  <div className="flex items-start gap-3 bg-white/5 p-3 rounded-xl border border-white/10">
+                    <input
+                      type="checkbox"
+                      id="separateMealPayToggle"
+                      checked={config.separateMealPay !== false}
+                      onChange={(e) => setConfig({ ...config, separateMealPay: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 accent-indigo-500 cursor-pointer"
+                    />
+                    <label htmlFor="separateMealPayToggle" className="text-xs cursor-pointer space-y-0.5">
+                      <span className="font-bold text-amber-300 block">
+                        💳 แยกค่าข้าว (47 บาท/วัน) เข้ากระเป๋าบัตรพนักงาน (ไม่รวมกับเงินเดือนสุทธิ)
+                      </span>
+                      <span className="text-[11px] text-slate-300 block">
+                        เมื่อเปิดใช้งาน เงินค่าข้าวจะถูกแยกเข้าบัตรพนักงานเป็นสิทธิ/หนี้สินค่ารับ และไม่นำไปรวมคำนวณเข้ายอดเงินเดือนสุทธิที่โอนเข้าบัญชีหลัก
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Default Salary Wallet */}
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-slate-300 flex items-center gap-1">
+                        <span>🏦 กระเป๋าเงินหลักสำหรับรับเงินเดือนสุทธิ</span>
+                      </label>
+                      <select
+                        value={config.salaryWalletId || ""}
+                        onChange={(e) => setConfig({ ...config, salaryWalletId: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#1e293b] border border-indigo-500/30 rounded-xl text-white font-semibold text-xs focus:outline-hidden cursor-pointer"
+                      >
+                        <option value="">-- เลือกกระเป๋าเงินเริ่มต้น --</option>
+                        {wallets.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.icon} {w.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Default Meal Allowance Wallet */}
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-amber-300 flex items-center gap-1">
+                        <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                        <span>💳 กระเป๋าบัตรพนักงาน / ค่าข้าว</span>
+                      </label>
+                      <select
+                        value={config.mealWalletId || ""}
+                        onChange={(e) => setConfig({ ...config, mealWalletId: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#1e293b] border border-amber-500/30 rounded-xl text-white font-semibold text-xs focus:outline-hidden cursor-pointer"
+                      >
+                        <option value="">-- เลือกกระเป๋าบัตรพนักงาน --</option>
+                        {wallets.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.icon} {w.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
 

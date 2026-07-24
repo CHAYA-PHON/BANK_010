@@ -1870,6 +1870,7 @@ export default function App() {
           <div className="animate-fade-in">
             <SalaryCalculatorManager
               wallets={wallets}
+              transactions={transactions}
               onAddTransaction={handleAddTransaction}
               currentUser={currentUser}
             />
