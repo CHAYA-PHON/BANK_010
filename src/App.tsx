@@ -12,10 +12,11 @@ import SettingsScreen from "./components/SettingsScreen";
 import LineSummarySender from "./components/LineSummarySender";
 import MonthlyReport from "./components/MonthlyReport";
 import ServiceAndUtilityManager from "./components/ServiceAndUtilityManager";
+import SalaryCalculatorManager from "./components/SalaryCalculatorManager";
 import { 
   Sparkles, Coins, HelpCircle, ArrowUpRight, Plus, ScanLine, 
   History, PieChart, Landmark, ArrowRightLeft, Settings, LogOut, CheckCircle, Wallet as WalletIcon, ShieldAlert,
-  Keyboard, Monitor, X, FileSpreadsheet, Cloud, Shield, Wrench, Zap
+  Keyboard, Monitor, X, FileSpreadsheet, Cloud, Shield, Wrench, Zap, Calculator
 } from "lucide-react";
 import { collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebase";
@@ -132,7 +133,7 @@ export default function App() {
   const [utilityBills, setUtilityBills] = useState<UtilityBill[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"scan" | "manual">("manual");
-  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report" | "services">("dashboard");
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "records" | "wallets" | "settings" | "debts" | "report" | "services" | "salary">("dashboard");
   const [walletSubTab, setWalletSubTab] = useState<"wallets" | "debts">("wallets");
   
   // Dynamically calculate balances of each wallet
@@ -1460,6 +1461,17 @@ export default function App() {
               <span>น้ำไฟ & บำรุง</span>
             </button>
             <button
+              onClick={() => setCurrentPage("salary")}
+              className={`py-1 px-2.5 lg:px-3 rounded-lg text-[11px] lg:text-xs font-bold transition-all flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
+                currentPage === "salary"
+                  ? "bg-indigo-600 text-white shadow-sm border border-white/10"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5 text-emerald-400" />
+              <span>คำนวณเงินเดือน</span>
+            </button>
+            <button
               onClick={() => {
                 setCurrentPage("wallets");
                 setWalletSubTab("wallets");
@@ -1532,7 +1544,7 @@ export default function App() {
 
       {/* Mobile Sticky Bottom Navigation Bar (App-like Navigation) */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-[#090d16]/95 backdrop-blur-lg border-t border-white/10 shadow-[0_-8px_30px_rgb(0,0,0,0.5)] pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2.5">
-        <div className="grid grid-cols-5 h-12 max-w-md mx-auto px-0.5">
+        <div className="grid grid-cols-6 h-12 max-w-md mx-auto px-0.5">
           <button
             onClick={() => setCurrentPage("dashboard")}
             className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
@@ -1553,6 +1565,15 @@ export default function App() {
           >
             <Plus className={`w-4 h-4 ${currentPage === "records" ? "scale-110 text-indigo-400 filter drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]" : ""}`} />
             <span className="text-[9px] leading-none">บันทึก</span>
+          </button>
+          <button
+            onClick={() => setCurrentPage("salary")}
+            className={`flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+              currentPage === "salary" ? "text-emerald-400 font-extrabold" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Calculator className={`w-4 h-4 ${currentPage === "salary" ? "scale-110 text-emerald-400 filter drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" : ""}`} />
+            <span className="text-[9px] leading-none">เงินเดือน</span>
           </button>
           <button
             onClick={() => setCurrentPage("services")}
@@ -1840,6 +1861,17 @@ export default function App() {
               onSaveUtilityBills={saveUtilityBills}
               onAddTransaction={handleAddTransaction}
               theme={theme}
+            />
+          </div>
+        )}
+
+        {/* VIEW 8: Salary & Payroll Calculator */}
+        {currentPage === "salary" && (
+          <div className="animate-fade-in">
+            <SalaryCalculatorManager
+              wallets={wallets}
+              onAddTransaction={handleAddTransaction}
+              currentUser={currentUser}
             />
           </div>
         )}
